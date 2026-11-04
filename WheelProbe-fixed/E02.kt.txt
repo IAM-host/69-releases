@@ -1,0 +1,1485 @@
+package com.example.wheelprobe
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.location.Location
+import io.github.libxposed.api.XposedInterface
+import io.github.libxposed.api.XposedModule
+import io.github.libxposed.api.XposedModuleInterface
+import io.github.libxposed.api.annotations.AfterInvocation
+import io.github.libxposed.api.annotations.BeforeInvocation
+import io.github.libxposed.api.annotations.XposedHooker
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import java.lang.reflect.Proxy
+import java.util.LinkedHashSet
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+private fun clearIntegrityToken(args: Array<Any?>) {
+    for (index in args.indices) {
+        val value = args[index] as? String ?: continue
+        if (value.length < 40) continue
+        if (value.startsWith("{") || value.startsWith("/") || value.startsWith("drivers/")) continue
+        args[index] = ""
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ########################################################################
+// 콜마너, T맵, 아이드라이브, 로지 Hooker 클래스들
+// ########################################################################
+
+internal object DirectAcceptController {
+    private val ledger = KakaoAcceptLedger()
+    private val mainHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+    private val dispatching = ThreadLocal<Dispatch>()
+    private data class Dispatch(val host: Any, val attempt: KakaoAcceptAttempt, var linked: Boolean = false, var rejected: Boolean = false)
+    @Volatile private var bridge: KakaoNativeAcceptBridge? = null
+    @Volatile private var host = java.lang.ref.WeakReference<Any>(null)
+    @Volatile private var conditionReceiver: android.content.BroadcastReceiver? = null
+
+    fun configure(nativeBridge: KakaoNativeAcceptBridge) { bridge = nativeBridge }
+
+    fun captureViewModel(candidate: Any?, source: String) {
+        if (candidate == null || bridge?.hostClass?.isInstance(candidate) != true) return
+        host = java.lang.ref.WeakReference(candidate)
+        ensureConditionObserver()
+        ModuleMain.module?.log("KAKAO: native accept host captured source=$source")
+    }
+
+    private fun fingerprint(): String = ConditionClient.current().toString() +
+            ":${CallKindFilter.allowDaeri}:${CallKindFilter.allowTaksong}" +
+            ":${TaksongDateFilter.allowToday}:${TaksongDateFilter.allowTomorrow}"
+
+    private fun refreshSession() = ledger.observeSession(ConditionClient.isDetecting(), fingerprint())
+
+    @Synchronized fun ensureConditionObserver(): Boolean {
+        if (bridge == null) return false // Other target applications keep their existing flow.
+        if (conditionReceiver != null) return true
+        val context = ModuleMain.getApplicationContext() ?: return false
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action != ConditionBridgeReceiver.ACTION_DELIVER_CONDITIONS) return
+                if (!intent.getBooleanExtra(ConditionProvider.KEY_DETECTING, false)) {
+                    ledger.observeSession(false, "")
+                }
+                // Let the existing ConditionClient receiver apply the payload first.
+                mainHandler.post { refreshSession() }
+            }
+        }
+        return try {
+            val filter = android.content.IntentFilter(ConditionBridgeReceiver.ACTION_DELIVER_CONDITIONS)
+            if (android.os.Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
+            else context.registerReceiver(receiver, filter)
+            conditionReceiver = receiver
+            mainHandler.post { refreshSession() }
+            true
+        } catch (error: Throwable) {
+            ModuleMain.module?.log("KAKAO: accept condition observer unavailable", error)
+            false
+        }
+    }
+
+    fun accept(callId: String, source: DirectAcceptSource, miniDetail: Boolean = false, vip: Boolean = false): DirectAcceptOutcome {
+        val nativeBridge = bridge ?: return DirectAcceptOutcome.VIEW_MODEL_NOT_READY
+        val nativeHost = host.get() ?: return DirectAcceptOutcome.VIEW_MODEL_NOT_READY
+        if (!ensureConditionObserver()) return DirectAcceptOutcome.VIEW_MODEL_NOT_READY
+        refreshSession()
+        val (outcome, attempt) = ledger.begin(callId, source, android.os.SystemClock.elapsedRealtime())
+        if (attempt == null) return outcome
+        if (!mainHandler.post { launch(nativeBridge, nativeHost, attempt, miniDetail, vip) }) {
+            ledger.finish(attempt.token, KakaoAcceptResult.FAILURE, null, android.os.SystemClock.elapsedRealtime())
+            return DirectAcceptOutcome.FAILED
+        }
+        return DirectAcceptOutcome.STARTED
+    }
+
+    private fun launch(nativeBridge: KakaoNativeAcceptBridge, nativeHost: Any, attempt: KakaoAcceptAttempt, miniDetail: Boolean, vip: Boolean) {
+        refreshSession()
+        try {
+            if (nativeBridge.isBusy(nativeHost)) {
+                observe(attempt, KakaoNativeAcceptEvent(KakaoAcceptResult.FAILURE, errorType = "NativeBusyNotSent"))
+                return
+            }
+        } catch (error: Throwable) {
+            observe(attempt, KakaoNativeAcceptEvent(KakaoAcceptResult.FAILURE, errorType = "NativeStateUnavailableNotSent"))
+            return
+        }
+        if (!ledger.dispatch(attempt.token)) return
+        val dispatch = Dispatch(nativeHost, attempt)
+        dispatching.set(dispatch)
+        try {
+            nativeBridge.start(nativeHost, attempt.callId, attempt.source, miniDetail, vip)
+            if (!dispatch.linked) {
+                observe(attempt, KakaoNativeAcceptEvent(KakaoAcceptResult.UNKNOWN, errorType = "CallbackNotObserved"))
+            }
+        } catch (error: Throwable) {
+            val cause = (error as? java.lang.reflect.InvocationTargetException)?.cause ?: error
+            // Only an explicitly blocked dispatch is known not to have launched.
+            observe(attempt, KakaoNativeAcceptEvent(
+                if (dispatch.rejected && !dispatch.linked) KakaoAcceptResult.FAILURE else KakaoAcceptResult.UNKNOWN,
+                errorType = cause.javaClass.simpleName
+            ))
+            ModuleMain.module?.log("KAKAO: native accept invocation problem id=${attempt.callId}", cause)
+        } finally {
+            dispatching.remove()
+        }
+        mainHandler.postDelayed({
+            if (ledger.phase(attempt.token) != null) {
+                observe(attempt, KakaoNativeAcceptEvent(KakaoAcceptResult.UNKNOWN, errorType = "OutcomeTimeout"))
+            }
+        }, 45000L)
+    }
+
+    fun wrapNativeDispatch(args: Array<Any?>) {
+        val dispatch = dispatching.get() ?: return // Preserve unrelated/manual requests.
+        if (dispatch.linked) return // Native callbacks may synchronously launch other jobs.
+        try {
+            val nativeBridge = bridge ?: error("Native accept bridge unavailable")
+            if (!nativeBridge.matches(args.getOrNull(0), dispatch.host, dispatch.attempt)) return
+            val wrapped = nativeBridge.wrap(args, dispatch.host, dispatch.attempt) { event -> observe(dispatch.attempt, event) }
+            check(ledger.observing(dispatch.attempt.token)) { "Request no longer dispatchable" }
+            args[3] = wrapped
+            dispatch.linked = true
+        } catch (error: Throwable) {
+            dispatch.rejected = true
+            throw error
+        }
+    }
+
+    private fun observe(attempt: KakaoAcceptAttempt, event: KakaoNativeAcceptEvent) {
+        val action = Runnable {
+            refreshSession()
+            when (ledger.finish(attempt.token, event.result, event.callId, android.os.SystemClock.elapsedRealtime(), event.terminalRejection)) {
+                KakaoAcceptFinish.SUCCESS -> {
+                    ledger.observeSession(false, fingerprint())
+                    ModuleMain.module?.log("KAKAO: ACCEPT_CONFIRMED id=${attempt.callId} from=${attempt.source.rawValue}")
+                    ConditionClient.stopDetecting("confirmed:KAKAO:${attempt.callId}")
+                    ModuleMain.bringAppToFront(ModuleMain.KAKAO_PACKAGE)
+                }
+                KakaoAcceptFinish.STALE_SUCCESS -> ModuleMain.module?.log("KAKAO: accept completed for prior detection session id=${attempt.callId}")
+                KakaoAcceptFinish.FAILURE -> ModuleMain.module?.log("KAKAO: ACCEPT_FAILED id=${attempt.callId} error=${event.errorType}; detection remains active; terminalRejection=${event.terminalRejection}")
+                KakaoAcceptFinish.UNKNOWN -> ModuleMain.module?.log("KAKAO: ACCEPT_UNCONFIRMED id=${attempt.callId} error=${event.errorType}; reservation retained, no duplicate request")
+                KakaoAcceptFinish.IGNORED -> Unit
+            }
+        }
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) action.run()
+        else mainHandler.post(action)
+    }
+}
+
+@XposedHooker
+class KakaoNativeDispatchHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            try { DirectAcceptController.wrapNativeDispatch(callback.args) }
+            catch (error: Throwable) { callback.throwAndSkip(error) }
+        }
+    }
+}
+
+internal enum class DirectAcceptSource(val rawValue: String) {
+    LIST("list"),
+    CARD("card"),
+    WAY_BACK("way_back")
+}
+
+internal enum class DirectAcceptOutcome {
+    STARTED, DUPLICATE, BUSY, ALREADY_SUCCEEDED, COOLDOWN, DETECTION_OFF,
+    VIEW_MODEL_NOT_READY, FAILED
+}
+
+// BEGIN KAKAO_ACCEPT_CORE: JVM-testable request state and native callback adapter.
+internal enum class KakaoAcceptPhase { QUEUED, DISPATCHED, OBSERVING, UNKNOWN }
+internal enum class KakaoAcceptResult { LOADING, SUCCESS, FAILURE, UNKNOWN }
+internal enum class KakaoAcceptFinish { IGNORED, SUCCESS, STALE_SUCCESS, FAILURE, UNKNOWN }
+
+internal data class KakaoAcceptAttempt(
+    val token: Long,
+    val callId: String,
+    val source: DirectAcceptSource,
+    val generation: Long,
+    var phase: KakaoAcceptPhase = KakaoAcceptPhase.QUEUED
+)
+
+internal class KakaoAcceptLedger(private val retryDelayMs: Long = 3000L) {
+    private var generation = 0L
+    private var detecting = false
+    private var fingerprint = ""
+    private var nextToken = 0L
+    private var pending: KakaoAcceptAttempt? = null
+    private val succeeded = LinkedHashSet<String>()
+    private val retryAfter = LinkedHashMap<String, Long>()
+
+    @Synchronized fun observeSession(enabled: Boolean, conditions: String) {
+        if (enabled != detecting || (enabled && conditions != fingerprint)) {
+            generation++
+            detecting = enabled
+            fingerprint = conditions
+            retryAfter.clear()
+            // An unsent request can be discarded. A dispatched request remains
+            // reserved until its actual outcome, even across OFF -> ON.
+            if (pending?.phase == KakaoAcceptPhase.QUEUED) pending = null
+        }
+    }
+
+    @Synchronized fun begin(callId: String, source: DirectAcceptSource, now: Long): Pair<DirectAcceptOutcome, KakaoAcceptAttempt?> {
+        if (callId.isBlank()) return DirectAcceptOutcome.FAILED to null
+        if (!detecting) return DirectAcceptOutcome.DETECTION_OFF to null
+        if (callId in succeeded) return DirectAcceptOutcome.ALREADY_SUCCEEDED to null
+        pending?.let {
+            return (if (it.callId == callId) DirectAcceptOutcome.DUPLICATE else DirectAcceptOutcome.BUSY) to null
+        }
+        if (now < (retryAfter[callId] ?: 0L)) return DirectAcceptOutcome.COOLDOWN to null
+        val attempt = KakaoAcceptAttempt(++nextToken, callId, source, generation)
+        pending = attempt
+        return DirectAcceptOutcome.STARTED to attempt
+    }
+
+    @Synchronized fun dispatch(token: Long): Boolean {
+        val attempt = pending ?: return false
+        if (attempt.token != token || !detecting || attempt.generation != generation) return false
+        if (attempt.phase != KakaoAcceptPhase.QUEUED) return false
+        attempt.phase = KakaoAcceptPhase.DISPATCHED
+        return true
+    }
+
+    @Synchronized fun observing(token: Long): Boolean {
+        val attempt = pending ?: return false
+        if (attempt.token != token || attempt.phase != KakaoAcceptPhase.DISPATCHED) return false
+        attempt.phase = KakaoAcceptPhase.OBSERVING
+        return true
+    }
+
+    @Synchronized fun phase(token: Long): KakaoAcceptPhase? = pending?.takeIf { it.token == token }?.phase
+
+    @Synchronized fun finish(token: Long, result: KakaoAcceptResult, resultCallId: String?, now: Long, terminalRejection: Boolean = false): KakaoAcceptFinish {
+        val attempt = pending ?: return KakaoAcceptFinish.IGNORED
+        if (attempt.token != token) return KakaoAcceptFinish.IGNORED
+        if (result == KakaoAcceptResult.LOADING) return KakaoAcceptFinish.IGNORED
+        if (result == KakaoAcceptResult.SUCCESS && attempt.phase != KakaoAcceptPhase.OBSERVING &&
+            attempt.phase != KakaoAcceptPhase.UNKNOWN) return KakaoAcceptFinish.IGNORED
+        if (result == KakaoAcceptResult.UNKNOWN ||
+            (result == KakaoAcceptResult.SUCCESS && resultCallId != attempt.callId)) {
+            attempt.phase = KakaoAcceptPhase.UNKNOWN
+            return KakaoAcceptFinish.UNKNOWN
+        }
+        pending = null
+        if (result == KakaoAcceptResult.FAILURE) {
+            if (attempt.generation == generation) {
+                retryAfter[attempt.callId] = if (terminalRejection) Long.MAX_VALUE else now + retryDelayMs
+                while (retryAfter.size > 200) retryAfter.remove(retryAfter.keys.first())
+            }
+            return KakaoAcceptFinish.FAILURE
+        }
+        succeeded.add(attempt.callId)
+        while (succeeded.size > 200) succeeded.remove(succeeded.first())
+        return if (detecting && attempt.generation == generation) {
+            KakaoAcceptFinish.SUCCESS
+        } else KakaoAcceptFinish.STALE_SUCCESS
+    }
+}
+
+internal data class KakaoNativeAcceptEvent(
+    val result: KakaoAcceptResult,
+    val callId: String? = null,
+    val errorType: String? = null,
+    val terminalRejection: Boolean = false
+)
+
+internal class KakaoNativeAcceptBridge(
+    val hostClass: Class<*>,
+    private val sourceClass: Class<*>,
+    private val taskClass: Class<*>,
+    private val callbackClass: Class<*>,
+    private val loadingClass: Class<*>,
+    private val successClass: Class<*>,
+    private val failureClass: Class<*>,
+    private val ongoingClass: Class<*>,
+    private val callClass: Class<*>,
+    val startMethod: Method,
+    val dispatchMethod: Method,
+    private val serverErrorClass: Class<*>? = null,
+    private val serverErrorParser: Method? = null
+) {
+    private val callbackMethod = callbackClass.getDeclaredMethod("j", Any::class.java).apply { isAccessible = true }
+
+    fun start(host: Any, callId: String, source: DirectAcceptSource, miniDetail: Boolean, vip: Boolean) {
+        startMethod.invoke(host, callId, sourceValue(source), miniDetail, vip)
+    }
+
+    fun isBusy(host: Any): Boolean {
+        val holder = field(host, "w") ?: error("Native acceptance state unavailable")
+        val state = holder.javaClass.getMethod("getValue").apply { isAccessible = true }.invoke(holder)
+            ?: error("Native acceptance state empty")
+        val result = state.javaClass.getDeclaredMethod("b").apply { isAccessible = true }.invoke(state)
+        return loadingClass.isInstance(result)
+    }
+
+    fun matches(task: Any?, host: Any, attempt: KakaoAcceptAttempt): Boolean =
+        taskClass.isInstance(task) && field(task, "e") == 1 &&
+                field(task, "g") === host && field(task, "h") == attempt.callId &&
+                field(task, "i") === sourceValue(attempt.source)
+
+    fun wrap(args: Array<out Any?>, host: Any, attempt: KakaoAcceptAttempt, observe: (KakaoNativeAcceptEvent) -> Unit): Any {
+        require(args.size == 4) { "Unexpected native dispatch arity" }
+        val task = args[0] ?: error("Missing native task")
+        require(matches(task, host, attempt)) { "Native accept task did not match request" }
+        val original = args[3] ?: error("Missing native result callback")
+        require(callbackClass.isInstance(original)) { "Unexpected native callback" }
+        return Proxy.newProxyInstance(callbackClass.classLoader, arrayOf(callbackClass)) { proxy, method, values ->
+            when {
+                method.name == "toString" && method.parameterCount == 0 -> "EunoraNativeAcceptObserver"
+                method.name == "hashCode" && method.parameterCount == 0 -> System.identityHashCode(proxy)
+                method.name == "equals" && method.parameterCount == 1 -> proxy === values?.getOrNull(0)
+                method.name == "j" && method.parameterCount == 1 -> {
+                    val value = values?.getOrNull(0)
+                    try {
+                        callbackMethod.invoke(original, value)
+                    } catch (error: java.lang.reflect.InvocationTargetException) {
+                        throw (error.cause ?: error)
+                    } finally {
+                        observe(decode(value))
+                    }
+                }
+                else -> throw UnsupportedOperationException("Unexpected callback method ${method.name}")
+            }
+        }
+    }
+
+    fun decode(value: Any?): KakaoNativeAcceptEvent {
+        if (loadingClass.isInstance(value)) return KakaoNativeAcceptEvent(KakaoAcceptResult.LOADING)
+        if (failureClass.isInstance(value)) {
+            val error = field(value, "b") as? Throwable
+            val code = if (serverErrorClass?.isInstance(error) == true && error is Exception) {
+                runCatching { field(serverErrorParser?.invoke(null, error), "a") as? Int }.getOrNull()
+            } else null
+            // Only explicit, documented business rejections establish failure.
+            // Network/cancellation/unknown failures can occur after server acceptance.
+            val rejected = code in setOf(7015, 7009, 7016, 7041, 7042, 3004, 7011, 7037, 7005, 7017, 3101, 3020)
+            return KakaoNativeAcceptEvent(
+                if (rejected) KakaoAcceptResult.FAILURE else KakaoAcceptResult.UNKNOWN,
+                errorType = if (rejected) "ServerRejected:$code" else error?.javaClass?.simpleName,
+                terminalRejection = rejected
+            )
+        }
+        if (successClass.isInstance(value)) {
+            val ongoing = field(value, "b")
+            val call = if (ongoingClass.isInstance(ongoing)) field(ongoing, "a") else null
+            val id = if (callClass.isInstance(call)) field(call, "a") as? String else null
+            return KakaoNativeAcceptEvent(KakaoAcceptResult.SUCCESS, id?.takeIf { it.isNotBlank() })
+        }
+        return KakaoNativeAcceptEvent(KakaoAcceptResult.UNKNOWN)
+    }
+
+    private fun sourceValue(source: DirectAcceptSource): Any =
+        sourceClass.enumConstants?.firstOrNull { (it as? Enum<*>)?.name == source.name }
+            ?: error("Native accept source unavailable: ${source.name}")
+
+    private fun field(instance: Any?, name: String): Any? = instance?.let {
+        runCatching { it.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(it) }.getOrNull()
+    }
+
+    companion object {
+        fun load(loader: ClassLoader): KakaoNativeAcceptBridge {
+            fun type(name: String) = Class.forName(name, false, loader)
+            val host = type("oy0")
+            val source = type("bq0")
+            val callback = type("l44")
+            require(callback.isInterface && source.isEnum) { "Unsupported native accept contract" }
+            val nativeSources = source.enumConstants?.map { (it as Enum<*>).name }
+                ?: error("Native accept enum values unavailable")
+            require(DirectAcceptSource.values().all { it.name in nativeSources }) { "Native accept source contract changed" }
+            val task = type("sj")
+            for (name in listOf("e", "g", "h", "i")) task.getDeclaredField(name)
+            return KakaoNativeAcceptBridge(
+                host, source, task, callback, type("dq5"), type("id9"), type("hk3"), type("hu6"), type("ap0"),
+                host.getDeclaredMethod("i", String::class.java, source, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType).apply { isAccessible = true },
+                type("lj3").getDeclaredMethod("v", callback, type("im1"), type("j44"), callback).apply { isAccessible = true },
+                type("kl1"), type("k45").getDeclaredMethod("P", Throwable::class.java).apply { isAccessible = true }
+            )
+        }
+    }
+}
+// END KAKAO_ACCEPT_CORE
+
+data class PlaceInfo(val dongName: String? = null, val additoryAddress: String? = null, val poi: String? = null, val completeAddress: String? = null, val name: String? = null) {
+    fun searchText(): String = listOfNotNull(dongName, additoryAddress, poi, completeAddress, name).map { it.trim() }.filter { it.isNotEmpty() }.distinct().joinToString(" ")
+}
+
+
+internal fun ModuleMain.installKakaoAcceptTrace(classLoader: ClassLoader) {
+    try {
+        val o5Class = Class.forName("o5", false, classLoader)
+        val rMethod = o5Class.getDeclaredMethod("r", Any::class.java, Any::class.java)
+        rMethod.isAccessible = true
+        ModuleMain.module?.hook(rMethod, KakaoAcceptCallHooker::class.java)
+        ModuleMain.module?.log("KAKAO: acceptCall hook installed o5.r (case 2)")
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: acceptCall hook FAILED", t)
+    }
+}
+
+
+internal fun ModuleMain.installKakaoListConvertHook(classLoader: ClassLoader) {
+    ModuleMain.module?.log("EUNORA: installKakaoListConvertHook stub")
+}
+internal fun ModuleMain.installKakaoSocketLog(classLoader: ClassLoader) {
+    ModuleMain.module?.log("EUNORA: installKakaoSocketLog stub")
+}
+internal fun ModuleMain.installKakaoArrivalTrace(classLoader: ClassLoader) {
+    ModuleMain.module?.log("EUNORA: installKakaoArrivalTrace stub")
+}
+internal fun ModuleMain.installKakaoAcceptLogHooks(classLoader: ClassLoader) {
+    ModuleMain.module?.log("EUNORA: installKakaoAcceptLogHooks stub")
+}
+
+internal fun ModuleMain.installViewModelHooks(classLoader: ClassLoader) {
+    try {
+        val nativeBridge = KakaoNativeAcceptBridge.load(classLoader)
+        ModuleMain.module?.hook(nativeBridge.dispatchMethod, KakaoNativeDispatchHooker::class.java)
+        DirectAcceptController.configure(nativeBridge)
+        for (constructor in nativeBridge.hostClass.declaredConstructors) {
+            constructor.isAccessible = true
+            ModuleMain.module?.hook(constructor, ViewModelConstructorHooker::class.java)
+        }
+        ModuleMain.module?.log("KAKAO: native oy0 accept pipeline and result observer installed")
+        // 클릭 로그
+        try {
+            val om6Class = Class.forName("om6", false, classLoader)
+            val cMethod = om6Class.getDeclaredMethod("c")
+            cMethod.isAccessible = true
+            ModuleMain.module?.hook(cMethod, ClickLogHooker::class.java)
+            ModuleMain.module?.log("KAKAO: click log hook installed om6.c")
+        } catch (t: Throwable) {
+            ModuleMain.module?.log("KAKAO: click log hook FAILED", t)
+        }
+        // OkHttp 스택 트레이스
+        try {
+            val realCall = Class.forName("okhttp3.internal.connection.RealCall", false, classLoader)
+            for (m in realCall.declaredMethods) {
+                if (m.name == "execute" || m.name == "enqueue") {
+                    m.isAccessible = true
+                    ModuleMain.module?.hook(m, KakaoOkHttpStackHooker::class.java)
+                }
+            }
+            ModuleMain.module?.log("KAKAO: OkHttp RealCall stack hook installed")
+        } catch (t: Throwable) {
+            ModuleMain.module?.log("KAKAO: OkHttp RealCall stack hook FAILED", t)
+        }
+
+
+    } catch (t: Throwable) { ModuleMain.module?.log("EUNORA: direct accept hook installation FAILED", t) }
+}
+
+internal fun ModuleMain.installNetworkResponseHook(classLoader: ClassLoader) {
+    try {
+        val repoClass = Class.forName("b11", false, classLoader)
+        val method = repoClass.getDeclaredMethod("o", String::class.java, Class.forName("da2", false, classLoader))
+        method.isAccessible = true
+        ModuleMain.module?.hook(method, NetworkResponseHooker::class.java)
+        ModuleMain.module?.log("EUNORA: call list hook installed at b11.o")
+    } catch (t: Throwable) { ModuleMain.module?.log("EUNORA: b11.o hook installation FAILED", t) }
+}
+
+internal fun ModuleMain.installPopupResponseHook(classLoader: ClassLoader) {
+    // f31.l removed in 1025 APK, popup handling merged into f31.y
+    ModuleMain.module?.log("EUNORA: popup hook skipped (merged into f31.y)")
+}
+
+/**
+ * 리스트 위 미니카드 2종:
+ * - CallCard = fp0
+ * - n11.d / n11.e = CallRequestManager.setNewCallRequest
+ */
+internal fun ModuleMain.installKakaoCallRequestHooks(classLoader: ClassLoader) {
+    try {
+        val managerClass = Class.forName("n11", false, classLoader)
+        val callCardClass = resolveKakaoCallCardClass(classLoader)
+        KakaoNewCallRequestHooker.configure(callCardClass)
+        KakaoWaybackCardHooker.configure(callCardClass)
+        for (name in listOf("d", "e")) {
+            try {
+                val method = managerClass.getDeclaredMethod(name, callCardClass)
+                method.isAccessible = true
+                ModuleMain.module?.hook(method, KakaoNewCallRequestHooker::class.java)
+                ModuleMain.module?.log("EUNORA: mini-card hook installed n11.$name(${callCardClass.name})")
+            } catch (t: Throwable) {
+                ModuleMain.module?.log("EUNORA: mini-card hook skip n11.$name: ${t.message}")
+            }
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("EUNORA: mini-card n11 hook FAILED", t)
+    }
+}
+
+/**
+ * 귀가지원콜 (내부명 Wayback)
+ * - 10/03: dr0.k(dr0, fp0, ky). acceptTimer 로그도 이 메서드에 있다.
+ * - zq0는 [I 필드와 clinit만 있어 타이머 생성자가 없다.
+ * 매칭/수락은 processGeneralSocketCallCard + my0.i 경로를 탄다.
+ */
+internal fun ModuleMain.installKakaoWaybackHooks(classLoader: ClassLoader) {
+    try {
+        val host = Class.forName("dr0", false, classLoader)
+        val callCardClass = resolveKakaoCallCardClass(classLoader)
+        KakaoNewCallRequestHooker.configure(callCardClass)
+        KakaoWaybackCardHooker.configure(callCardClass)
+        var hooked = 0
+        for (method in host.declaredMethods) {
+            val takesCard = method.parameterTypes.any { type ->
+                type == callCardClass || type.name == callCardClass.name
+            }
+            if (!takesCard) continue
+            method.isAccessible = true
+            ModuleMain.module?.hook(method, KakaoWaybackCardHooker::class.java)
+            hooked++
+            ModuleMain.module?.log("EUNORA: wayback hook installed ${host.name}.${method.name}(${callCardClass.name})")
+        }
+        if (hooked == 0) {
+            throw NoSuchMethodException("${host.name} method taking ${callCardClass.name} not found")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("EUNORA: wayback dr0 hook FAILED", t)
+    }
+}
+
+internal fun ModuleMain.installKakaoCardPathHooks(classLoader: ClassLoader) {
+    ModuleMain.module?.log("EUNORA: card path is f31.l popup detail uv0")
+}
+
+// ########################################################################
+// 콜마너, T맵, 아이드라이브, 로지 훅 설치
+// ########################################################################
+
+
+// ########################################################################
+// T맵 / 아이드라이브 GPS 스푸핑
+// ########################################################################
+
+/**
+ * T맵: re.a(latitude, longitude) Coordinate 생성 시 좌표 교체
+ */
+/**
+ * 카카오:
+ * - Location getLat/getLng (목록 location JSON이 location.getLatitude() 사용)
+ * - qh.d.A(Location) → {"lat":..,"lng":..} 최종 문자열 직접 교체
+ * - mock 은 공통 GpsMockFalseHooker
+ */
+internal fun ModuleMain.installKakaoGpsSpoof(classLoader: ClassLoader) {
+    try {
+        val locationClass = Class.forName("android.location.Location", false, classLoader)
+        ModuleMain.module?.hook(locationClass.getMethod("getLatitude"), KakaoGpsLatitudeHooker::class.java)
+        ModuleMain.module?.hook(locationClass.getMethod("getLongitude"), KakaoGpsLongitudeHooker::class.java)
+        ModuleMain.module?.log("KAKAO: GPS spoof waits for drivers/work success")
+
+        // 1025 APK: g85.l0 / j65.s0 없음. Location 직접 훅만 사용.
+        ModuleMain.module?.log("KAKAO: i9a.k map center left original")
+        ModuleMain.module?.log("KAKAO: GPS spoof hooks installed (Location only)")
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: GPS spoof hook FAILED", t)
+    }
+}
+
+/**
+ * 10/03 APK: 서버로 나가는 출근·루팅 검사.
+ * q0b.a = 출근 진입, cb4.a = Play Integrity, i9a.S = drivers/work
+ * xb4.a = RootingStatus(kf8). kf8.a = bt7.OFF/WARN/BLOCK, kf8.b = isRooted
+ * dl4.b = HookDetectionReport(wk4)
+ */
+internal fun ModuleMain.installKakaoRootingReportBypass(classLoader: ClassLoader) {
+    try {
+        val checkTypeClass = Class.forName("bt7", false, classLoader)
+        val statusClass = Class.forName("kf8", false, classLoader)
+        val statusCtor = statusClass.declaredConstructors.firstOrNull()
+            ?: throw NoSuchMethodException("kf8 constructor not found")
+        statusCtor.isAccessible = true
+        ModuleMain.module?.hook(statusCtor, KakaoRootingStatusHooker::class.java)
+        ModuleMain.module?.log("KAKAO: rooting status hook installed kf8(bt7, boolean)")
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: rooting status hook FAILED", t)
+    }
+    try {
+        val reportClass = Class.forName("wk4", false, classLoader)
+        val yMethod = reportClass.declaredMethods.firstOrNull { it.name == "y" }
+        if (yMethod != null) {
+            yMethod.isAccessible = true
+            ModuleMain.module?.hook(yMethod, KakaoHookVerdictHooker::class.java)
+            ModuleMain.module?.log("KAKAO: hook report bypass installed wk4.y")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: hook report bypass FAILED", t)
+    }
+    try {
+        val scannerClass = Class.forName("dl4", false, classLoader)
+        val scan = scannerClass.declaredMethods.firstOrNull { it.returnType == List::class.java || it.returnType.name.contains("List") }
+        if (scan != null) {
+            scan.isAccessible = true
+            ModuleMain.module?.hook(scan, KakaoHookScanHooker::class.java)
+            ModuleMain.module?.log("KAKAO: hook scan bypass installed dl4.${scan.name}")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: hook scan bypass FAILED", t)
+    }
+    try {
+        val statusClass = Class.forName("xb4", false, classLoader)
+        val statusMethod = statusClass.declaredMethods.firstOrNull { it.name == "a" }
+        if (statusMethod != null) {
+            statusMethod.isAccessible = true
+            ModuleMain.module?.hook(statusMethod, KakaoWorkRootStatusHooker::class.java)
+            ModuleMain.module?.log("KAKAO: work root status hook installed xb4.a")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: work root status hook FAILED", t)
+    }
+    try {
+        val workStatusClass = try { Class.forName("mi4", false, classLoader) } catch (e: Throwable) { null }
+        if (workStatusClass == null) {
+            ModuleMain.module?.log("KAKAO: mi4 not found, skipping work status dto")
+        } else {
+            val checkTypeClass = Class.forName("bt7", false, classLoader)
+            val ctor = workStatusClass.declaredConstructors.firstOrNull { ctor ->
+                ctor.parameterTypes.any { it == checkTypeClass }
+            }
+            if (ctor != null) {
+                ctor.isAccessible = true
+                ModuleMain.module?.hook(ctor, KakaoWorkStatusDtoHooker::class.java)
+                ModuleMain.module?.log("KAKAO: work status dto hook installed mi4")
+            }
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: work status dto hook FAILED", t)
+    }
+    try {
+        val workClass = Class.forName("q0b", false, classLoader)
+        val workMethod = workClass.declaredMethods.firstOrNull { it.parameterCount >= 1 }
+        if (workMethod != null) {
+            workMethod.isAccessible = true
+            ModuleMain.module?.hook(workMethod, KakaoWorkEntryHooker::class.java)
+            ModuleMain.module?.log("KAKAO: work entry hook installed q0b.${workMethod.name}")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: work entry hook FAILED", t)
+    }
+    try {
+        val integrityClass = Class.forName("cb4", false, classLoader)
+        val integrityMethod = integrityClass.declaredMethods.firstOrNull { it.name == "a" }
+        if (integrityMethod != null) {
+            integrityMethod.isAccessible = true
+            ModuleMain.module?.hook(integrityMethod, KakaoIntegrityFetchHooker::class.java)
+            ModuleMain.module?.log("KAKAO: integrity fetch hook installed cb4.a")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: integrity fetch hook FAILED", t)
+    }
+    try {
+        val tokenDto = try { Class.forName("y97", false, classLoader) } catch (e: Throwable) { null }
+        if (tokenDto == null) {
+            ModuleMain.module?.log("KAKAO: y97 not found, skipping integrity dto")
+        } else {
+            for (ctor in tokenDto.declaredConstructors) {
+                ctor.isAccessible = true
+                ModuleMain.module?.hook(ctor, KakaoIntegrityDtoHooker::class.java)
+            }
+            ModuleMain.module?.log("KAKAO: integrity dto hook installed y97")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: integrity dto hook FAILED", t)
+    }
+    try {
+        val apiClass = Class.forName("i9a", false, classLoader)
+        val workRequest = apiClass.declaredMethods.firstOrNull { it.name == "S" }
+        if (workRequest != null) {
+            workRequest.isAccessible = true
+            ModuleMain.module?.hook(workRequest, KakaoWorkRequestHooker::class.java)
+            ModuleMain.module?.log("KAKAO: drivers/work hook installed i9a.S")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: drivers/work hook FAILED", t)
+    }
+    try {
+        val il4Class = Class.forName("il4", false, classLoader)
+        val bMethod = il4Class.declaredMethods.firstOrNull { it.name == "b" }
+        if (bMethod != null) {
+            bMethod.isAccessible = true
+            ModuleMain.module?.hook(bMethod, KakaoHookDetectionHooker::class.java)
+            ModuleMain.module?.log("KAKAO: hook detection bypass installed")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: hook detection bypass FAILED", t)
+    }
+    try {
+        val okhttpClass = Class.forName("okhttp3.Interceptor", false, classLoader)
+        val interceptMethod = okhttpClass.declaredMethods.firstOrNull { it.name == "intercept" }
+        if (interceptMethod != null) {
+            interceptMethod.isAccessible = true
+            ModuleMain.module?.hook(interceptMethod, KakaoOkHttpInterceptorHooker::class.java)
+            ModuleMain.module?.log("KAKAO: OkHttp interceptor hook installed")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: OkHttp interceptor hook FAILED", t)
+    }
+    try {
+        val headerApi = Class.forName("h31", false, classLoader)
+        val integrityCall = headerApi.declaredMethods.firstOrNull { it.name == "a" }
+        if (integrityCall != null) {
+            integrityCall.isAccessible = true
+            ModuleMain.module?.hook(integrityCall, KakaoIntegrityHeaderHooker::class.java)
+            ModuleMain.module?.log("KAKAO: integrity header hook installed h31.a")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: integrity header hook FAILED", t)
+    }
+    try {
+        val accessibilityClass = Class.forName("zy3", false, classLoader)
+        for (method in accessibilityClass.declaredMethods) {
+            if (method.name !in setOf("a", "b")) continue
+            if (method.name == "b" && method.parameterCount != 0) continue
+            if (method.name == "a" && method.parameterCount != 1) continue
+            method.isAccessible = true
+            ModuleMain.module?.hook(method, KakaoAccessibilitySignalHooker::class.java)
+        }
+        ModuleMain.module?.log("KAKAO: accessibility signal hook installed zy3")
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: accessibility signal hook FAILED", t)
+    }
+    try {
+        val fileClass = Class.forName("java.io.File", false, classLoader)
+        val exists = fileClass.getDeclaredMethod("exists")
+        exists.isAccessible = true
+        ModuleMain.module?.hook(exists, KakaoRootPathHooker::class.java)
+        ModuleMain.module?.log("KAKAO: root path hook installed File.exists")
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: root path hook FAILED", t)
+    }
+    try {
+        val tagsClass = Class.forName("xq1", false, classLoader)
+        val tags = tagsClass.declaredMethods.firstOrNull { it.name == "y" }
+        if (tags != null) {
+            tags.isAccessible = true
+            ModuleMain.module?.hook(tags, KakaoBuildTagsHooker::class.java)
+            ModuleMain.module?.log("KAKAO: build tags hook installed xq1.y")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: build tags hook FAILED", t)
+    }
+    try {
+        val policyClass = Class.forName("g39", false, classLoader)
+        val policy = policyClass.declaredMethods.firstOrNull { it.name == "a" }
+        if (policy != null) {
+            policy.isAccessible = true
+            ModuleMain.module?.hook(policy, KakaoPolicyCoroutineHooker::class.java)
+            ModuleMain.module?.log("KAKAO: rooting policy hook installed g39.a")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: rooting policy hook FAILED", t)
+    }
+    try {
+        val dialog = Class.forName("f85", false, classLoader)
+        val show = dialog.declaredMethods.firstOrNull { it.parameterCount >= 3 }
+        if (show != null) {
+            show.isAccessible = true
+            ModuleMain.module?.hook(show, KakaoRootingDialogHooker::class.java)
+            ModuleMain.module?.log("KAKAO: rooting dialog hook installed f85.${show.name}")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: rooting dialog hook FAILED", t)
+    }
+}
+
+internal fun ModuleMain.installKakaoReservedExclusiveHooks(classLoader: ClassLoader) {
+    try {
+        val reservedApi = Class.forName("e21", false, classLoader)
+        val list = reservedApi.declaredMethods.firstOrNull { it.name == "y" }
+        if (list != null) {
+            list.isAccessible = true
+            ModuleMain.module?.hook(list, KakaoReservedCallHooker::class.java)
+            ModuleMain.module?.log("KAKAO: reservation list hook installed e21.y")
+        }
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: reservation list hook FAILED", t)
+    }
+    // f31.g and f31.c removed in 1025 APK, merged into f31.y
+    ModuleMain.module?.log("KAKAO: reserved dispatch/exclusive merged into f31.y")
+}
+
+
+
+
+
+internal fun processCallItem(item: Any, source: String): Boolean {
+    try {
+        // ap0 필드: a=id, n=fixedFare, i=origin(le7), j=destination(le7), K=estimatedDistance
+        val id = ModuleMain.readField(item, "a") as? String ?: return false
+        val fare = (ModuleMain.readField(item, "c") as? Number)?.toInt() ?: 0
+        val origin = ModuleMain.readField(item, "f")
+        val dest = ModuleMain.readField(item, "g")
+        val dist = (ModuleMain.readField(item, "q") as? Number)?.toDouble() ?: 0.0
+        val start = if (origin != null) (ModuleMain.readField(origin, "a") as? String ?: ModuleMain.readField(origin, "b") as? String ?: "") else ""
+        val arrive = if (dest != null) (ModuleMain.readField(dest, "d") as? String ?: ModuleMain.readField(dest, "a") as? String ?: ModuleMain.readField(dest, "b") as? String ?: "") else ""
+        // dest 객체의 문자열 필드 전부 덤프 (전체 주소가 어느 필드에 있는지 확인)
+        if (dest != null) {
+            val sb = StringBuilder()
+            dest.javaClass.declaredFields.forEach { f ->
+                try {
+                    f.isAccessible = true
+                    val v = f.get(dest)
+                    if (v is String && v.isNotBlank()) sb.append("${f.name}=$v | ")
+                } catch (_: Throwable) {}
+            }
+            ModuleMain.module?.log("KAKAO: DEST FIELDS id=$id $sb")
+        }
+        val callData = CallData("KAKAO:$id", start, arrive, fare, dist / 1000.0)
+        ModuleMain.module?.log("KAKAO: $source id=$id fare=$fare start=$start arrive=$arrive distKm=${dist / 1000.0}")
+        return ModuleMain.matchAndAccept(callData)
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: processCallItem error", t)
+        return false
+    }
+}
+
+internal fun processJv0(jv0: Any, source: String): Boolean {
+    try {
+        val list = ModuleMain.readField(jv0, "a") as? List<*> ?: return false
+        list.forEach { item -> if (item != null) processCallItem(item, source) }
+        return true
+    } catch (t: Throwable) {
+        return false
+    }
+}
+
+@XposedHooker
+class NetworkResponseHooker : XposedInterface.Hooker {
+    companion object {
+        @Volatile private var dtoClass: Class<*>? = null
+
+        fun configure(cls: Class<*>) {
+            dtoClass = cls
+        }
+
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val result = callback.result ?: return
+            try {
+                // vy0: a=onDemand jv0, b=reservation jv0, c=previousCallIds (String list)
+                val vy0 = result
+                val onDemand = ModuleMain.readField(vy0, "a")
+                val reservation = ModuleMain.readField(vy0, "b")
+                ModuleMain.module?.log("KAKAO: list onDemand=${onDemand != null} reservation=${reservation != null}")
+                // jv0.a = List<ap0>
+                if (onDemand != null) processJv0(onDemand, "ON_DEMAND")
+                if (reservation != null) processJv0(reservation, "RESERVATION")
+            } catch (t: Throwable) {
+                ModuleMain.module?.log("KAKAO: network response error", t)
+            }
+        }
+    }
+}
+
+@XposedHooker
+class PopupResponseHooker : XposedInterface.Hooker {
+    companion object {
+        @Volatile private var popupDtoClass: Class<*>? = null
+
+        fun configure(cls: Class<*>) {
+            popupDtoClass = cls
+        }
+
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val result = callback.result ?: return
+            try {
+                val dto = if (result.javaClass.name.contains("Result")) {
+                    ModuleMain.readField(result, "value") ?: return
+                } else result
+                ModuleMain.module?.log("KAKAO: popup response dto=${dto.javaClass.name}")
+                ModuleMain.processPopupDto(dto)
+            } catch (t: Throwable) {
+                ModuleMain.module?.log("KAKAO: popup response error", t)
+            }
+        }
+    }
+}
+
+@XposedHooker
+class KakaoAcceptCallHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            val thisObj = callback.thisObject ?: return
+            val hField = thisObj.javaClass.getDeclaredField("h")
+            hField.isAccessible = true
+            val h = hField.getInt(thisObj)
+            if (h != 2) return
+            val args = callback.args
+            val callId = args.getOrNull(0) as? String ?: ""
+            ModuleMain.module?.log("KAKAO: acceptCall called id=$callId")
+            try {
+                val stack = Thread.currentThread().stackTrace
+                    .take(25)
+                    .joinToString("\n") { "  at ${it.className}.${it.methodName}:${it.lineNumber}" }
+                ModuleMain.module?.log("KAKAO: acceptCall stack:\n$stack")
+            } catch (t: Throwable) {
+                ModuleMain.module?.log("KAKAO: stack trace failed", t)
+            }
+        }
+    }
+}
+
+@XposedHooker
+class AcceptMethodHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            val callId = callback.args.getOrNull(0) as? String
+            ModuleMain.module?.log("KAKAO: accept method called callId=$callId")
+        }
+    }
+}
+
+@XposedHooker
+class ViewModelConstructorHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            DirectAcceptController.captureViewModel(callback.thisObject, "constructor")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoNewCallRequestHooker : XposedInterface.Hooker {
+    companion object {
+        @Volatile private var callCardClass: Class<*>? = null
+
+        fun configure(cls: Class<*>) {
+            callCardClass = cls
+        }
+
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val expectedClass = callCardClass ?: return
+            val card = KakaoCardData.findArgument(callback.args, expectedClass) ?: return
+            try {
+                ModuleMain.module?.log("KAKAO: new call request card=${card.javaClass.name}")
+                ModuleMain.processGeneralSocketCallCard(card, "MINI_CARD")
+            } catch (t: Throwable) {
+                ModuleMain.module?.log("KAKAO: new call request error", t)
+            }
+        }
+    }
+}
+
+@XposedHooker
+class KakaoWaybackCardHooker : XposedInterface.Hooker {
+    companion object {
+        @Volatile private var callCardClass: Class<*>? = null
+
+        fun configure(cls: Class<*>) {
+            callCardClass = cls
+        }
+
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val expectedClass = callCardClass ?: return
+            val card = KakaoCardData.findArgument(callback.args, expectedClass) ?: return
+            try {
+                ModuleMain.module?.log("KAKAO: wayback card=${card.javaClass.name}")
+                ModuleMain.processGeneralSocketCallCard(card, "WAYBACK")
+            } catch (t: Throwable) {
+                ModuleMain.module?.log("KAKAO: wayback error", t)
+            }
+        }
+    }
+}
+
+@XposedHooker
+class KakaoGpsLatitudeHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val pair = GpsSpoofState.activeLatLng() ?: return
+            try {
+                callback.result = pair.first
+            } catch (t: Throwable) {}
+        }
+    }
+}
+
+@XposedHooker
+class KakaoGpsLongitudeHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val pair = GpsSpoofState.activeLatLng() ?: return
+            try {
+                callback.result = pair.second
+            } catch (t: Throwable) {}
+        }
+    }
+}
+
+@XposedHooker
+class KakaoLocationJsonHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            val pair = GpsSpoofState.activeLatLng() ?: return
+            ModuleMain.module?.log("KAKAO: location json hook lat=${pair.first}")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoRootPathHooker : XposedInterface.Hooker {
+    companion object {
+        private val rootMarkers = arrayOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/data/adb/magisk")
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val path = callback.thisObject?.toString() ?: return
+            if (rootMarkers.any { path.contains(it) }) {
+                try { callback.result = false } catch (t: Throwable) {}
+            }
+        }
+    }
+}
+
+@XposedHooker
+class KakaoRootingStatusHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                val obj = callback.thisObject ?: return
+                for (f in obj.javaClass.declaredFields) {
+                    if (f.type == Boolean::class.javaPrimitiveType) {
+                        f.isAccessible = true
+                        f.setBoolean(obj, false)
+                        break
+                    }
+                }
+            } catch (t: Throwable) {}
+        }
+    }
+}
+
+@XposedHooker
+class KakaoHookVerdictHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                val result = callback.result ?: return
+                val cls = result.javaClass
+                for (f in cls.declaredFields) {
+                    if (f.type == Boolean::class.java || f.type == java.lang.Boolean::class.java) {
+                        f.isAccessible = true
+                        f.set(result, false)
+                    }
+                    if (f.type == List::class.java) {
+                        f.isAccessible = true
+                        f.set(result, emptyList<Any>())
+                    }
+                }
+                ModuleMain.module?.log("KAKAO: hook verdict cleared")
+            } catch (t: Throwable) {}
+        }
+    }
+}
+
+@XposedHooker
+class KakaoHookReportMapHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try { callback.result = emptyMap<String, Any>() } catch (t: Throwable) {}
+        }
+    }
+}
+
+@XposedHooker
+class KakaoHookScanHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            ModuleMain.module?.log("KAKAO: hook scan called")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoWorkRootStatusHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                val result = callback.result ?: return
+                val cls = result.javaClass
+                for (f in cls.declaredFields) {
+                    if (f.type == Boolean::class.java || f.type == java.lang.Boolean::class.java) {
+                        f.isAccessible = true
+                        f.set(result, false)
+                    }
+                }
+                ModuleMain.module?.log("KAKAO: work root status cleared")
+            } catch (t: Throwable) {}
+        }
+    }
+}
+
+@XposedHooker
+class KakaoWorkStatusDtoHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            ModuleMain.module?.log("KAKAO: work status dto bypassed")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoAccessibilitySignalHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            ModuleMain.module?.log("KAKAO: accessibility signal called")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoBuildTagsHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                val result = callback.result ?: return
+                val cls = result.javaClass
+                for (f in cls.declaredFields) {
+                    if (f.type == Boolean::class.java || f.type == java.lang.Boolean::class.java) {
+                        f.isAccessible = true
+                        f.set(result, false)
+                    }
+                    if (f.type == String::class.java) {
+                        f.isAccessible = true
+                        val v = f.get(result) as? String
+                        if (v != null && (v.contains("test-keys") || v.contains("dev-keys"))) {
+                            f.set(result, "release-keys")
+                        }
+                    }
+                }
+                ModuleMain.module?.log("KAKAO: build tags cleared")
+            } catch (t: Throwable) {}
+        }
+    }
+}
+
+@XposedHooker
+class KakaoReservedCallHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val result = callback.result ?: return
+            try {
+                ModuleMain.module?.log("KAKAO: reserved call response")
+                ModuleMain.processDtoGroup(result, "a", "RESERVED")
+            } catch (t: Throwable) {
+                ModuleMain.module?.log("KAKAO: reserved call error", t)
+            }
+        }
+    }
+}
+
+@XposedHooker
+class KakaoWorkEntryHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            ModuleMain.module?.log("KAKAO: work entry bypassed")
+        }
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            ModuleMain.module?.log("KAKAO: work entry completed")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoIntegrityDtoHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            ModuleMain.module?.log("KAKAO: integrity dto bypassed")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoIntegrityFetchHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            ModuleMain.module?.log("KAKAO: integrity fetch bypassed")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoHookDetectionHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                val result = callback.result ?: return
+                val cls = result.javaClass
+                for (f in cls.declaredFields) {
+                    if (f.type == List::class.java) {
+                        f.isAccessible = true
+                        f.set(result, emptyList<Any>())
+                    }
+                }
+                ModuleMain.module?.log("KAKAO: hook detection cleared")
+            } catch (t: Throwable) {}
+        }
+    }
+}
+
+@XposedHooker
+class KakaoOkHttpInterceptorHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                val result = callback.result ?: return
+                val cls = result.javaClass
+                for (m in cls.methods) {
+                    if (m.name == "body" || m.name == "getBody") {
+                        m.isAccessible = true
+                        val body = m.invoke(result)
+                        if (body != null) {
+                            val bodyCls = body.javaClass
+                            for (f in bodyCls.declaredFields) {
+                                if (f.type == String::class.java) {
+                                    f.isAccessible = true
+                                    val value = f.get(body) as? String ?: continue
+                                    if (value.contains("rooted") || value.contains("hook") || value.contains("detect")) {
+                                        val modified = value
+                                            .replace("\"rooted\":true", "\"rooted\":false")
+                                            .replace("\"hooked\":true", "\"hooked\":false")
+                                            .replace("\"detected\":true", "\"detected\":false")
+                                        f.set(body, modified)
+                                        ModuleMain.module?.log("KAKAO: modified request body security status")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (t: Throwable) {}
+        }
+    }
+}
+
+@XposedHooker
+class KakaoIntegrityHeaderHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            ModuleMain.module?.log("KAKAO: integrity header bypassed")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoWorkRequestHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            try {
+                val args = callback.args ?: return
+                for (arg in args) {
+                    if (arg == null) continue
+                    val cls = arg.javaClass
+                    for (f in cls.declaredFields) {
+                        if (f.type == Boolean::class.javaPrimitiveType || f.type == Boolean::class.java) {
+                            f.isAccessible = true
+                            val name = f.name.lowercase()
+                            if (name.contains("root") || name.contains("hook") || name.contains("detect")) {
+                                f.set(arg, false)
+                                ModuleMain.module?.log("KAKAO: cleared ${f.name} in work request")
+                            }
+                        }
+                    }
+                }
+            } catch (t: Throwable) {}
+        }
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            ModuleMain.module?.log("KAKAO: work request bypassed")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoPolicyCoroutineHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            ModuleMain.module?.log("KAKAO: policy coroutine bypassed")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoRootingDialogHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            ModuleMain.module?.log("KAKAO: rooting dialog detected (not skipped)")
+        }
+    }
+}
+
+@XposedHooker
+class ClickLogHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            ModuleMain.module?.log("KAKAO: click detected om6.c")
+        }
+    }
+}
+
+@XposedHooker
+class KakaoOkHttpStackHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            try {
+                val request = callback.args?.firstOrNull() ?: return
+                val url = request.javaClass.getMethod("url").invoke(request).toString()
+                if (url.contains("accept") || url.contains("call")) {
+                    val stack = Thread.currentThread().stackTrace
+                        .drop(2).take(20)
+                        .joinToString("\n") { "  $it" }
+                    ModuleMain.module?.log("KAKAO: OkHttp req url=$url\n$stack")
+                }
+            } catch (t: Throwable) {}
+        }
+    }
+}
+
+// ########################################################################
+// 카카오 수락 훅 (oy0.i)
+// ########################################################################
+
+@XposedHooker
+class KakaoOy0AcceptHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            try {
+                val args = callback.args ?: return
+                val callId = args.getOrNull(0) as? String ?: ""
+                val from = args.getOrNull(1)
+                val z1 = args.getOrNull(2) as? Boolean
+                val z2 = args.getOrNull(3) as? Boolean
+                ModuleMain.module?.log("KAKAO: oy0.i accept called callId=$callId from=$from z1=$z1 z2=$z2")
+                // 수락 차단하려면 여기서 throwAndSkip 또는 파라미터 변경
+                // callback.throwAndSkip(ClassNotFoundException("accept blocked"))
+            } catch (t: Throwable) {
+                ModuleMain.module?.log("KAKAO: oy0.i hook error", t)
+            }
+        }
+    }
+}
+
+internal fun ModuleMain.installKakaoOy0AcceptHook(classLoader: ClassLoader) {
+    try {
+        val oy0Class = Class.forName("oy0", false, classLoader)
+        val bq0Class = Class.forName("bq0", false, classLoader)
+        val method = oy0Class.getDeclaredMethod(
+            "i",
+            String::class.java,
+            bq0Class,
+            Boolean::class.javaPrimitiveType,
+            Boolean::class.javaPrimitiveType
+        )
+        method.isAccessible = true
+        ModuleMain.module?.hook(method, KakaoOy0AcceptHooker::class.java)
+        ModuleMain.module?.log("KAKAO: oy0.i accept hook installed")
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("KAKAO: oy0.i accept hook FAILED", t)
+    }
+}
