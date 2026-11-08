@@ -358,7 +358,8 @@ class ModuleMain(
                     val rawId = callData.callId.removePrefix("KAKAO:")
                     return handleDirectAccept(rawId, DirectAcceptSource.LIST, "list_match")
                 } else if (!callData.callId.startsWith("CALLMANER:") &&
-                    !callData.callId.startsWith("IDRIVE:")) {
+                    !callData.callId.startsWith("IDRIVE:") &&
+                    !callData.callId.startsWith("LOGI:")) {
                     ConditionClient.stopDetecting("accepted:${callData.callId}")
                     val pkg = packageFromCallId(callData.callId)
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({

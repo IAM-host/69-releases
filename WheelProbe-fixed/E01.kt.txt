@@ -1,0 +1,327 @@
+package com.example.wheelprobe
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.location.Location
+import io.github.libxposed.api.XposedInterface
+import io.github.libxposed.api.XposedModule
+import io.github.libxposed.api.XposedModuleInterface
+import io.github.libxposed.api.annotations.AfterInvocation
+import io.github.libxposed.api.annotations.BeforeInvocation
+import io.github.libxposed.api.annotations.XposedHooker
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import java.lang.reflect.Proxy
+import java.util.LinkedHashSet
+
+/**
+ * GPS 스푸핑 상태
+ * - createPackageContext prefs 읽기 불가 → 브로드캐스트/조건 전달로 수신
+ * - ConditionClient / DELIVER_CONDITIONS 에서 applyFromDelivery() 호출
+ */
+
+object KakaoWorkState {
+    @Volatile private var spoofArmed = false
+    fun isSpoofArmed(): Boolean = spoofArmed
+    fun armFromWorkResult(result: Any?) {
+        if (result == null) return
+        val name = result.javaClass.name
+        if (name.contains("CoroutineSingletons") || name.contains("COROUTINE_SUSPENDED")) return
+        if (result is Throwable || name.endsWith("Failure")) return
+        spoofArmed = true
+        android.util.Log.i("EUNORA", "KAKAO: work accepted, location spoof armed")
+    }
+}
+
+object GpsSpoofState {
+    @Volatile private var isEnabled: Boolean = false
+    @Volatile private var spoofLat: Double = 0.0
+    @Volatile private var spoofLng: Double = 0.0
+    @Volatile private var detecting: Boolean = false
+    @Volatile private var lastUpdateMs: Long = 0L
+    @Volatile private var lastProviderAttemptMs: Long = 0L
+
+    private const val EUNORA_PACKAGE = "com.example.wheelprobe"
+    private const val PREF_FILE = "wheelprobe_conditions"
+    private const val CONDITION_URI = "content://com.example.wheelprobe.conditions"
+    private const val METHOD_GET_CONDITIONS = "getConditions"
+    private const val PROVIDER_MIN_INTERVAL_MS = 500L
+
+    /**
+     * 스푸핑 활성 좌표. DETECTING과 무관 — GPS ON + 좌표만 있으면 동작.
+     * 1) 최근 브로드캐스트 상태  2) ContentProvider  3) XSharedPreferences
+     */
+    fun activeLatLng(): Pair<Double, Double>? {
+        refreshFromEunoraIfNeeded()
+        if (!isEnabled) return null
+        if (spoofLat == 0.0 && spoofLng == 0.0) return null
+        return spoofLat to spoofLng
+    }
+
+    fun isActive(): Boolean {
+        refreshFromEunoraIfNeeded()
+        return isEnabled && !(spoofLat == 0.0 && spoofLng == 0.0)
+    }
+
+    private fun refreshFromEunoraIfNeeded() {
+        val now = System.currentTimeMillis()
+        if (now - lastProviderAttemptMs < PROVIDER_MIN_INTERVAL_MS) return
+        lastProviderAttemptMs = now
+
+        // 1) ContentProvider (매니페스트에 ConditionProvider 등록 필요)
+        if (tryRefreshFromContentProvider()) return
+        // 2) XSharedPreferences (LSPosed 호환 경로)
+        if (tryRefreshFromXSharedPreferences()) return
+        // 3) 실패해도 기존 브로드캐스트 캐시(isEnabled/lat/lng) 유지
+    }
+
+    private fun tryRefreshFromContentProvider(): Boolean {
+        return try {
+            val app = currentApp() ?: return false
+            val uri = android.net.Uri.parse(CONDITION_URI)
+            val bundle = app.contentResolver.call(uri, METHOD_GET_CONDITIONS, null, null)
+                ?: return false
+            val gpsEnabled = bundle.getBoolean("gps_enabled", false)
+            val latStr = bundle.getString("gps_lat")
+            val lngStr = bundle.getString("gps_lng")
+            val detectingValue = bundle.getBoolean("detecting", false)
+            CallKindFilter.apply(
+                bundle.getBoolean(CallKindFilter.PREF_ALLOW_DAERI, true),
+                bundle.getBoolean(CallKindFilter.PREF_ALLOW_TAKSONG, true)
+            )
+            TaksongDateFilter.apply(
+                bundle.getBoolean(TaksongDateFilter.PREF_TODAY, true),
+                bundle.getBoolean(TaksongDateFilter.PREF_TOMORROW, true)
+            )
+            applyFromDelivery(detectingValue, gpsEnabled, latStr, lngStr)
+            android.util.Log.i("EUNORA", "GPS refreshed via ContentProvider enabled=$gpsEnabled lat=$latStr")
+            true
+        } catch (t: Throwable) {
+            android.util.Log.w("EUNORA", "GPS ContentProvider fail: ${t.javaClass.simpleName}: ${t.message}")
+            false
+        }
+    }
+
+    private fun tryRefreshFromXSharedPreferences(): Boolean {
+        return try {
+            // de.robv.android.xposed.XSharedPreferences (LSPosed 호환)
+            val clazz = Class.forName("de.robv.android.xposed.XSharedPreferences")
+            val ctor = clazz.getConstructor(String::class.java, String::class.java)
+            val prefs = ctor.newInstance(EUNORA_PACKAGE, PREF_FILE)
+            clazz.getMethod("makeWorldReadable").apply {
+                isAccessible = true
+            }.let { runCatching { it.invoke(prefs) } }
+            clazz.getMethod("reload").invoke(prefs)
+            val getBoolean = clazz.getMethod("getBoolean", String::class.java, Boolean::class.javaPrimitiveType)
+            val getString = clazz.getMethod("getString", String::class.java, String::class.java)
+            val gpsEnabled = getBoolean.invoke(prefs, "gps_enabled", false) as Boolean
+            val latStr = getString.invoke(prefs, "gps_lat", null) as String?
+            val lngStr = getString.invoke(prefs, "gps_lng", null) as String?
+            val detectingValue = getBoolean.invoke(prefs, "detecting", false) as Boolean
+            CallKindFilter.apply(
+                getBoolean.invoke(prefs, CallKindFilter.PREF_ALLOW_DAERI, true) as Boolean,
+                getBoolean.invoke(prefs, CallKindFilter.PREF_ALLOW_TAKSONG, true) as Boolean
+            )
+            TaksongDateFilter.apply(
+                getBoolean.invoke(prefs, TaksongDateFilter.PREF_TODAY, true) as Boolean,
+                getBoolean.invoke(prefs, TaksongDateFilter.PREF_TOMORROW, true) as Boolean
+            )
+            applyFromDelivery(detectingValue, gpsEnabled, latStr, lngStr)
+            android.util.Log.i("EUNORA", "GPS refreshed via XSharedPreferences enabled=$gpsEnabled lat=$latStr")
+            true
+        } catch (t: Throwable) {
+            android.util.Log.w("EUNORA", "GPS XSharedPreferences fail: ${t.javaClass.simpleName}: ${t.message}")
+            false
+        }
+    }
+
+    private fun currentApp(): android.app.Application? {
+        return try {
+            Class.forName("android.app.ActivityThread")
+                .getMethod("currentApplication")
+                .invoke(null) as? android.app.Application
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /**
+     * 브로드캐스트 수신 (ConditionClient)
+     * stopDetecting(false,false,null,null) 호출 시 GPS는 유지
+     */
+    fun applyFromDelivery(
+        detectingValue: Boolean,
+        gpsEnabled: Boolean,
+        latStr: String?,
+        lngStr: String?
+    ) {
+        detecting = detectingValue
+
+        if (!gpsEnabled && latStr == null && lngStr == null) {
+            lastUpdateMs = System.currentTimeMillis()
+            android.util.Log.i(
+                "EUNORA",
+                "GPS delivery detecting-only detecting=$detecting kept enabled=$isEnabled lat=$spoofLat"
+            )
+            return
+        }
+
+        val lat = latStr?.toDoubleOrNull()
+        val lng = lngStr?.toDoubleOrNull()
+        if (gpsEnabled && lat != null && lng != null) {
+            isEnabled = true
+            spoofLat = lat
+            spoofLng = lng
+        } else {
+            isEnabled = false
+            spoofLat = 0.0
+            spoofLng = 0.0
+        }
+        lastUpdateMs = System.currentTimeMillis()
+        android.util.Log.i(
+            "EUNORA",
+            "GPS delivery active=$isEnabled detecting=$detecting gpsEnabled=$gpsEnabled lat=$spoofLat lng=$spoofLng"
+        )
+    }
+
+    fun forceRefresh() {
+        lastProviderAttemptMs = 0L
+        refreshFromEunoraIfNeeded()
+    }
+
+    fun refreshIfNeeded() {
+        refreshFromEunoraIfNeeded()
+    }
+}
+
+object CallKindFilter {
+    const val PREF_ALLOW_DAERI = "allow_daeri"
+    const val PREF_ALLOW_TAKSONG = "allow_taksong"
+
+    @Volatile var allowDaeri: Boolean = true
+    @Volatile var allowTaksong: Boolean = true
+
+    fun apply(daeri: Boolean, taksong: Boolean) {
+        allowDaeri = daeri
+        allowTaksong = taksong
+    }
+
+    fun isTaksong(origin: String): Boolean {
+        val text = origin.replace(" ", "")
+        return text.contains("탁)") || text.contains("탁송)")
+    }
+
+    fun allows(origin: String): Boolean {
+        return if (isTaksong(origin)) allowTaksong else allowDaeri
+    }
+}
+
+object TaksongDateFilter {
+    const val PREF_TODAY = "taksong_today"
+    const val PREF_TOMORROW = "taksong_tomorrow"
+
+    @Volatile var allowToday: Boolean = true
+    @Volatile var allowTomorrow: Boolean = true
+
+    private val dayRegex = Regex("([0-3]?\\d)\\s*일")
+
+    fun apply(today: Boolean, tomorrow: Boolean) {
+        allowToday = today
+        allowTomorrow = tomorrow
+    }
+
+    fun shouldApply(callId: String): Boolean {
+        return callId.startsWith("CALLMANER:") ||
+                callId.startsWith("LOGI:") ||
+                callId.startsWith("IDRIVE:")
+    }
+
+    enum class DayKind { TODAY, TOMORROW, OTHER, NONE }
+
+    fun classify(origin: String): DayKind {
+        val compact = origin.replace(" ", "")
+        val hasTodayWord = compact.contains("오늘")
+        val hasTomorrowWord = compact.contains("내일")
+        val hasLaterWord = compact.contains("모레") || compact.contains("글피")
+
+        if (hasTodayWord && !hasTomorrowWord) return DayKind.TODAY
+        if (hasTomorrowWord && !hasTodayWord) return DayKind.TOMORROW
+        if (hasTodayWord && hasTomorrowWord) return DayKind.TOMORROW
+        if (hasLaterWord) return DayKind.OTHER
+
+        val now = java.util.Calendar.getInstance()
+        val todayDay = now.get(java.util.Calendar.DAY_OF_MONTH)
+        now.add(java.util.Calendar.DAY_OF_MONTH, 1)
+        val tomorrowDay = now.get(java.util.Calendar.DAY_OF_MONTH)
+
+        val days = dayRegex.findAll(origin).mapNotNull { match ->
+            match.groupValues[1].toIntOrNull()?.takeIf { it in 1..31 }
+        }.toList()
+        if (days.isEmpty()) return DayKind.NONE
+
+        val kinds = days.map { day ->
+            when (day) {
+                todayDay -> DayKind.TODAY
+                tomorrowDay -> DayKind.TOMORROW
+                else -> DayKind.OTHER
+            }
+        }.toSet()
+        return when {
+            DayKind.TODAY in kinds && DayKind.TOMORROW !in kinds && DayKind.OTHER !in kinds -> DayKind.TODAY
+            DayKind.TOMORROW in kinds && DayKind.TODAY !in kinds && DayKind.OTHER !in kinds -> DayKind.TOMORROW
+            DayKind.TODAY in kinds && DayKind.TOMORROW in kinds -> DayKind.TODAY
+            else -> DayKind.OTHER
+        }
+    }
+
+    fun allows(callId: String, origin: String): Boolean {
+        if (!shouldApply(callId)) return true
+        if (!CallKindFilter.isTaksong(origin)) return true
+        return when (classify(origin)) {
+            DayKind.NONE -> true
+            DayKind.TODAY -> allowToday
+            DayKind.TOMORROW -> allowTomorrow
+            DayKind.OTHER -> false
+        }
+    }
+}
+
+@XposedHooker
+class GpsMockFalseHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            if (!KakaoWorkState.isSpoofArmed()) return
+            if (!GpsSpoofState.isActive()) return
+            callback.result = false
+        }
+    }
+}
+
+@XposedHooker
+class GpsLatitudeHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val pair = GpsSpoofState.activeLatLng() ?: return
+            callback.result = pair.first
+        }
+    }
+}
+
+@XposedHooker
+class GpsLongitudeHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val pair = GpsSpoofState.activeLatLng() ?: return
+            callback.result = pair.second
+        }
+    }
+}
+
