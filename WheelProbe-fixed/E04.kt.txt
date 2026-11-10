@@ -428,6 +428,8 @@ internal object CallmanerAcceptController {
         ":${TaksongDateFilter.allowToday}:${TaksongDateFilter.allowTomorrow}"
     private fun refreshSession() = ledger.observeSession(ConditionClient.isDetecting(), fingerprint())
 
+    // API 33+ explicitly exports this cross-app receiver; API 32 uses the legacy overload.
+    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     private fun ensureObserver(): Boolean {
         if (receiver != null) return true
         val context = ModuleMain.getApplicationContext() ?: return false
