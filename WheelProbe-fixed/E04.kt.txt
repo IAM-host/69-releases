@@ -29,7 +29,7 @@ class CallmanerLatLngHooker : XposedInterface.Hooker {
 // BEGIN CALLMANER_DATA_AND_STATE
 internal object CallmanerData {
     private val icon = Regex("#\\[[^]\\r\\n]*]")
-    private val inline = Regex("\\$\\{([^{}]*)}")
+    private val inline = Regex("\\$\\{([^{}]*)\\}")
     private val tag = Regex("<[^>]*>")
     private val lineBreak = Regex("(?i)<\\s*(?:br\\s*/?|/p|/div)\\s*>")
     private val entity = Regex("&(#(?:[xX][0-9a-fA-F]+|[0-9]+)|[a-zA-Z]+);")
