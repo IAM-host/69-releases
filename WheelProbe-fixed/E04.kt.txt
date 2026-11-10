@@ -1,0 +1,644 @@
+package com.example.wheelprobe
+
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import io.github.libxposed.api.XposedInterface
+import io.github.libxposed.api.annotations.AfterInvocation
+import io.github.libxposed.api.annotations.BeforeInvocation
+import io.github.libxposed.api.annotations.XposedHooker
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+
+@XposedHooker
+class CallmanerLatLngHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic
+        @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            val pair = GpsSpoofState.activeLatLng() ?: return
+            val args = callback.args
+            if (args.size >= 2) {
+                args[0] = pair.first
+                args[1] = pair.second
+            }
+        }
+    }
+}
+
+// BEGIN CALLMANER_DATA_AND_STATE
+internal object CallmanerData {
+    private val icon = Regex("#\\[[^]\\r\\n]*]")
+    private val inline = Regex("\\$\\{([^{}]*)}")
+    private val tag = Regex("<[^>]*>")
+    private val lineBreak = Regex("(?i)<\\s*(?:br\\s*/?|/p|/div)\\s*>")
+    private val entity = Regex("&(#(?:[xX][0-9a-fA-F]+|[0-9]+)|[a-zA-Z]+);")
+    private val amount = Regex("([0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(\\.[0-9]+)?\\s*([kK]|만|천)?\\s*(?:원)?")
+
+    // The native j50 renderer removes icon tokens and retains ${...} content
+    // for these call display paths. Strip markup before reading any digits.
+    fun displayText(raw: String?): String {
+        if (raw.isNullOrEmpty()) return ""
+        var text = inline.replace(icon.replace(raw, "")) { it.groupValues[1] }
+        text = tag.replace(lineBreak.replace(text, "\n"), "")
+        text = entity.replace(text) { match ->
+            val code = match.groupValues[1]
+            when (code.lowercase(java.util.Locale.ROOT)) {
+                "amp" -> "&"; "lt" -> "<"; "gt" -> ">"
+                "quot" -> "\""; "apos" -> "'"; "nbsp" -> " "
+                else -> {
+                    val number = when {
+                        code.startsWith("#x", true) -> code.drop(2).toIntOrNull(16)
+                        code.startsWith("#") -> code.drop(1).toIntOrNull()
+                        else -> null
+                    }
+                    if (number != null && Character.isValidCodePoint(number) && number !in 0xD800..0xDFFF) {
+                        String(Character.toChars(number))
+                    } else match.value
+                }
+            }
+        }
+        return text.replace('\u00a0', ' ').replace(Regex("\\s+"), " ").trim()
+    }
+
+    fun fareWon(raw: String?): Int {
+        val visible = displayText(raw)
+        val parsed = amount.matchEntire(visible) ?: return 0
+        val numeric = parsed.groupValues[1].replace(",", "") + parsed.groupValues[2]
+        val multiplier = when (parsed.groupValues[3]) {
+            "k", "K", "천" -> 1000
+            "만" -> 10000
+            else -> 1
+        }
+        return try {
+            java.math.BigDecimal(numeric).multiply(java.math.BigDecimal(multiplier))
+                .intValueExact().coerceAtLeast(0)
+        } catch (_: NumberFormatException) { 0 }
+          catch (_: ArithmeticException) { 0 }
+    }
+
+    fun preferredFare(money: String?, charge: String?): Int = fareWon(
+        money?.takeIf { it.isNotBlank() } ?: charge
+    )
+
+    fun metersToKm(raw: Number?): Double = raw?.toDouble()
+        ?.takeIf { it.isFinite() && it > 0.0 }?.div(1000.0) ?: 0.0
+
+    // The incoming pair is not decimal latitude/longitude. Match native
+    // di.a/bt0.j: Int / 0.36, truncate to Long, then divide by 1,000,000.
+    fun pickupCoordinates(raw: String?): Pair<Double, Double>? {
+        val parts = raw?.split(',') ?: return null
+        if (parts.size != 2) return null
+        val encodedLat = parts[0].trim().toIntOrNull() ?: return null
+        val encodedLon = parts[1].trim().toIntOrNull() ?: return null
+        val latitude = (encodedLat.toDouble() / 0.36).toLong().toDouble() / 1_000_000.0
+        val longitude = (encodedLon.toDouble() / 0.36).toLong().toDouble() / 1_000_000.0
+        if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0 ||
+            !latitude.isFinite() || !longitude.isFinite() || (latitude == 0.0 && longitude == 0.0)) return null
+        return latitude to longitude
+    }
+}
+
+internal enum class CallmanerAcceptPhase { QUEUED, DISPATCHED, OBSERVING, UNKNOWN }
+internal enum class CallmanerAcceptResult { SUCCESS, FAILURE, UNKNOWN }
+internal enum class CallmanerAcceptFinish { IGNORED, SUCCESS, STALE_SUCCESS, FAILURE, UNKNOWN }
+internal data class CallmanerAcceptAttempt(
+    val token: Long,
+    val callId: String,
+    val source: String,
+    val generation: Long,
+    var phase: CallmanerAcceptPhase = CallmanerAcceptPhase.QUEUED
+)
+
+internal class CallmanerAcceptLedger(private val retryDelayMs: Long = 3000L) {
+    private var generation = 0L
+    private var detecting = false
+    private var fingerprint = ""
+    private var nextToken = 0L
+    private var pending: CallmanerAcceptAttempt? = null
+    private val succeeded = java.util.LinkedHashSet<String>()
+    private val retryAfter = java.util.LinkedHashMap<String, Long>()
+
+    @Synchronized fun observeSession(enabled: Boolean, conditions: String) {
+        if (enabled != detecting || (enabled && conditions != fingerprint)) {
+            generation++
+            detecting = enabled
+            fingerprint = conditions
+            retryAfter.clear()
+            // Only a request proven not dispatched can be dropped on OFF/ON.
+            if (pending?.phase == CallmanerAcceptPhase.QUEUED) pending = null
+        }
+    }
+
+    @Synchronized fun canBegin(callId: String, now: Long): Boolean = detecting &&
+        callId.isNotBlank() && pending == null && callId !in succeeded &&
+        now >= (retryAfter[callId] ?: Long.MIN_VALUE)
+
+    @Synchronized fun begin(callId: String, source: String, now: Long): CallmanerAcceptAttempt? {
+        if (!canBegin(callId, now)) return null
+        return CallmanerAcceptAttempt(++nextToken, callId, source, generation).also { pending = it }
+    }
+
+    @Synchronized fun dispatch(token: Long): Boolean {
+        val attempt = pending ?: return false
+        if (attempt.token != token || !detecting || attempt.generation != generation ||
+            attempt.phase != CallmanerAcceptPhase.QUEUED) return false
+        attempt.phase = CallmanerAcceptPhase.DISPATCHED
+        return true
+    }
+
+    @Synchronized fun observing(token: Long): Boolean {
+        val attempt = pending ?: return false
+        if (attempt.token != token || attempt.phase != CallmanerAcceptPhase.DISPATCHED) return false
+        attempt.phase = CallmanerAcceptPhase.OBSERVING
+        return true
+    }
+
+    @Synchronized fun phase(token: Long): CallmanerAcceptPhase? = pending?.takeIf { it.token == token }?.phase
+
+    @Synchronized fun finish(
+        token: Long, result: CallmanerAcceptResult, responseCallId: String?, now: Long,
+        terminalRejection: Boolean = false
+    ): CallmanerAcceptFinish {
+        val attempt = pending ?: return CallmanerAcceptFinish.IGNORED
+        if (attempt.token != token) return CallmanerAcceptFinish.IGNORED
+        if (result == CallmanerAcceptResult.SUCCESS && attempt.phase != CallmanerAcceptPhase.OBSERVING &&
+            attempt.phase != CallmanerAcceptPhase.UNKNOWN) return CallmanerAcceptFinish.IGNORED
+        if (result == CallmanerAcceptResult.UNKNOWN ||
+            (result == CallmanerAcceptResult.SUCCESS && responseCallId != attempt.callId)) {
+            attempt.phase = CallmanerAcceptPhase.UNKNOWN
+            return CallmanerAcceptFinish.UNKNOWN
+        }
+        pending = null
+        if (result == CallmanerAcceptResult.FAILURE) {
+            if (attempt.generation == generation) {
+                retryAfter[attempt.callId] = if (terminalRejection) Long.MAX_VALUE else now + retryDelayMs
+                while (retryAfter.size > 200) retryAfter.remove(retryAfter.keys.first())
+            }
+            return CallmanerAcceptFinish.FAILURE
+        }
+        succeeded.add(attempt.callId)
+        while (succeeded.size > 200) succeeded.remove(succeeded.first())
+        return if (detecting && attempt.generation == generation) CallmanerAcceptFinish.SUCCESS
+               else CallmanerAcceptFinish.STALE_SUCCESS
+    }
+}
+// END CALLMANER_DATA_AND_STATE
+
+// BEGIN CALLMANER_CALLBACK
+internal object CallmanerCallbackAdapter {
+    fun wrap(
+        callbackType: Class<*>,
+        original: Any,
+        onResult: (Array<out Any?>?) -> Unit
+    ): Any {
+        require(callbackType.isInterface) { "Native result callback must be an interface" }
+        require(callbackType.isInstance(original)) { "Original native callback has the wrong type" }
+        val callback = callbackType.getMethod("c", Any::class.java, Any::class.java, Any::class.java)
+        require(callback.returnType == Any::class.java &&
+            !java.lang.reflect.Modifier.isStatic(callback.modifiers)) {
+            "Unexpected native result callback signature"
+        }
+        callback.isAccessible = true
+        return java.lang.reflect.Proxy.newProxyInstance(
+            callbackType.classLoader, arrayOf(callbackType)
+        ) { proxy, method, args ->
+            when {
+                method.name == "equals" && method.parameterTypes.contentEquals(arrayOf(Any::class.java)) ->
+                    proxy === args?.getOrNull(0)
+                method.name == "hashCode" && method.parameterCount == 0 -> System.identityHashCode(proxy)
+                method.name == "toString" && method.parameterCount == 0 -> "EunoraCallmanerAcceptObserver"
+                method.name == callback.name && method.returnType == callback.returnType &&
+                    method.parameterTypes.contentEquals(callback.parameterTypes) -> {
+                    try {
+                        invokeOriginal(callback, original, args)
+                    } finally {
+                        // Observation must never replace the native return value,
+                        // suspended coroutine marker, or original exception.
+                        try { onResult(args) } catch (_: Throwable) { }
+                    }
+                }
+                else -> invokeOriginal(method, original, args)
+            }
+        }
+    }
+
+    private fun invokeOriginal(method: java.lang.reflect.Method, original: Any, args: Array<out Any?>?): Any? {
+        method.isAccessible = true
+        return try {
+            method.invoke(original, *(args ?: emptyArray()))
+        } catch (error: java.lang.reflect.InvocationTargetException) {
+            throw (error.cause ?: error)
+        }
+    }
+}
+// END CALLMANER_CALLBACK
+
+private class CallmanerNativeBridge(private val classLoader: ClassLoader) {
+    private fun short(name: String): Class<*> = Class.forName(prefix + name, false, classLoader)
+    private fun named(name: String): Class<*> = Class.forName(name, false, classLoader)
+    val hostClass: Class<*> = runCatching { Class.forName("ls0", false, classLoader) }
+        .getOrElse { Class.forName("defpackage.ls0", false, classLoader) }
+    private val prefix = hostClass.name.removeSuffix("ls0")
+    val listClass = short("di")
+    val cardClass = short("og")
+    val cardStoreClass = short("ng")
+    val listHostClass = short("ci")
+    private val server = short("kj")
+    private val callbackType = short("ye0")
+    private val requestClass = named("com.aintegration.server.cds.codec._221_01_rq")
+    private val responseClass = named("com.aintegration.server.cds.codec._221or311_01")
+    private val errorClass = named("com.aintegration.server.cds.codec._ERROR_rs")
+    private val appHost = named("com.aintegration.undefine.App").getDeclaredField("i")
+    private val senderField = server.getDeclaredField("B")
+    private val uidField = server.getDeclaredField("D")
+    private val loginField = server.getDeclaredField("H")
+    private val locationState = hostClass.getDeclaredField("j1")
+    private val listFields = listOf("V0", "X0").map { listHostClass.getDeclaredField(it) }
+    private val cardField = cardStoreClass.getDeclaredField("i")
+    private val blockedListIds = short("pf0").getDeclaredField("b")
+    private val holderConstructor = named("com.aintegration.server.data.CallCardHolder").getDeclaredConstructor()
+    private val cardAccept = short("yg").getDeclaredMethod("i", cardClass, holderConstructor.declaringClass)
+    private val nativeAccept = hostClass.getDeclaredMethod("A", hostClass,
+        String::class.java, String::class.java, String::class.java, String::class.java, String::class.java,
+        Boolean::class.javaPrimitiveType, named("com.aintegration.app_info.LockScreenActivity"),
+        String::class.java, short("r01"), Int::class.javaPrimitiveType)
+    val sendMethod = short("on1").getDeclaredMethod("q", named("com.aintegration.server.cds.codec.JSONConvertable"),
+        Long::class.javaPrimitiveType, callbackType)
+    val cardAdd = cardStoreClass.getDeclaredMethod("a", cardClass)
+    val listConstructor = listClass.getDeclaredConstructor(String::class.java)
+    val listPublish = listHostClass.getDeclaredMethod("Z", List::class.java, java.util.ArrayList::class.java,
+        Boolean::class.javaPrimitiveType, String::class.java, Boolean::class.javaPrimitiveType)
+    private val pickupDistance = short("bt0").getDeclaredMethod("i", Double::class.javaPrimitiveType, Double::class.javaPrimitiveType)
+    private val responseSlip = responseClass.getDeclaredMethod("getSlip")
+    private val requestSlip = requestClass.getDeclaredMethod("getSlip")
+    private val requestTp = requestClass.getDeclaredMethod("getTp")
+    private val requestCallType = requestClass.getDeclaredMethod("getCall_type")
+    private val errorCode = errorClass.getDeclaredMethod("getRc")
+    private val errorMessage = errorClass.getDeclaredMethod("getRm")
+    private val parser: Any
+    private val parseMethod: Method
+
+    init {
+        check(Activity::class.java.isAssignableFrom(hostClass) && appHost.type == hostClass)
+        check(Modifier.isStatic(nativeAccept.modifiers) && nativeAccept.returnType == Void.TYPE)
+        check(Modifier.isStatic(cardAccept.modifiers) && cardAccept.returnType == Void.TYPE)
+        check(sendMethod.returnType == Void.TYPE && callbackType.isInterface)
+        check(Modifier.isStatic(pickupDistance.modifiers) && pickupDistance.returnType == Double::class.javaPrimitiveType)
+        check(Modifier.isStatic(listPublish.modifiers) && listPublish.returnType == Boolean::class.javaPrimitiveType)
+        check(senderField.type == sendMethod.declaringClass && uidField.type == String::class.java)
+        for (field in listOf(appHost, senderField, uidField, loginField, cardField, blockedListIds) + listFields) {
+            check(Modifier.isStatic(field.modifiers)); field.isAccessible = true
+        }
+        locationState.isAccessible = true
+        for (name in listOf("a", "b", "c", "d", "e", "i", "j")) check(listClass.getDeclaredField(name).type == String::class.java)
+        check(listClass.getDeclaredField("g").type == Double::class.javaPrimitiveType)
+        check(listClass.getDeclaredField("n").type == Boolean::class.javaPrimitiveType)
+        for (name in listOf("a", "c", "d", "e", "f", "h", "i", "j", "k")) check(cardClass.getDeclaredField(name).type == String::class.java)
+        for (name in listOf("p", "t")) check(cardClass.getDeclaredField(name).type == Boolean::class.javaPrimitiveType)
+        val factoryClass = short("xh0")
+        parser = factoryClass.getDeclaredMethod("a").invoke(factoryClass.getDeclaredConstructor().newInstance())
+            ?: error("Native JSON parser unavailable")
+        parseMethod = parser.javaClass.getDeclaredMethod("b", Class::class.java, String::class.java).apply { isAccessible = true }
+        nativeAccept.isAccessible = true; cardAccept.isAccessible = true; pickupDistance.isAccessible = true
+    }
+
+    fun field(instance: Any, name: String): Any? = ModuleMain.readField(instance, name)
+    fun text(instance: Any, name: String): String = field(instance, name) as? String ?: ""
+    fun host(): Activity? = (appHost.get(null) as? Activity)?.takeIf {
+        hostClass.isInstance(it) && !it.isFinishing && !it.isDestroyed && locationState.get(it) != null &&
+            !((uidField.get(null) as? String).isNullOrBlank()) && loginField.get(null) != null && senderField.get(null) != null
+    }
+    fun lists(): List<Any> = listFields.flatMap { (it.get(null) as? Collection<*>)?.filterNotNull() ?: emptyList() }
+        .filter { listClass.isInstance(it) }.distinctBy { text(it, "a") }
+    fun cards(): List<Any> {
+        val cards = cardField.get(null) as? List<*> ?: return emptyList()
+        return synchronized(cards) { cards.filterNotNull().filter { cardClass.isInstance(it) } }
+    }
+    fun selectableCard(card: Any): Boolean = field(card, "p") == true && field(card, "t") == false
+    fun selectableList(row: Any): Boolean = (blockedListIds.get(null) as? Collection<*>)?.contains(text(row, "a")) == false
+
+    fun call(item: Any, source: String): CallData? {
+        val id = text(item, "a").takeIf { it.isNotBlank() } ?: return null
+        val card = source == "CARD"
+        val origin = CallmanerData.displayText(text(item, if (card) "d" else "b"))
+        val destination = CallmanerData.displayText(text(item, if (card) "f" else "d"))
+        if (origin.isBlank() || destination.isBlank()) return null
+        val fare = if (card) CallmanerData.preferredFare(text(item, "i"), text(item, "h"))
+            else CallmanerData.fareWon(text(item, "e"))
+        val coordinates = CallmanerData.pickupCoordinates(text(item, if (card) "e" else "c"))
+        // Decode without creating LatLng: the existing GPS constructor hook must
+        // not replace the pickup coordinate with the driver's spoofed position.
+        val km = if (coordinates != null) CallmanerData.metersToKm(
+            pickupDistance.invoke(null, coordinates.first, coordinates.second) as? Number)
+            else if (!card) CallmanerData.metersToKm(field(item, "g") as? Number) else 0.0
+        return CallData("CALLMANER:$id", origin, destination, fare, km)
+    }
+
+    fun start(host: Activity, item: Any, source: String) {
+        if (source == "CARD") {
+            // A native holder with no attached views is valid in yg.i; the
+            // original method keeps p/t guards, removal and request/UI handling.
+            cardAccept.invoke(null, item, holderConstructor.newInstance())
+        } else {
+            nativeAccept.invoke(null, host, text(item, "a"), "T", text(item, "i"), text(item, "j"),
+                null, field(item, "n") as? Boolean ?: false, null, text(item, "b"), null, 336)
+        }
+    }
+
+    fun wrap(args: Array<Any?>, sender: Any?, dispatch: CallmanerDispatch, observer: (CallmanerNativeEvent) -> Unit): Boolean {
+        val req = args.getOrNull(0) ?: return false
+        if (!requestClass.isInstance(req) || sender !== senderField.get(null)) return false
+        if (requestSlip.invoke(req) != dispatch.attempt.callId) return false
+        val cardType = field(dispatch.item, "c") as? String
+        val expectedTp = if (dispatch.source == "CARD") {
+            if (cardType.equals("U", ignoreCase = true)) "U" else cardType ?: "M"
+        } else "T"
+        val expectedType = if (dispatch.source == "CARD") "d" else text(dispatch.item, "i")
+        check(requestTp.invoke(req) == expectedTp && requestCallType.invoke(req) == expectedType) { "Native request metadata mismatch" }
+        val original = args.getOrNull(2) ?: error("Missing original native callback")
+        args[2] = CallmanerCallbackAdapter.wrap(callbackType, original) { values -> observer(decode(values)) }
+        return true
+    }
+
+    private fun decode(values: Array<out Any?>?): CallmanerNativeEvent {
+        val json = values?.getOrNull(0) as? String ?: return CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
+        val error = values.getOrNull(1) as? Boolean ?: return CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
+        if (json.isBlank()) return CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
+        return try {
+            if (error) {
+                val rejection = parseMethod.invoke(parser, errorClass, json)
+                val code = rejection?.let { errorCode.invoke(it) as? String }.orEmpty()
+                val message = rejection?.let { errorMessage.invoke(it) as? String }.orEmpty()
+                // Native pm1 labels structured server errors true; dn1/fn1
+                // transport failures send an empty body. Unparsed errors remain unknown.
+                if (code.isNotBlank() && code != "0" && message.isNotBlank())
+                    CallmanerNativeEvent(CallmanerAcceptResult.FAILURE, terminalRejection = true)
+                else CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
+            } else {
+                val response = parseMethod.invoke(parser, responseClass, json)
+                val id = response?.let { responseSlip.invoke(it) as? String }?.takeIf { it.isNotBlank() }
+                if (id != null) CallmanerNativeEvent(CallmanerAcceptResult.SUCCESS, id)
+                else CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
+            }
+        } catch (_: Throwable) { CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN) }
+    }
+}
+
+private data class CallmanerDispatch(val attempt: CallmanerAcceptAttempt, val item: Any, val source: String,
+    var linked: Boolean = false, var blocked: Boolean = false)
+private data class CallmanerNativeEvent(val result: CallmanerAcceptResult, val callId: String? = null,
+    val terminalRejection: Boolean = false)
+
+internal object CallmanerAcceptController {
+    private val handler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+    private val ledger = CallmanerAcceptLedger()
+    private val dispatching = ThreadLocal<CallmanerDispatch>()
+    private val scanQueued = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var bridge: CallmanerNativeBridge? = null
+    @Volatile private var ready = false
+    @Volatile private var receiver: android.content.BroadcastReceiver? = null
+    private var installationAttempted = false
+    private var publishedLists: List<Any> = emptyList()
+
+    @Synchronized fun init(classLoader: ClassLoader) {
+        if (installationAttempted) return
+        installationAttempted = true
+        try {
+            val module = ModuleMain.module ?: return
+            val native = CallmanerNativeBridge(classLoader)
+            module.hook(native.cardAdd, CallmanerDataHooker::class.java)
+            module.hook(native.listConstructor, CallmanerDataHooker::class.java)
+            module.hook(native.listPublish, CallmanerListPublishHooker::class.java)
+            module.hook(native.sendMethod, CallmanerNativeSendHooker::class.java)
+            for (name in listOf("onResume", "onDestroy")) {
+                module.hook(native.hostClass.getDeclaredMethod(name), CallmanerHostHooker::class.java)
+            }
+            bridge = native
+            ready = true
+            module.log("CALLMANER: 6.3.9.4 ng.a(og), di, ci.Z and native 221 callback hooks installed")
+        } catch (error: Throwable) {
+            ModuleMain.module?.log("CALLMANER: exact native bindings unavailable; acceptance disabled", error)
+        }
+    }
+
+    private fun now() = android.os.SystemClock.elapsedRealtime()
+    private fun fingerprint() = ConditionClient.current().toString() +
+        ":${CallKindFilter.allowDaeri}:${CallKindFilter.allowTaksong}" +
+        ":${TaksongDateFilter.allowToday}:${TaksongDateFilter.allowTomorrow}"
+    private fun refreshSession() = ledger.observeSession(ConditionClient.isDetecting(), fingerprint())
+
+    private fun ensureObserver(): Boolean {
+        if (receiver != null) return true
+        val context = ModuleMain.getApplicationContext() ?: return false
+        val observer = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action != ConditionBridgeReceiver.ACTION_DELIVER_CONDITIONS) return
+                if (!intent.getBooleanExtra(ConditionProvider.KEY_DETECTING, false)) ledger.observeSession(false, "")
+                handler.post { refreshSession(); scheduleScan() }
+            }
+        }
+        return try {
+            val filter = android.content.IntentFilter(ConditionBridgeReceiver.ACTION_DELIVER_CONDITIONS)
+            if (android.os.Build.VERSION.SDK_INT >= 33) context.registerReceiver(observer, filter, Context.RECEIVER_EXPORTED)
+            else context.registerReceiver(observer, filter)
+            receiver = observer
+            handler.post { refreshSession() }
+            true
+        } catch (error: Throwable) { ModuleMain.module?.log("CALLMANER: condition observer unavailable", error); false }
+    }
+
+    fun publishLists() {
+        if (!ready) return
+        handler.post {
+            try {
+                // ci.Z has finished assigning native filtered V0/X0, including
+                // reservation flags set after di construction. Never use BC's trip list.
+                publishedLists = bridge?.lists() ?: emptyList()
+                scheduleScan()
+            } catch (error: Throwable) { ModuleMain.module?.log("CALLMANER: list publication unavailable", error) }
+        }
+    }
+    fun hostChanged() { publishLists(); scheduleScan() }
+    fun scheduleScan() {
+        if (!ready || !scanQueued.compareAndSet(false, true)) return
+        if (!handler.post {
+            scanQueued.set(false)
+            try { scan() } catch (error: Throwable) { ModuleMain.module?.log("CALLMANER: data processing failed", error) }
+        }) scanQueued.set(false)
+    }
+
+    private fun scan() {
+        val native = bridge ?: return
+        if (!ready || !ensureObserver()) return
+        refreshSession()
+        if (!ConditionClient.isDetecting()) return
+        val host = native.host() ?: return
+        val candidates = native.cards().filter { native.selectableCard(it) }.map { it to "CARD" } +
+            publishedLists.filter { native.selectableList(it) }.map { it to "LIST" }
+        for ((item, source) in candidates) {
+            val id = native.text(item, "a")
+            if (!ledger.canBegin(id, now())) continue
+            val call = native.call(item, source) ?: continue
+            if (!ModuleMain.matchAndAccept(call)) continue
+            // Fresh native object and current conditions are checked immediately
+            // before dispatch. No network request is made inside a parser lock.
+            val fresh = (if (source == "CARD") native.cards() else native.lists())
+                .firstOrNull { native.text(it, "a") == id } ?: continue
+            if (source == "CARD" && !native.selectableCard(fresh)) continue
+            if (source == "LIST" && !native.selectableList(fresh)) continue
+            val updated = native.call(fresh, source) ?: continue
+            if (!ModuleMain.matchAndAccept(updated)) continue
+            refreshSession()
+            val attempt = ledger.begin(id, source, now()) ?: continue
+            if (!ledger.dispatch(attempt.token)) continue
+            val dispatch = CallmanerDispatch(attempt, fresh, source)
+            dispatching.set(dispatch)
+            try {
+                native.start(host, fresh, source)
+                if (!dispatch.linked) observe(attempt, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN))
+            } catch (error: Throwable) {
+                observe(attempt, CallmanerNativeEvent(
+                    if (dispatch.blocked && !dispatch.linked) CallmanerAcceptResult.FAILURE else CallmanerAcceptResult.UNKNOWN))
+                ModuleMain.module?.log("CALLMANER: native acceptance invocation failed id=$id", error)
+            } finally { dispatching.remove() }
+            handler.postDelayed({
+                if (ledger.phase(attempt.token) != null) observe(attempt, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN))
+            }, 45000L)
+            return
+        }
+    }
+
+    fun wrapNativeSend(callback: XposedInterface.BeforeHookCallback) {
+        val dispatch = dispatching.get() ?: return // Unrelated/manual requests pass through.
+        if (dispatch.linked) return
+        try {
+            val native = bridge ?: error("Native bridge unavailable")
+            val linked = native.wrap(callback.args, callback.thisObject, dispatch) { observe(dispatch.attempt, it) }
+            if (!linked) return
+            check(ledger.observing(dispatch.attempt.token)) { "Request no longer dispatchable" }
+            dispatch.linked = true
+        } catch (error: Throwable) {
+            dispatch.blocked = true
+            callback.throwAndSkip(error) // A missing observer must not launch an untracked request.
+        }
+    }
+
+    private fun observe(attempt: CallmanerAcceptAttempt, event: CallmanerNativeEvent) {
+        val task = Runnable {
+            refreshSession()
+            when (ledger.finish(attempt.token, event.result, event.callId, now(), event.terminalRejection)) {
+                CallmanerAcceptFinish.SUCCESS -> {
+                    ModuleMain.module?.log("CALLMANER: ACCEPT_CONFIRMED id=${attempt.callId} source=${attempt.source}")
+                    ConditionClient.stopDetecting("confirmed:CALLMANER:${attempt.callId}")
+                    ModuleMain.bringAppToFront(ModuleMain.CALLMANER_PACKAGE)
+                }
+                CallmanerAcceptFinish.STALE_SUCCESS -> ModuleMain.module?.log("CALLMANER: prior-session request confirmed id=${attempt.callId}; current detection unchanged")
+                CallmanerAcceptFinish.FAILURE -> {
+                    ModuleMain.module?.log("CALLMANER: ACCEPT_FAILED id=${attempt.callId}; detection remains active")
+                    scheduleScan() // The failed ID is blocked/cooled down; consider the next current call.
+                }
+                CallmanerAcceptFinish.UNKNOWN -> ModuleMain.module?.log("CALLMANER: ACCEPT_UNCONFIRMED id=${attempt.callId}; reservation retained, no duplicate request")
+                CallmanerAcceptFinish.IGNORED -> Unit
+            }
+        }
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) task.run() else handler.post(task)
+    }
+}
+
+@XposedHooker
+class CallmanerDataHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic @AfterInvocation fun after(callback: XposedInterface.AfterHookCallback) {
+            if (callback.throwable == null) CallmanerAcceptController.scheduleScan()
+        }
+    }
+}
+@XposedHooker
+class CallmanerListPublishHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic @AfterInvocation fun after(callback: XposedInterface.AfterHookCallback) {
+            if (callback.throwable == null) CallmanerAcceptController.publishLists()
+        }
+    }
+}
+@XposedHooker
+class CallmanerHostHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic @AfterInvocation fun after(callback: XposedInterface.AfterHookCallback) {
+            if (callback.throwable == null) CallmanerAcceptController.hostChanged()
+        }
+    }
+}
+@XposedHooker
+class CallmanerNativeSendHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic @BeforeInvocation fun before(callback: XposedInterface.BeforeHookCallback) {
+            CallmanerAcceptController.wrapNativeSend(callback)
+        }
+    }
+}
+
+internal fun ModuleMain.installCallmanerAutoCardHook(classLoader: ClassLoader) { CallmanerAcceptController.init(classLoader) }
+internal fun ModuleMain.installCallmanerCallListHook(classLoader: ClassLoader) { CallmanerAcceptController.init(classLoader) }
+internal fun ModuleMain.installCallmanerAcceptResponseHook(classLoader: ClassLoader) { CallmanerAcceptController.init(classLoader) }
+
+/**
+ * 콜마너:
+ * - MainService 등에서 location.getLatitude/Longitude 사용
+ * - Location 훅으로 커버
+ */
+internal fun ModuleMain.installCallmanerGpsSpoof(classLoader: ClassLoader) {
+    try {
+        val locationClass = Class.forName("android.location.Location", false, classLoader)
+        ModuleMain.module?.hook(locationClass.getMethod("getLatitude"), GpsLatitudeHooker::class.java)
+        ModuleMain.module?.hook(locationClass.getMethod("getLongitude"), GpsLongitudeHooker::class.java)
+
+        // MainService: es0.h = LatLng(lat, lng) — LatLng 생성 좌표 교체
+        val latLngClass = Class.forName(
+            "com.google.android.gms.maps.model.LatLng",
+            false,
+            classLoader
+        )
+        for (ctor in latLngClass.declaredConstructors) {
+            ctor.isAccessible = true
+            if (ctor.parameterTypes.size >= 2) {
+                ModuleMain.module?.hook(ctor, CallmanerLatLngHooker::class.java)
+            }
+        }
+
+        ModuleMain.module?.log("CALLMANER: GPS spoof hooks installed (Location + LatLng)")
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("CALLMANER: GPS spoof hook FAILED", t)
+    }
+}
+
+@XposedHooker
+class CallmanerRootPathHooker : XposedInterface.Hooker {
+    companion object {
+        private val rootMarkers = arrayOf(
+            "/system/bin/su", "/system/xbin/su", "/sbin/su",
+            "/system/app/Superuser.apk", "/data/adb/magisk"
+        )
+
+        @JvmStatic
+        @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            val path = callback.thisObject?.toString() ?: return
+            if (rootMarkers.any { marker -> path.contains(marker) }) callback.result = false
+        }
+    }
+}
+
+internal fun ModuleMain.installCallmanerSecurityBypass(classLoader: ClassLoader) {
+    try {
+        val fileClass = Class.forName("java.io.File", false, classLoader)
+        val exists = fileClass.getDeclaredMethod("exists")
+        exists.isAccessible = true
+        ModuleMain.module?.hook(exists, CallmanerRootPathHooker::class.java)
+        ModuleMain.module?.log("CALLMANER: root path hook installed File.exists")
+    } catch (t: Throwable) {
+        ModuleMain.module?.log("CALLMANER: root path hook FAILED", t)
+    }
+}
+
