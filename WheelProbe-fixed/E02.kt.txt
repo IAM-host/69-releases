@@ -89,8 +89,6 @@ internal object DirectAcceptController {
 
     private fun refreshSession() = ledger.observeSession(ConditionClient.isDetecting(), fingerprint())
 
-    // API 33+ explicitly exports this cross-app receiver; API 32 uses the legacy overload.
-    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
     @Synchronized fun ensureConditionObserver(): Boolean {
         if (bridge == null) return false // Other target applications keep their existing flow.
         if (conditionReceiver != null) return true

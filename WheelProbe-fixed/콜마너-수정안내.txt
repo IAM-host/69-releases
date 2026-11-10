@@ -1,18 +1,16 @@
-수정본 교체 안내
+콜마너 수정본 교체 안내
 
-이번 교체 파일: E02.kt.txt, E04.kt.txt, E05.kt.txt 세 개
-각 TXT의 전체 내용을 app/src/main/java/com/example/wheelprobe 경로의 같은 이름 .kt 파일에 덮어씁니다.
-새 .kt 보조 파일을 추가할 필요는 없습니다. 다른 파일은 이번 교체 대상이 아닙니다.
+이번 교체 파일: E04.kt.txt 한 개
+TXT의 전체 내용을 기존 app/src/main/java/com/example/wheelprobe/E04.kt에 덮어씁니다.
 
-수정 범위
-- 콜마너 6.3.9.4의 감지·거리·금액·수락 흐름 수정은 E04.kt에 들어 있습니다. 원래 콜백과 배차 조건을 유지하며 요청 콜 번호와 정상 서버 응답이 일치할 때 현재 감지를 OFF로 바꿉니다.
-- 이번 수신기 검사 경고 수정은 E02.kt·E04.kt·E05.kt의 조건 수신기 등록 함수 세 곳에 같은 주석과 SuppressLint annotation을 추가한 것입니다. 수락 처리와 SET 분류 동작은 바꾸지 않았습니다.
-- Android 13(API 33) 이상에서는 기존처럼 RECEIVER_EXPORTED를 명시합니다. Android 12L(API 32) 이하에서는 해당 옵션이 없는 기존 등록 방식을 사용합니다.
-- 별도 EUNORA 앱이 보내는 조건 변경 방송을 받아야 하므로 RECEIVER_NOT_EXPORTED로 바꾸지 않았습니다.
+사진의 빨간줄은 UnspecifiedRegisterReceiverFlag라는 Android Lint 검사 표시입니다.
+Android 13(API 33) 이상 분기에는 이미 RECEIVER_EXPORTED가 설정돼 있습니다.
+Android 12L(API 32)용 기존 등록 분기에 함수 범위 SuppressLint와 설명 주석을 추가했습니다.
+EUNORA가 보내는 조건 변경 방송을 받도록 기존 수신 동작을 유지했습니다.
+E02.kt와 E05.kt 및 다른 파일은 기존 내용을 유지합니다.
 
-검증 범위
-- Android Kotlin 컴파일과 UnspecifiedRegisterReceiverFlag 경고 집중 검사를 통과했습니다. 해당 경고는 세 파일 모두 0건입니다.
-- 콜마너 기능은 데이터·수락 상태 154개와 콜백 보존 16개, 총 170개 검사를 통과한 구현을 유지합니다.
-- 전체 TXT는 실제 소스와 바이트가 같으며 CRLF, UTF-8 BOM 없음 형식입니다.
-- 콜마너 대조 자료는 제공한 6.3.9.4 sources.zip과 resources.zip입니다. base.apk 자체는 전송 한도로 읽지 못했습니다.
-- 실제 단말의 훅 실행과 최종 배차 수락 성공은 아직 검증하지 못했습니다.
+Android Kotlin 컴파일과 E04의 해당 Lint 검사 표시 0건을 확인했습니다.
+이 결과는 해당 검사에 대한 확인이며 모든 Lint 규칙이 통과했다는 뜻은 아닙니다.
+이번 추가 변경은 주석과 annotation 2줄이며 기존 수락·거리·금액·SET 동작은 같습니다.
+전체 TXT는 검사한 소스와 바이트가 같고 CRLF, UTF-8 BOM 없음 형식입니다.
+실제 단말의 콜 수락 성공은 아직 검증하지 못했습니다.
