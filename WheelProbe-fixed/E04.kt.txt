@@ -33,7 +33,7 @@ internal object CallmanerData {
     private val tag = Regex("<[^>]*>")
     private val lineBreak = Regex("(?i)<\\s*(?:br\\s*/?|/p|/div)\\s*>")
     private val entity = Regex("&(#(?:[xX][0-9a-fA-F]+|[0-9]+)|[a-zA-Z]+);")
-    private val amount = Regex("([0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(\\.[0-9]+)?\\s*([kK]|만|천)?\\s*(?:원)?")
+    private val amount = Regex("(?:(?:현금|후불|선불|카드)\\s*[:：]?\\s*)?([0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(\\.[0-9]+)?\\s*([kK]|만|천)?\\s*(?:원)?")
 
     // The native j50 renderer removes icon tokens and retains ${...} content
     // for these call display paths. Strip markup before reading any digits.
@@ -425,7 +425,7 @@ internal object CallmanerAcceptController {
     @Volatile private var receiver: android.content.BroadcastReceiver? = null
     private var installationAttempted = false
     private var publishedLists: List<Any> = emptyList()
-    private const val DIAGNOSTIC_BUILD = "20261111.1"
+    private const val DIAGNOSTIC_BUILD = "20261111.2"
     private val traceTimes = LinkedHashMap<String, Pair<String, Long>>()
 
     private fun trace(key: String, message: String, intervalMs: Long = 10000L) {
@@ -459,6 +459,8 @@ internal object CallmanerAcceptController {
             module.log("CALLMANER: BUILD=$DIAGNOSTIC_BUILD startup")
             check(CallmanerData.displayText("\${여서동원앙}") == "여서동원앙")
             check(CallmanerData.fareWon("15K") == 15000)
+            check(CallmanerData.fareWon("현금15K") == 15000)
+            check(CallmanerData.fareWon("후불20K") == 20000)
             module.log("CALLMANER: DATA_SELF_TEST_OK build=$DIAGNOSTIC_BUILD")
             stage = "NATIVE_BINDINGS"
             val native = CallmanerNativeBridge(classLoader)
