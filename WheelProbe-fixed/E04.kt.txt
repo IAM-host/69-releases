@@ -134,6 +134,16 @@ internal class CallmanerAcceptLedger(private val retryDelayMs: Long = 3000L) {
         callId.isNotBlank() && pending == null && callId !in succeeded &&
         now >= (retryAfter[callId] ?: Long.MIN_VALUE)
 
+    @Synchronized fun blockReason(callId: String, now: Long): String = when {
+        !detecting -> "DETECTION_OFF"
+        callId.isBlank() -> "EMPTY_ID"
+        pending != null -> "PENDING id=${pending!!.callId} phase=${pending!!.phase} token=${pending!!.token}"
+        callId in succeeded -> "ALREADY_CONFIRMED"
+        now < (retryAfter[callId] ?: Long.MIN_VALUE) ->
+            if (retryAfter[callId] == Long.MAX_VALUE) "SERVER_REJECTED_IN_SESSION" else "COOLDOWN"
+        else -> "ELIGIBLE"
+    }
+
     @Synchronized fun begin(callId: String, source: String, now: Long): CallmanerAcceptAttempt? {
         if (!canBegin(callId, now)) return null
         return CallmanerAcceptAttempt(++nextToken, callId, source, generation).also { pending = it }
@@ -309,6 +319,21 @@ private class CallmanerNativeBridge(private val classLoader: ClassLoader) {
         hostClass.isInstance(it) && !it.isFinishing && !it.isDestroyed && locationState.get(it) != null &&
             !((uidField.get(null) as? String).isNullOrBlank()) && loginField.get(null) != null && senderField.get(null) != null
     }
+    fun hostProblem(): String {
+        val value = appHost.get(null)
+        return when {
+            value == null -> "HOST_MISSING"
+            !hostClass.isInstance(value) || value !is Activity -> "HOST_TYPE_MISMATCH"
+            value.isFinishing -> "HOST_FINISHING"
+            value.isDestroyed -> "HOST_DESTROYED"
+            locationState.get(value) == null -> "LOCATION_STATE_NOT_READY"
+            (uidField.get(null) as? String).isNullOrBlank() -> "LOGIN_UID_NOT_READY"
+            loginField.get(null) == null -> "LOGIN_RESPONSE_NOT_READY"
+            senderField.get(null) == null -> "SENDER_NOT_READY"
+            else -> "READY"
+        }
+    }
+
     fun lists(): List<Any> = listFields.flatMap { (it.get(null) as? Collection<*>)?.filterNotNull() ?: emptyList() }
         .filter { listClass.isInstance(it) }.distinctBy { text(it, "a") }
     fun cards(): List<Any> {
@@ -362,9 +387,9 @@ private class CallmanerNativeBridge(private val classLoader: ClassLoader) {
     }
 
     private fun decode(values: Array<out Any?>?): CallmanerNativeEvent {
-        val json = values?.getOrNull(0) as? String ?: return CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
-        val error = values.getOrNull(1) as? Boolean ?: return CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
-        if (json.isBlank()) return CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
+        val json = values?.getOrNull(0) as? String ?: return CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "MISSING_RESPONSE_BODY")
+        val error = values.getOrNull(1) as? Boolean ?: return CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "MISSING_ERROR_FLAG")
+        if (json.isBlank()) return CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "EMPTY_RESPONSE_BODY")
         return try {
             if (error) {
                 val rejection = parseMethod.invoke(parser, errorClass, json)
@@ -373,22 +398,22 @@ private class CallmanerNativeBridge(private val classLoader: ClassLoader) {
                 // Native pm1 labels structured server errors true; dn1/fn1
                 // transport failures send an empty body. Unparsed errors remain unknown.
                 if (code.isNotBlank() && code != "0" && message.isNotBlank())
-                    CallmanerNativeEvent(CallmanerAcceptResult.FAILURE, terminalRejection = true)
-                else CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
+                    CallmanerNativeEvent(CallmanerAcceptResult.FAILURE, terminalRejection = true, reason = "SERVER_REJECTED rc=${code.take(40)} message=${message.take(160)}")
+                else CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "UNPARSED_SERVER_ERROR")
             } else {
                 val response = parseMethod.invoke(parser, responseClass, json)
                 val id = response?.let { responseSlip.invoke(it) as? String }?.takeIf { it.isNotBlank() }
-                if (id != null) CallmanerNativeEvent(CallmanerAcceptResult.SUCCESS, id)
-                else CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN)
+                if (id != null) CallmanerNativeEvent(CallmanerAcceptResult.SUCCESS, id, reason = "SERVER_RESPONSE")
+                else CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "MISSING_RESPONSE_ID")
             }
-        } catch (_: Throwable) { CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN) }
+        } catch (error: Throwable) { CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "RESPONSE_DECODE_FAILED ${error.javaClass.simpleName}") }
     }
 }
 
 private data class CallmanerDispatch(val attempt: CallmanerAcceptAttempt, val item: Any, val source: String,
     var linked: Boolean = false, var blocked: Boolean = false)
 private data class CallmanerNativeEvent(val result: CallmanerAcceptResult, val callId: String? = null,
-    val terminalRejection: Boolean = false)
+    val terminalRejection: Boolean = false, val reason: String = "UNSPECIFIED")
 
 internal object CallmanerAcceptController {
     private val handler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
@@ -400,13 +425,44 @@ internal object CallmanerAcceptController {
     @Volatile private var receiver: android.content.BroadcastReceiver? = null
     private var installationAttempted = false
     private var publishedLists: List<Any> = emptyList()
+    private const val DIAGNOSTIC_BUILD = "20261111.1"
+    private val traceTimes = LinkedHashMap<String, Pair<String, Long>>()
+
+    private fun trace(key: String, message: String, intervalMs: Long = 10000L) {
+        try {
+            val timestamp = now()
+            val emit = synchronized(traceTimes) {
+                val previous = traceTimes[key]
+                if (previous != null && previous.first == message && timestamp - previous.second < intervalMs) false
+                else {
+                    traceTimes[key] = message to timestamp
+                    while (traceTimes.size > 1024) traceTimes.remove(traceTimes.keys.first())
+                    true
+                }
+            }
+            if (emit) ModuleMain.module?.log("CALLMANER: $message")
+        } catch (_: Throwable) { /* Diagnostics must not change acceptance behavior. */ }
+    }
+
+    fun dataHookFired(member: String) {
+        trace("data:$member", "DATA_HOOK_FIRED member=$member")
+        scheduleScan()
+    }
+
 
     @Synchronized fun init(classLoader: ClassLoader) {
         if (installationAttempted) return
         installationAttempted = true
+        var stage = "DATA_SELF_TEST"
         try {
             val module = ModuleMain.module ?: return
+            module.log("CALLMANER: BUILD=$DIAGNOSTIC_BUILD startup")
+            check(CallmanerData.displayText("\${여서동원앙}") == "여서동원앙")
+            check(CallmanerData.fareWon("15K") == 15000)
+            module.log("CALLMANER: DATA_SELF_TEST_OK build=$DIAGNOSTIC_BUILD")
+            stage = "NATIVE_BINDINGS"
             val native = CallmanerNativeBridge(classLoader)
+            stage = "HOOK_REGISTRATION"
             module.hook(native.cardAdd, CallmanerDataHooker::class.java)
             module.hook(native.listConstructor, CallmanerDataHooker::class.java)
             module.hook(native.listPublish, CallmanerListPublishHooker::class.java)
@@ -418,7 +474,7 @@ internal object CallmanerAcceptController {
             ready = true
             module.log("CALLMANER: 6.3.9.4 ng.a(og), di, ci.Z and native 221 callback hooks installed")
         } catch (error: Throwable) {
-            ModuleMain.module?.log("CALLMANER: exact native bindings unavailable; acceptance disabled", error)
+            ModuleMain.module?.log("CALLMANER: initialization failed stage=$stage build=$DIAGNOSTIC_BUILD; acceptance disabled", error)
         }
     }
 
@@ -457,6 +513,7 @@ internal object CallmanerAcceptController {
                 // ci.Z has finished assigning native filtered V0/X0, including
                 // reservation flags set after di construction. Never use BC's trip list.
                 publishedLists = bridge?.lists() ?: emptyList()
+                trace("publication", "LIST_PUBLISHED count=${publishedLists.size}")
                 scheduleScan()
             } catch (error: Throwable) { ModuleMain.module?.log("CALLMANER: list publication unavailable", error) }
         }
@@ -472,16 +529,39 @@ internal object CallmanerAcceptController {
 
     private fun scan() {
         val native = bridge ?: return
-        if (!ready || !ensureObserver()) return
+        if (!ready || !ensureObserver()) {
+            trace("gate", "SCAN_BLOCKED reason=OBSERVER_OR_BINDINGS_NOT_READY")
+            return
+        }
         refreshSession()
-        if (!ConditionClient.isDetecting()) return
-        val host = native.host() ?: return
-        val candidates = native.cards().filter { native.selectableCard(it) }.map { it to "CARD" } +
-            publishedLists.filter { native.selectableList(it) }.map { it to "LIST" }
+        trace("conditions", "CONDITIONS ready=${ConditionClient.isReady()} detecting=${ConditionClient.isDetecting()} sets=${ConditionClient.current()}", 30000L)
+        if (!ConditionClient.isDetecting()) {
+            trace("gate", "SCAN_BLOCKED reason=${if (ConditionClient.isReady()) "DETECTION_OFF" else "CONDITIONS_NOT_RECEIVED"}")
+            return
+        }
+        val host = native.host()
+        if (host == null) {
+            trace("gate", "SCAN_BLOCKED reason=${native.hostProblem()}")
+            return
+        }
+        val cards = native.cards()
+        val selectedCards = cards.filter { native.selectableCard(it) }
+        val selectedLists = publishedLists.filter { native.selectableList(it) }
+        val candidates = selectedCards.map { it to "CARD" } + selectedLists.map { it to "LIST" }
+        trace("gate", "SCAN_READY cards=${cards.size} selectableCards=${selectedCards.size} publishedLists=${publishedLists.size} selectableLists=${selectedLists.size}")
         for ((item, source) in candidates) {
             val id = native.text(item, "a")
-            if (!ledger.canBegin(id, now())) continue
-            val call = native.call(item, source) ?: continue
+            if (!ledger.canBegin(id, now())) {
+                trace("blocked:$id", "ACCEPT_BLOCKED id=$id reason=${ledger.blockReason(id, now())}", 30000L)
+                continue
+            }
+            val call = native.call(item, source)
+            if (call == null) {
+                trace("invalid:$id", "CALL_SKIPPED id=$id source=$source reason=INCOMPLETE_DATA")
+                continue
+            }
+            val rawFare = native.text(item, if (source == "CARD") "i" else "e").replace('\n', ' ').take(180)
+            trace("call:$source:$id", "CALL_DATA id=$id source=$source destination=${call.destination} fare=${call.fare} pickupKm=${call.distanceKm} rawFare=$rawFare", 30000L)
             if (!ModuleMain.matchAndAccept(call)) continue
             // Fresh native object and current conditions are checked immediately
             // before dispatch. No network request is made inside a parser lock.
@@ -497,15 +577,17 @@ internal object CallmanerAcceptController {
             val dispatch = CallmanerDispatch(attempt, fresh, source)
             dispatching.set(dispatch)
             try {
+                trace("dispatch:$id", "DISPATCH_START id=$id source=$source")
                 native.start(host, fresh, source)
-                if (!dispatch.linked) observe(attempt, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN))
+                trace("dispatch-return:$id", "DISPATCH_RETURNED id=$id callbackObserved=${dispatch.linked}")
+                if (!dispatch.linked) observe(attempt, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "NATIVE_CALLBACK_NOT_OBSERVED"))
             } catch (error: Throwable) {
                 observe(attempt, CallmanerNativeEvent(
                     if (dispatch.blocked && !dispatch.linked) CallmanerAcceptResult.FAILURE else CallmanerAcceptResult.UNKNOWN))
                 ModuleMain.module?.log("CALLMANER: native acceptance invocation failed id=$id", error)
             } finally { dispatching.remove() }
             handler.postDelayed({
-                if (ledger.phase(attempt.token) != null) observe(attempt, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN))
+                if (ledger.phase(attempt.token) != null) observe(attempt, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "OUTCOME_TIMEOUT"))
             }, 45000L)
             return
         }
@@ -520,6 +602,7 @@ internal object CallmanerAcceptController {
             if (!linked) return
             check(ledger.observing(dispatch.attempt.token)) { "Request no longer dispatchable" }
             dispatch.linked = true
+            trace("request:${dispatch.attempt.token}", "REQUEST_OBSERVED id=${dispatch.attempt.callId} source=${dispatch.source}")
         } catch (error: Throwable) {
             dispatch.blocked = true
             callback.throwAndSkip(error) // A missing observer must not launch an untracked request.
@@ -537,10 +620,10 @@ internal object CallmanerAcceptController {
                 }
                 CallmanerAcceptFinish.STALE_SUCCESS -> ModuleMain.module?.log("CALLMANER: prior-session request confirmed id=${attempt.callId}; current detection unchanged")
                 CallmanerAcceptFinish.FAILURE -> {
-                    ModuleMain.module?.log("CALLMANER: ACCEPT_FAILED id=${attempt.callId}; detection remains active")
+                    ModuleMain.module?.log("CALLMANER: ACCEPT_FAILED id=${attempt.callId} reason=${event.reason}; detection remains active")
                     scheduleScan() // The failed ID is blocked/cooled down; consider the next current call.
                 }
-                CallmanerAcceptFinish.UNKNOWN -> ModuleMain.module?.log("CALLMANER: ACCEPT_UNCONFIRMED id=${attempt.callId}; reservation retained, no duplicate request")
+                CallmanerAcceptFinish.UNKNOWN -> ModuleMain.module?.log("CALLMANER: ACCEPT_UNCONFIRMED id=${attempt.callId} responseId=${event.callId} reason=${event.reason}; reservation retained, no duplicate request")
                 CallmanerAcceptFinish.IGNORED -> Unit
             }
         }
@@ -552,7 +635,7 @@ internal object CallmanerAcceptController {
 class CallmanerDataHooker : XposedInterface.Hooker {
     companion object {
         @JvmStatic @AfterInvocation fun after(callback: XposedInterface.AfterHookCallback) {
-            if (callback.throwable == null) CallmanerAcceptController.scheduleScan()
+            if (callback.throwable == null) CallmanerAcceptController.dataHookFired("${callback.member.declaringClass.simpleName}.${callback.member.name}")
         }
     }
 }
