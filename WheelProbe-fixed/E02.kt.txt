@@ -620,210 +620,149 @@ internal fun ModuleMain.installKakaoGpsSpoof(classLoader: ClassLoader) {
     }
 }
 
+// BEGIN_KAKAO_SECURITY_TARGETS
+/** Exact source contracts; these resolvers do not execute or change a target check. */
+internal object KakaoSecurityTargets {
+    const val BUILD = "20261112.2"
+
+    fun rootStatusConstructor(statusClass: Class<*>, modeClass: Class<*>): java.lang.reflect.Constructor<*> {
+        require(statusClass.getDeclaredField("a").type == modeClass) { "root status mode field mismatch" }
+        require(statusClass.getDeclaredField("b").type == Boolean::class.javaPrimitiveType) { "root status boolean field mismatch" }
+        return statusClass.getDeclaredConstructor(modeClass, Boolean::class.javaPrimitiveType).apply {
+            isAccessible = true
+        }
+    }
+
+    fun exactMethod(owner: Class<*>, name: String, result: Class<*>, vararg parameters: Class<*>): Method {
+        return owner.getDeclaredMethod(name, *parameters).apply {
+            require(returnType == result) { "return type mismatch" }
+            require(!Modifier.isStatic(modifiers)) { "expected an instance method" }
+            isAccessible = true
+        }
+    }
+
+    fun observation(member: java.lang.reflect.Member, error: Throwable?): String {
+        val name = if (member is java.lang.reflect.Constructor<*>) "<init>" else member.name
+        val outcome = if (error == null) "RETURNED" else "THREW:${error.javaClass.name}"
+        // Do not inspect/toString arguments, results, exception messages or token contents.
+        return "KAKAO_TARGETS: OBSERVED target=${member.declaringClass.name}#$name outcome=$outcome " +
+                "resultMutation=false serverVerdict=UNVERIFIED"
+    }
+
+    fun rootObservation(member: java.lang.reflect.Member, rootedArgument: Any?, error: Throwable?): String {
+        val rooted = if (rootedArgument is Boolean) rootedArgument.toString() else "UNKNOWN"
+        return observation(member, error) + " constructorRootedArgument=$rooted"
+    }
+}
+// END_KAKAO_SECURITY_TARGETS
+
+// BEGIN KAKAO_SECURITY_OBSERVERS
+@XposedHooker
+class KakaoSecurityObservationHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                ModuleMain.module?.log(KakaoSecurityTargets.observation(callback.member, callback.throwable))
+            } catch (_: Throwable) {
+                // Logging must not replace the original result or original exception.
+            }
+        }
+    }
+}
+
+@XposedHooker
+class KakaoRootStatusObservationHooker : XposedInterface.Hooker {
+    companion object {
+        @JvmStatic @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                ModuleMain.module?.log(KakaoSecurityTargets.rootObservation(
+                    callback.member, callback.args.getOrNull(1), callback.throwable
+                ))
+            } catch (_: Throwable) {
+                // Read only: never change constructor arguments, fields, results or exceptions.
+            }
+        }
+    }
+}
+// END KAKAO_SECURITY_OBSERVERS
+
 /**
- * 10/03 APK: 서버로 나가는 출근·루팅 검사.
- * q0b.a = 출근 진입, cb4.a = Play Integrity, i9a.S = drivers/work
- * xb4.a = RootingStatus(kf8). kf8.a = bt7.OFF/WARN/BLOCK, kf8.b = isRooted
- * dl4.b = HookDetectionReport(wk4)
+ * Source profile: user-provided 1101 sources. The old function name is retained for ModuleMain.
+ * Corrected bindings observe their original checks. They do not clear/suppress security results.
+ * The pre-existing File.exists hook is retained separately and its four paths are unchanged.
  */
 internal fun ModuleMain.installKakaoRootingReportBypass(classLoader: ClassLoader) {
-    try {
-        val checkTypeClass = Class.forName("bt7", false, classLoader)
-        val statusClass = Class.forName("kf8", false, classLoader)
-        val statusCtor = statusClass.declaredConstructors.firstOrNull()
-            ?: throw NoSuchMethodException("kf8 constructor not found")
-        statusCtor.isAccessible = true
-        ModuleMain.module?.hook(statusCtor, KakaoRootingStatusHooker::class.java)
-        ModuleMain.module?.log("KAKAO: rooting status hook installed kf8(bt7, boolean)")
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: rooting status hook FAILED", t)
-    }
-    try {
-        val reportClass = Class.forName("wk4", false, classLoader)
-        val yMethod = reportClass.declaredMethods.firstOrNull { it.name == "y" }
-        if (yMethod != null) {
-            yMethod.isAccessible = true
-            ModuleMain.module?.hook(yMethod, KakaoHookVerdictHooker::class.java)
-            ModuleMain.module?.log("KAKAO: hook report bypass installed wk4.y")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: hook report bypass FAILED", t)
-    }
-    try {
-        val scannerClass = Class.forName("dl4", false, classLoader)
-        val scan = scannerClass.declaredMethods.firstOrNull { it.returnType == List::class.java || it.returnType.name.contains("List") }
-        if (scan != null) {
-            scan.isAccessible = true
-            ModuleMain.module?.hook(scan, KakaoHookScanHooker::class.java)
-            ModuleMain.module?.log("KAKAO: hook scan bypass installed dl4.${scan.name}")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: hook scan bypass FAILED", t)
-    }
-    try {
-        val statusClass = Class.forName("xb4", false, classLoader)
-        val statusMethod = statusClass.declaredMethods.firstOrNull { it.name == "a" }
-        if (statusMethod != null) {
-            statusMethod.isAccessible = true
-            ModuleMain.module?.hook(statusMethod, KakaoWorkRootStatusHooker::class.java)
-            ModuleMain.module?.log("KAKAO: work root status hook installed xb4.a")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: work root status hook FAILED", t)
-    }
-    try {
-        val workStatusClass = try { Class.forName("mi4", false, classLoader) } catch (e: Throwable) { null }
-        if (workStatusClass == null) {
-            ModuleMain.module?.log("KAKAO: mi4 not found, skipping work status dto")
-        } else {
-            val checkTypeClass = Class.forName("bt7", false, classLoader)
-            val ctor = workStatusClass.declaredConstructors.firstOrNull { ctor ->
-                ctor.parameterTypes.any { it == checkTypeClass }
+    val module = ModuleMain.module ?: return
+    var registered = 0
+    var unavailable = 0
+    module.log("KAKAO_TARGETS: BEGIN build=${KakaoSecurityTargets.BUILD} profile=provided_1101 " +
+            "correctedBindings=OBSERVE_ONLY serverVerdict=UNVERIFIED")
+
+    fun register(
+        label: String, hooker: Class<out XposedInterface.Hooker>,
+        resolve: () -> java.lang.reflect.Executable
+    ) {
+        try {
+            val member = resolve()
+            when (member) {
+                is Method -> module.hook(member, hooker)
+                is java.lang.reflect.Constructor<*> -> module.hook(member, hooker)
+                else -> error("unsupported member type")
             }
-            if (ctor != null) {
-                ctor.isAccessible = true
-                ModuleMain.module?.hook(ctor, KakaoWorkStatusDtoHooker::class.java)
-                ModuleMain.module?.log("KAKAO: work status dto hook installed mi4")
-            }
+            registered++
+            module.log("KAKAO_TARGETS: REGISTERED label=$label target=${member.declaringClass.name}#${member.name} mode=OBSERVE_ONLY")
+        } catch (error: Throwable) {
+            unavailable++
+            module.log("KAKAO_TARGETS: UNAVAILABLE label=$label reason=${error.javaClass.name} action=SKIP_NO_FALLBACK")
         }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: work status dto hook FAILED", t)
     }
-    try {
-        val workClass = Class.forName("q0b", false, classLoader)
-        val workMethod = workClass.declaredMethods.firstOrNull { it.parameterCount >= 1 }
-        if (workMethod != null) {
-            workMethod.isAccessible = true
-            ModuleMain.module?.hook(workMethod, KakaoWorkEntryHooker::class.java)
-            ModuleMain.module?.log("KAKAO: work entry hook installed q0b.${workMethod.name}")
+
+    register("ROOT_STATUS", KakaoRootStatusObservationHooker::class.java) {
+        val modeClass = Class.forName("ht7", false, classLoader)
+        val statusClass = Class.forName("qf8", false, classLoader)
+        KakaoSecurityTargets.rootStatusConstructor(statusClass, modeClass)
+    }
+    register("HOOK_REPORT", KakaoSecurityObservationHooker::class.java) {
+        val owner = Class.forName("il4", false, classLoader)
+        val report = Class.forName("bl4", false, classLoader)
+        require(report.getDeclaredField("a").type == Class.forName("zk4", false, classLoader))
+        require(report.getDeclaredField("b").type == java.util.LinkedHashMap::class.java)
+        KakaoSecurityTargets.exactMethod(owner, "b", report)
+    }
+    for (methodName in listOf("a", "b", "c")) {
+        register("SIGNAL_COLLECTION_$methodName", KakaoSecurityObservationHooker::class.java) {
+            val collector = Class.forName("fz3", false, classLoader)
+            require(collector.getDeclaredField("b").type == Class.forName("il4", false, classLoader))
+            val parameters = if (methodName == "b") emptyArray<Class<*>>() else arrayOf<Class<*>>(String::class.java)
+            KakaoSecurityTargets.exactMethod(collector, methodName, Void.TYPE, *parameters)
         }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: work entry hook FAILED", t)
     }
+    register("INTEGRITY_REQUEST", KakaoSecurityObservationHooker::class.java) {
+        KakaoSecurityTargets.exactMethod(
+            Class.forName("jb4", false, classLoader), "a", Any::class.java,
+            Class.forName("da2", false, classLoader)
+        )
+    }
+    register("INTEGRITY_HEADER_REQUEST", KakaoSecurityObservationHooker::class.java) {
+        KakaoSecurityTargets.exactMethod(
+            Class.forName("h31", false, classLoader), "a", Any::class.java,
+            String::class.java, String::class.java, String::class.java,
+            java.lang.Long::class.java, String::class.java, Class.forName("da2", false, classLoader)
+        )
+    }
+
+    // Existing behavior only. E03/Tmap also uses KakaoRootPathHooker, so keep that class unchanged.
     try {
-        val integrityClass = Class.forName("cb4", false, classLoader)
-        val integrityMethod = integrityClass.declaredMethods.firstOrNull { it.name == "a" }
-        if (integrityMethod != null) {
-            integrityMethod.isAccessible = true
-            ModuleMain.module?.hook(integrityMethod, KakaoIntegrityFetchHooker::class.java)
-            ModuleMain.module?.log("KAKAO: integrity fetch hook installed cb4.a")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: integrity fetch hook FAILED", t)
+        val exists = java.io.File::class.java.getDeclaredMethod("exists").apply { isAccessible = true }
+        module.hook(exists, KakaoRootPathHooker::class.java)
+        module.log("KAKAO_TARGETS: LEGACY_FILE_HOOK_REGISTERED coverage=UNCHANGED")
+    } catch (error: Throwable) {
+        module.log("KAKAO_TARGETS: LEGACY_FILE_HOOK_UNAVAILABLE reason=${error.javaClass.name}")
     }
-    try {
-        val tokenDto = try { Class.forName("y97", false, classLoader) } catch (e: Throwable) { null }
-        if (tokenDto == null) {
-            ModuleMain.module?.log("KAKAO: y97 not found, skipping integrity dto")
-        } else {
-            for (ctor in tokenDto.declaredConstructors) {
-                ctor.isAccessible = true
-                ModuleMain.module?.hook(ctor, KakaoIntegrityDtoHooker::class.java)
-            }
-            ModuleMain.module?.log("KAKAO: integrity dto hook installed y97")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: integrity dto hook FAILED", t)
-    }
-    try {
-        val apiClass = Class.forName("i9a", false, classLoader)
-        val workRequest = apiClass.declaredMethods.firstOrNull { it.name == "S" }
-        if (workRequest != null) {
-            workRequest.isAccessible = true
-            ModuleMain.module?.hook(workRequest, KakaoWorkRequestHooker::class.java)
-            ModuleMain.module?.log("KAKAO: drivers/work hook installed i9a.S")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: drivers/work hook FAILED", t)
-    }
-    try {
-        val il4Class = Class.forName("il4", false, classLoader)
-        val bMethod = il4Class.declaredMethods.firstOrNull { it.name == "b" }
-        if (bMethod != null) {
-            bMethod.isAccessible = true
-            ModuleMain.module?.hook(bMethod, KakaoHookDetectionHooker::class.java)
-            ModuleMain.module?.log("KAKAO: hook detection bypass installed")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: hook detection bypass FAILED", t)
-    }
-    try {
-        val okhttpClass = Class.forName("okhttp3.Interceptor", false, classLoader)
-        val interceptMethod = okhttpClass.declaredMethods.firstOrNull { it.name == "intercept" }
-        if (interceptMethod != null) {
-            interceptMethod.isAccessible = true
-            ModuleMain.module?.hook(interceptMethod, KakaoOkHttpInterceptorHooker::class.java)
-            ModuleMain.module?.log("KAKAO: OkHttp interceptor hook installed")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: OkHttp interceptor hook FAILED", t)
-    }
-    try {
-        val headerApi = Class.forName("h31", false, classLoader)
-        val integrityCall = headerApi.declaredMethods.firstOrNull { it.name == "a" }
-        if (integrityCall != null) {
-            integrityCall.isAccessible = true
-            ModuleMain.module?.hook(integrityCall, KakaoIntegrityHeaderHooker::class.java)
-            ModuleMain.module?.log("KAKAO: integrity header hook installed h31.a")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: integrity header hook FAILED", t)
-    }
-    try {
-        val accessibilityClass = Class.forName("zy3", false, classLoader)
-        for (method in accessibilityClass.declaredMethods) {
-            if (method.name !in setOf("a", "b")) continue
-            if (method.name == "b" && method.parameterCount != 0) continue
-            if (method.name == "a" && method.parameterCount != 1) continue
-            method.isAccessible = true
-            ModuleMain.module?.hook(method, KakaoAccessibilitySignalHooker::class.java)
-        }
-        ModuleMain.module?.log("KAKAO: accessibility signal hook installed zy3")
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: accessibility signal hook FAILED", t)
-    }
-    try {
-        val fileClass = Class.forName("java.io.File", false, classLoader)
-        val exists = fileClass.getDeclaredMethod("exists")
-        exists.isAccessible = true
-        ModuleMain.module?.hook(exists, KakaoRootPathHooker::class.java)
-        ModuleMain.module?.log("KAKAO: root path hook installed File.exists")
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: root path hook FAILED", t)
-    }
-    try {
-        val tagsClass = Class.forName("xq1", false, classLoader)
-        val tags = tagsClass.declaredMethods.firstOrNull { it.name == "y" }
-        if (tags != null) {
-            tags.isAccessible = true
-            ModuleMain.module?.hook(tags, KakaoBuildTagsHooker::class.java)
-            ModuleMain.module?.log("KAKAO: build tags hook installed xq1.y")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: build tags hook FAILED", t)
-    }
-    try {
-        val policyClass = Class.forName("g39", false, classLoader)
-        val policy = policyClass.declaredMethods.firstOrNull { it.name == "a" }
-        if (policy != null) {
-            policy.isAccessible = true
-            ModuleMain.module?.hook(policy, KakaoPolicyCoroutineHooker::class.java)
-            ModuleMain.module?.log("KAKAO: rooting policy hook installed g39.a")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: rooting policy hook FAILED", t)
-    }
-    try {
-        val dialog = Class.forName("f85", false, classLoader)
-        val show = dialog.declaredMethods.firstOrNull { it.parameterCount >= 3 }
-        if (show != null) {
-            show.isAccessible = true
-            ModuleMain.module?.hook(show, KakaoRootingDialogHooker::class.java)
-            ModuleMain.module?.log("KAKAO: rooting dialog hook installed f85.${show.name}")
-        }
-    } catch (t: Throwable) {
-        ModuleMain.module?.log("KAKAO: rooting dialog hook FAILED", t)
-    }
+    module.log("KAKAO_TARGETS: READY build=${KakaoSecurityTargets.BUILD} registered=$registered unavailable=$unavailable " +
+            "registrationOnly=true liveExecution=UNVERIFIED serverVerdict=UNVERIFIED")
 }
 
 internal fun ModuleMain.installKakaoReservedExclusiveHooks(classLoader: ClassLoader) {

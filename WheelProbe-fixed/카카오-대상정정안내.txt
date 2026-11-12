@@ -1,0 +1,51 @@
+카카오 보안 관찰 대상 연결 정정 — 20261112.2
+
+교체 파일
+E02.kt.txt 전체 코드로 기존 E02.kt만 교체합니다.
+별도의 런타임 .kt 파일을 추가하지 않습니다.
+
+수정 범위와 동작
+첨부된 1101 소스와 맞지 않던 보안 관련 대상 등록을 제거했습니다.
+정정한 대상은 관찰용입니다. 새 훅은 인자·검사 결과·예외를 변경하거나 검사를 건너뛰지 않습니다.
+루팅·후킹 감지를 무력화하는 기능을 완성한 버전이 아닙니다.
+이전의 잘못된 대상에 연결되던 결과 변경 콜백도 더 이상 등록하지 않습니다.
+기존 File.exists 처리와 그 4개 경로는 그대로 유지합니다. 이 클래스는 T맵에서도 공유합니다.
+카드 데이터·일반콜·프로단독·귀가지원 감지 및 수락 코드는 기존과 같습니다.
+
+정확한 관찰 대상
+- qf8(ht7, boolean): 루팅 상태 생성자의 입력 관찰
+- il4.b(): bl4 후킹 검사 보고 객체 반환 관찰
+- fz3.a(String), fz3.b(), fz3.c(String): 접근성·후킹 신호 수집 호출 관찰
+- jb4.a(da2): Play Integrity 요청 함수 호출 관찰
+- h31.a(String, String, String, Long, String, da2): 토큰 헤더 요청 함수 호출 관찰
+Long은 원시형 long이 아닌 boxed java.lang.Long입니다.
+위 대상은 메서드 이름·인자·반환형을 검증하고, 맞지 않으면 UNAVAILABLE로 기록하며 생략합니다.
+임의의 첫 번째 메서드나 유사한 클래스로 대체하지 않습니다.
+
+로그 의미
+KAKAO_TARGETS: BEGIN build=20261112.2
+KAKAO_TARGETS: REGISTERED ... mode=OBSERVE_ONLY
+KAKAO_TARGETS: UNAVAILABLE ... action=SKIP_NO_FALLBACK
+KAKAO_TARGETS: READY ... registered=7 unavailable=0 registrationOnly=true
+KAKAO_TARGETS: OBSERVED ... resultMutation=false serverVerdict=UNVERIFIED
+
+REGISTERED는 훅 등록 확인이며 실제 호출 또는 서버 검증 통과를 뜻하지 않습니다.
+OBSERVED는 원래 함수 실행을 관찰했다는 의미입니다.
+비동기 함수는 최초 반환만으로 작업 완료·토큰 유효·서버 승인 여부를 확정할 수 없습니다.
+constructorRootedArgument는 생성자에서 관찰한 boolean 인자이며 서버 판정이 아닙니다.
+토큰 값·인자 문자열·사용자 ID·반환 객체 내용·예외 메시지는 새 관찰 로그에 넣지 않습니다.
+기존의 사용하지 않는 보안 콜백 정의는 다른 코드와의 호환성을 위해 남아 있지만 정정된 대상에 등록하지 않습니다.
+
+확인 순서
+1. E02.kt 교체 후 새 APK를 빌드·설치합니다.
+2. 카카오 앱을 강제 종료한 뒤 다시 실행합니다.
+3. 아래 CMD 명령을 실행하고 KAKAO_TARGETS 기록을 확인합니다.
+
+adb logcat -b all -d -t 10000 -v threadtime > "%USERPROFILE%\kakao-targets.txt" 2>&1
+notepad "%USERPROFILE%\kakao-targets.txt"
+
+검증
+Android assembleDebug 성공.
+새 관찰 코드 26개, 기존 카카오 카드·수락 65개, 대리·탁송 공통 22개 검사 통과.
+E02 보안 대상 등록 구간 밖은 변경 전과 바이트 단위로 동일합니다.
+휴대폰에서의 실제 Xposed 호출과 서버 판정은 검증하지 않았습니다.
