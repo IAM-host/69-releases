@@ -1,0 +1,38 @@
+카카오 루팅 상태 대상 최소 정정본
+
+교체 파일
+E02.kt.txt 전체 코드로 기존 E02.kt만 교체합니다.
+관찰용 변경 전의 원본 E02를 기준으로 수정했습니다.
+
+이번 변경
+1. 첫 루팅 상태 훅의 대상 클래스: kf8 → qf8
+2. 해당 생성자의 첫 매개변수 클래스: bt7 → ht7
+3. 첫 생성자를 임의로 선택하던 부분을 qf8(ht7, boolean) 정확한 생성자 조회로 변경
+4. a 필드가 ht7, b 필드가 원시형 boolean인지 등록 전에 확인
+5. 이 등록 부분의 주석과 설치 로그를 실제 대상 이름으로 정정
+
+기존 처리 보존
+KakaoRootingStatusHooker의 기존 결과 처리 본문은 변경하지 않았습니다.
+su·Magisk 경로 목록과 파일 검사 처리도 변경하지 않았습니다.
+첫 등록 블록 뒤의 다른 보안 훅·GPS·콜 감지·수락 코드는 원본과 바이트 단위로 같습니다.
+이전 관찰용 수정본의 코드나 동작은 이 파일에 포함하지 않았습니다.
+다른 보안 검사 대상의 불일치나 로그 문제는 이번 최소 수정 범위에 포함하지 않았습니다.
+
+적용 및 확인
+E02.kt 교체 → 새 APK 빌드·설치 → 카카오 강제 종료 후 재실행.
+설치가 성공하면 아래 로그가 남습니다.
+KAKAO: rooting status hook installed qf8(ht7, boolean)
+시그니처 또는 필드 형식이 맞지 않으면 기존 실패 로그로 기록됩니다.
+KAKAO: rooting status hook FAILED
+
+CMD 로그 저장
+adb logcat -b all -d -t 10000 -v threadtime > "%USERPROFILE%\kakao-root-target.txt" 2>&1
+notepad "%USERPROFILE%\kakao-root-target.txt"
+
+검증
+Android assembleDebug 성공.
+기존 카카오 카드 데이터 21개·수락 처리 44개·대리/탁송 공통 22개 검사 통과.
+UTF-8 BOM 없음, CRLF 줄바꿈 유지.
+첨부 소스의 qf8(ht7, boolean), a:ht7, b:boolean 구조와 대조했습니다.
+실제 휴대폰의 훅 호출·필드 변경 결과·서버 판정은 아직 검증하지 않았습니다.
+설치 로그 또는 빌드 성공만으로 실행 중 결과 변경까지 확정할 수 없습니다.

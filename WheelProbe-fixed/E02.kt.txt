@@ -623,18 +623,19 @@ internal fun ModuleMain.installKakaoGpsSpoof(classLoader: ClassLoader) {
 /**
  * 10/03 APK: 서버로 나가는 출근·루팅 검사.
  * q0b.a = 출근 진입, cb4.a = Play Integrity, i9a.S = drivers/work
- * xb4.a = RootingStatus(kf8). kf8.a = bt7.OFF/WARN/BLOCK, kf8.b = isRooted
+ * qf8(ht7, boolean) = RootingStatus. qf8.a = ht7.OFF/WARN/BLOCK, qf8.b = isRooted
  * dl4.b = HookDetectionReport(wk4)
  */
 internal fun ModuleMain.installKakaoRootingReportBypass(classLoader: ClassLoader) {
     try {
-        val checkTypeClass = Class.forName("bt7", false, classLoader)
-        val statusClass = Class.forName("kf8", false, classLoader)
-        val statusCtor = statusClass.declaredConstructors.firstOrNull()
-            ?: throw NoSuchMethodException("kf8 constructor not found")
+        val checkTypeClass = Class.forName("ht7", false, classLoader)
+        val statusClass = Class.forName("qf8", false, classLoader)
+        require(statusClass.getDeclaredField("a").type == checkTypeClass) { "rooting status mode field mismatch" }
+        require(statusClass.getDeclaredField("b").type == java.lang.Boolean.TYPE) { "rooting status boolean field mismatch" }
+        val statusCtor = statusClass.getDeclaredConstructor(checkTypeClass, java.lang.Boolean.TYPE)
         statusCtor.isAccessible = true
         ModuleMain.module?.hook(statusCtor, KakaoRootingStatusHooker::class.java)
-        ModuleMain.module?.log("KAKAO: rooting status hook installed kf8(bt7, boolean)")
+        ModuleMain.module?.log("KAKAO: rooting status hook installed qf8(ht7, boolean)")
     } catch (t: Throwable) {
         ModuleMain.module?.log("KAKAO: rooting status hook FAILED", t)
     }
