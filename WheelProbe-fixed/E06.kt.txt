@@ -273,10 +273,47 @@ internal object IdriveOverlayData {
             isAccessible = true
         }
     }
+
+    fun buildCallData(map: kotlin.collections.Map<*, *>, view: Any): CallData {
+        val num = map["num"]?.toString() ?: map["id"]?.toString() ?: ""
+        // The native show payload usually has no order ID; the fallback identifies this view only.
+        val localKey = num.takeIf { it.isNotBlank() } ?: "overlay:${System.identityHashCode(view)}"
+        return CallData(
+            "IDRIVE:$localKey", map["start"] as? String ?: "", map["arrive"] as? String ?: "",
+            ModuleMain.parseFareAnyFormat(map["fee"]?.toString()),
+            parseDistanceKm(map["distance"]?.toString())
+        )
+    }
+
+    // The live hook and the local recorder share this path. Only the caller supplies the sink.
+    fun processOverlay(
+        map: kotlin.collections.Map<*, *>, view: Any,
+        match: (CallData) -> Boolean, reserve: (Any) -> Boolean,
+        submit: (String, String) -> Unit, log: (String, Throwable?) -> Unit
+    ) {
+        val callData = buildCallData(map, view)
+        log("IDRIVE: overlay start=${callData.origin} arrive=${callData.destination} " +
+                "fee=${map["fee"]} distance=${map["distance"]} num=${map["num"] ?: map["id"] ?: ""}", null)
+        if (callData.destination.isBlank() && callData.origin.isBlank()) return
+        if (!match(callData)) return
+        if (!reserve(view)) {
+            log("IDRIVE: overlay skipped reason=ALREADY_SUBMITTED", null)
+            return
+        }
+        log("IDRIVE: overlay matched localKey=${callData.callId.removePrefix("IDRIVE:")}", null)
+        try {
+            submit("overlayAction", "accept")
+            log("IDRIVE: overlay accept submitted; server result not yet confirmed", null)
+        } catch (error: Throwable) {
+            // Keep this view reserved: an invocation error cannot prove no action was sent.
+            log("IDRIVE: overlay accept unconfirmed", error)
+        }
+    }
 }
 // END IDRIVE_OVERLAY_DATA
 
 internal fun ModuleMain.installIdriveOrderListHook(classLoader: ClassLoader) {
+    var installed = false
     try {
         val overlayClass = Class.forName("X0.a", false, classLoader)
         val bClass = Class.forName("A2.b", false, classLoader)
@@ -287,13 +324,18 @@ internal fun ModuleMain.installIdriveOrderListHook(classLoader: ClassLoader) {
         IdriveOverlayHooker.configure(acceptMethod, overlayView)
         val overlayMethod = overlayClass.getDeclaredMethod("O", Context::class.java, bClass, Map::class.java)
         overlayMethod.isAccessible = true
-        ModuleMain.module?.hook(overlayMethod, IdriveOverlayHooker::class.java)
-        ModuleMain.module?.log("IDRIVE: X0.a.O overlay hook installed")
+        val module = ModuleMain.module ?: error("IDRIVE: module unavailable")
+        module.hook(overlayMethod, IdriveOverlayHooker::class.java)
+        installed = true
+        module.log("IDRIVE: X0.a.O overlay hook installed")
     } catch (t: Throwable) {
         ModuleMain.module?.log("IDRIVE: overlay hook FAILED", t)
     }
+    // No native overlay is created and no real channel is passed to this diagnostic.
+    runCatching { IdriveOverlayDiagnostics.start(installed) }.onFailure {
+        ModuleMain.module?.log("IDRIVE_DIAG: startup diagnostic failed", it)
+    }
 }
-
 
 @XposedHooker
 class IdriveOverlayHooker : XposedInterface.Hooker {
@@ -306,43 +348,120 @@ class IdriveOverlayHooker : XposedInterface.Hooker {
             overlayView = viewField
         }
 
+        private fun log(message: String, error: Throwable? = null) {
+            if (error == null) ModuleMain.module?.log(message)
+            else ModuleMain.module?.log(message, error)
+        }
+
         @JvmStatic @AfterInvocation
         fun after(callback: XposedInterface.AfterHookCallback) {
             try {
-                val map = callback.args.getOrNull(2) as? Map<*, *> ?: return
-                val view = overlayView?.get(null) ?: return
-                val bVar = callback.args.getOrNull(1) ?: return
-                val iMethod = acceptMethod ?: return
-                if (!iMethod.declaringClass.isInstance(bVar)) return
-                val start = map["start"] as? String ?: ""
-                val arrive = map["arrive"] as? String ?: ""
-                val fee = map["fee"]?.toString() ?: ""
-                val distance = map["distance"]?.toString() ?: ""
-                val num = map["num"]?.toString() ?: map["id"]?.toString() ?: ""
-                ModuleMain.module?.log("IDRIVE: overlay start=$start arrive=$arrive fee=$fee distance=$distance num=$num")
-                if (arrive.isBlank() && start.isBlank()) return
-                // The native overlay already formats fee as full KRW and distance as KM or M.
-                val fare = ModuleMain.parseFareAnyFormat(fee)
-                val distanceKm = IdriveOverlayData.parseDistanceKm(distance)
-                // The original show payload has no order ID; this key is local to the native view.
-                val localKey = num.takeIf { it.isNotBlank() } ?: "overlay:${System.identityHashCode(view)}"
-                val callData = CallData("IDRIVE:$localKey", start, arrive, fare, distanceKm)
-                if (ModuleMain.matchAndAccept(callData)) {
-                    // O() can also update an existing window's timer. Submit at most once per window.
-                    if (!IdriveOverlayData.reserveOverlay(view)) return
-                    ModuleMain.module?.log("IDRIVE: overlay matched localKey=$localKey")
-                    try {
-                        iMethod.invoke(bVar, "overlayAction", "accept", null)
-                        ModuleMain.module?.log("IDRIVE: overlay accept submitted; server result not yet confirmed")
-                    } catch (e: Throwable) {
-                        // Keep this view reserved: an invocation error cannot prove no action was sent.
-                        ModuleMain.module?.log("IDRIVE: overlay accept unconfirmed", e)
-                    }
+                // Record entry before the old silent gates so a failed native window is visible.
+                log("IDRIVE: overlay hook fired")
+                val map = callback.args.getOrNull(2) as? kotlin.collections.Map<*, *>
+                if (map == null) { log("IDRIVE: overlay blocked reason=MAP_MISSING"); return }
+                val viewField = overlayView
+                if (viewField == null) { log("IDRIVE: overlay blocked reason=VIEW_FIELD_MISSING"); return }
+                val view = viewField.get(null)
+                if (view == null) { log("IDRIVE: overlay blocked reason=VIEW_MISSING"); return }
+                val bVar = callback.args.getOrNull(1)
+                if (bVar == null) { log("IDRIVE: overlay blocked reason=CHANNEL_MISSING"); return }
+                val iMethod = acceptMethod
+                if (iMethod == null) { log("IDRIVE: overlay blocked reason=METHOD_MISSING"); return }
+                if (!iMethod.declaringClass.isInstance(bVar)) {
+                    log("IDRIVE: overlay blocked reason=CHANNEL_TYPE_MISMATCH"); return
                 }
+                IdriveOverlayData.processOverlay(
+                    map, view, ModuleMain::matchAndAccept, IdriveOverlayData::reserveOverlay,
+                    { method, action -> iMethod.invoke(bVar, method, action, null); Unit }, ::log
+                )
             } catch (t: Throwable) {
-                ModuleMain.module?.log("IDRIVE: overlay hook error", t)
+                log("IDRIVE: overlay hook error", t)
             }
         }
+    }
+}
+
+// A bounded startup check with a recorder-only sink. It cannot send to the native channel.
+internal object IdriveOverlayDiagnostics {
+    private const val BUILD = "20261112.1"
+    private val started = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    private fun log(message: String) {
+        val text = "IDRIVE_DIAG: $message"
+        ModuleMain.module?.log(text)
+        android.util.Log.i("IDRIVE_DIAG", text)
+    }
+
+    fun runMockChecks(logResult: (String) -> Unit) {
+        val matcher = CallMatcher()
+        val sets = listOf(ConditionSet(1, MatchCondition("여서", "금호어울림", 15000, 0.6)))
+        val reservations = java.util.WeakHashMap<Any, Boolean>()
+        val messages = mutableListOf<Pair<String, String>>()
+        var cases = 0
+        fun payload(destination: String = "여서동원앙", fee: String = "15,000원", distance: String = "500M") =
+            mapOf("start" to "진단출발지", "arrive" to destination, "fee" to fee, "distance" to distance)
+        fun run(map: kotlin.collections.Map<*, *>, view: Any = Any(), accepted: Boolean) {
+            val before = messages.size
+            IdriveOverlayData.processOverlay(
+                map, view, { matcher.matchAny(it, sets).matched },
+                { if (reservations.containsKey(it)) false else { reservations[it] = true; true } },
+                { method, action -> messages.add(method to action); Unit },
+                { _, error -> if (error != null) throw error }
+            )
+            check(messages.size - before == if (accepted) 1 else 0) { "case ${cases + 1} outcome mismatch" }
+            cases++
+        }
+        run(payload(), accepted = true)
+        run(payload(fee = "15K", distance = "0.5KM"), accepted = true)
+        run(payload(distance = "0.6KM"), accepted = true)
+        run(payload(destination = "서울시청"), accepted = false)
+        run(payload(destination = "여서동 금호어울림"), accepted = false)
+        run(payload(fee = "14999"), accepted = false)
+        run(payload(distance = "0.7KM"), accepted = false)
+        run(payload(distance = ""), accepted = false)
+        val repeatedView = Any()
+        run(payload(), repeatedView, accepted = true)
+        run(payload(), repeatedView, accepted = false)
+        check(messages.all { it == ("overlayAction" to "accept") }) { "unexpected recorded action" }
+        logResult("MOCK_PASS cases=$cases sink=LOCAL_RECORDER_ONLY fixture=15000won_500m " +
+                "liveHookExecution=UNTESTED serverAcceptance=UNTESTED")
+    }
+
+    fun start(hookInstalled: Boolean) {
+        if (!started.compareAndSet(false, true)) return
+        log("BEGIN build=$BUILD overlayHookInstalled=$hookInstalled")
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        handler.post {
+            runCatching { runMockChecks(::log) }.onFailure {
+                log("MOCK_FAIL type=${it.javaClass.name} message=${it.message}")
+            }
+        }
+        fun snapshot(attempt: Int) {
+            try {
+                val context = ModuleMain.getApplicationContext()
+                val ready = ConditionClient.isReady()
+                if ((context == null || !ready) && attempt < 5) {
+                    handler.postDelayed({ snapshot(attempt + 1) }, 1000L)
+                    return
+                }
+                val detecting = ConditionClient.isDetecting()
+                val sets = ConditionClient.current().toList()
+                val overlayAllowed = context?.let { android.provider.Settings.canDrawOverlays(it) }
+                val sample = IdriveOverlayData.buildCallData(
+                    mapOf("start" to "진단출발지", "arrive" to "여서동원앙", "fee" to "15000", "distance" to "500M"), Any()
+                )
+                val result = if (ready) CallMatcher().matchAny(sample, sets) else null
+                val kindAllowed = CallKindFilter.allows(sample.origin)
+                log("STATE build=$BUILD overlayHookInstalled=$hookInstalled conditionsReady=$ready " +
+                        "detecting=$detecting activeSets=${sets.map { it.setNumber }} overlayAllowed=$overlayAllowed " +
+                        "sampleOnly=true sampleMatched=${result?.matched} sampleKindAllowed=$kindAllowed " +
+                        "reason=${result?.reasonCode ?: "CONDITIONS_NOT_READY"} detail=${result?.detail.orEmpty()}")
+            } catch (error: Throwable) {
+                log("STATE_FAILED type=${error.javaClass.name} message=${error.message}")
+            }
+        }
+        handler.postDelayed({ snapshot(1) }, 1500L)
     }
 }
 

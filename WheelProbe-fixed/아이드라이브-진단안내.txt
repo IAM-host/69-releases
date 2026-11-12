@@ -1,0 +1,39 @@
+아이드라이브 콜 없이 확인하는 진단판 — 20261112.1
+
+교체 파일
+E06.kt.txt의 전체 코드로 기존 E06.kt만 교체합니다.
+새 .kt 파일을 추가하지 않습니다. 나머지 앱 코드는 그대로 둡니다.
+
+실행 순서
+1. E06.kt 교체 후 APK를 다시 빌드하여 설치합니다.
+2. EUNORA에서 원하는 SET과 감지를 켭니다.
+3. 아이드라이브를 강제 종료한 뒤 다시 실행하고 8초 기다립니다.
+4. CMD에서 아래 두 명령을 실행하고 열린 텍스트를 보내주세요.
+
+adb logcat -b all -d -t 10000 -v threadtime > "%USERPROFILE%\idrive-check.txt" 2>&1
+notepad "%USERPROFILE%\idrive-check.txt"
+
+확인할 로그
+IDRIVE_DIAG: BEGIN build=20261112.1 overlayHookInstalled=true
+IDRIVE_DIAG: MOCK_PASS cases=10 sink=LOCAL_RECORDER_ONLY
+IDRIVE_DIAG: STATE ... conditionsReady=true detecting=true ... overlayAllowed=true
+
+MOCK_PASS는 고정 가상 데이터로 금액·거리·단어 판정과 수락 메시지 선택을 검사한 결과입니다.
+실제 채널이나 서버에 요청하지 않으며 EUNORA 감지/조건, 실제 콜, 기존 중복 예약 상태를 변경하지 않습니다.
+STATE는 아이드라이브 프로세스가 받은 실제 EUNORA 조건과 감지 상태를 읽어 기록합니다.
+sampleOnly=true와 sampleMatched는 15,000원·500m·여서동원앙이라는 가상 예시의 판정입니다.
+감지가 꺼져 있으면 sampleMatched=true여도 실제 수락 가능 상태를 뜻하지 않습니다.
+conditionsReady=false 또는 overlayHookInstalled=false 등이면 해당 단계부터 진단합니다.
+MOCK_FAIL은 기기에서 모의 검사 실패, STATE_FAILED는 상태 읽기 실패이며 원인도 함께 기록합니다.
+
+실제 자동·즉시배차 콜이 뜰 때의 추가 로그
+IDRIVE: overlay hook fired
+IDRIVE: overlay blocked reason=VIEW_MISSING 등
+IDRIVE: overlay accept submitted; server result not yet confirmed
+실제 훅 실행과 서버 수락 성공은 모의 검사만으로 확인할 수 없습니다.
+일반 콜 목록 감지 범위는 추가하지 않았습니다.
+
+검증
+Android assembleDebug 성공.
+거리/시그니처/조건/공통 처리 72개, 대리·탁송 공통 22개, 실제 콜백 본문 모의 검사 21개 통과.
+휴대폰의 Xposed 실행 및 실제 서버 수락은 검증하지 않았습니다.
