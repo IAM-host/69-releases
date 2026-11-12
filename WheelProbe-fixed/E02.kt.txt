@@ -787,8 +787,8 @@ internal fun ModuleMain.installKakaoRootingReportBypass(classLoader: ClassLoader
         val fileClass = Class.forName("java.io.File", false, classLoader)
         val exists = fileClass.getDeclaredMethod("exists")
         exists.isAccessible = true
-        ModuleMain.module?.hook(exists, KakaoRootPathHooker::class.java)
-        ModuleMain.module?.log("KAKAO: root path hook installed File.exists")
+        ModuleMain.module?.hook(exists, KakaoRootFileHooker::class.java)
+        ModuleMain.module?.log("KAKAO: root path hook installed File.exists paths=${KakaoRootFileProfile.paths.size} profile=provided_1101")
     } catch (t: Throwable) {
         ModuleMain.module?.log("KAKAO: root path hook FAILED", t)
     }
@@ -1080,6 +1080,51 @@ class KakaoLocationJsonHooker : XposedInterface.Hooker {
     }
 }
 
+// BEGIN KAKAO_ROOT_FILE_PROFILE
+internal object KakaoRootFileProfile {
+    // File.exists paths in the provided APK: business checks + Sentry/Crashlytics diagnostics.
+    // Commands, installed-package checks and other security mechanisms are separate.
+    val paths: Set<String> = setOf(
+        "/system/bin/su", "/system/xbin/su", "/sbin/su",
+        "/system/sd/xbin/su", "/system/bin/failsafe/su",
+        "/data/local/su", "/data/local/bin/su", "/data/local/xbin/su", "/su/bin/su",
+        "/sbin/.magisk", "/data/adb/magisk",
+        "/system/app/Superuser.apk", "/system/app/SuperSU",
+        "/su/bin", "/system/xbin/daemonsu"
+    )
+
+    fun matches(path: String?): Boolean = path != null && path in paths
+}
+// END KAKAO_ROOT_FILE_PROFILE
+
+// BEGIN KAKAO_ROOT_FILE_HOOK
+@XposedHooker
+class KakaoRootFileHooker : XposedInterface.Hooker {
+    companion object {
+        private val loggedChanges = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+        @JvmStatic @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                if (callback.throwable != null) return
+                val file = callback.thisObject as? java.io.File ?: return
+                val path = file.path
+                if (!KakaoRootFileProfile.matches(path)) return
+                val wasPresent = callback.result as? Boolean ?: return
+                if (!wasPresent) return
+                callback.result = false
+                if (loggedChanges.add(path)) {
+                    ModuleMain.module?.log("KAKAO: root file result changed path=$path original=true result=false")
+                }
+            } catch (error: Throwable) {
+                runCatching { ModuleMain.module?.log("KAKAO: root file hook error", error) }
+            }
+        }
+    }
+}
+// END KAKAO_ROOT_FILE_HOOK
+
+// Retained unchanged for E03/Tmap; Kakao uses the dedicated profile above.
 @XposedHooker
 class KakaoRootPathHooker : XposedInterface.Hooker {
     companion object {

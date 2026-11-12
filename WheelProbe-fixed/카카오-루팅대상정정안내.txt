@@ -1,38 +1,64 @@
-카카오 루팅 상태 대상 최소 정정본
+카카오 루팅 상태 및 su·Magisk 파일 경로 수정본
 
 교체 파일
 E02.kt.txt 전체 코드로 기존 E02.kt만 교체합니다.
-관찰용 변경 전의 원본 E02를 기준으로 수정했습니다.
+새 런타임 .kt 파일을 따로 추가하지 않습니다.
 
-이번 변경
-1. 첫 루팅 상태 훅의 대상 클래스: kf8 → qf8
-2. 해당 생성자의 첫 매개변수 클래스: bt7 → ht7
-3. 첫 생성자를 임의로 선택하던 부분을 qf8(ht7, boolean) 정확한 생성자 조회로 변경
-4. a 필드가 ht7, b 필드가 원시형 boolean인지 등록 전에 확인
-5. 이 등록 부분의 주석과 설치 로그를 실제 대상 이름으로 정정
+포함한 수정
+1. 기존 루팅 상태 등록을 qf8(ht7, boolean) 정확한 생성자에 연결합니다.
+2. a:ht7, b:원시형 boolean 필드를 등록 전에 확인합니다.
+3. 기존 KakaoRootingStatusHooker의 결과 처리 본문은 그대로 유지합니다.
+4. 카카오 전용 File.exists 훅에 첨부 소스에서 확인한 파일 경로 합집합 15개를 반영했습니다.
+5. T맵도 공유하는 기존 KakaoRootPathHooker는 그대로 두고, 카카오만 새 전용 프로필에 연결했습니다.
+6. 정확히 일치하는 경로만 처리합니다. 비슷한 이름의 파일, 하위 경로, 다른 대소문자 경로는 대상이 아닙니다.
+7. 원래 예외·Boolean이 아닌 결과·File이 아닌 객체·비대상 경로는 그대로 유지합니다.
 
-기존 처리 보존
-KakaoRootingStatusHooker의 기존 결과 처리 본문은 변경하지 않았습니다.
-su·Magisk 경로 목록과 파일 검사 처리도 변경하지 않았습니다.
-첫 등록 블록 뒤의 다른 보안 훅·GPS·콜 감지·수락 코드는 원본과 바이트 단위로 같습니다.
-이전 관찰용 수정본의 코드나 동작은 이 파일에 포함하지 않았습니다.
-다른 보안 검사 대상의 불일치나 로그 문제는 이번 최소 수정 범위에 포함하지 않았습니다.
+파일 경로 범위
+업무용 ec4/ze8의 13개 + Sentry 진단 목록에만 있는 2개 = 합집합 15개입니다.
+Crashlytics 목록은 이 합집합 안에 포함됩니다.
 
-적용 및 확인
+/system/bin/su
+/system/xbin/su
+/sbin/su
+/system/sd/xbin/su
+/system/bin/failsafe/su
+/data/local/su
+/data/local/bin/su
+/data/local/xbin/su
+/su/bin/su
+/sbin/.magisk
+/data/adb/magisk
+/system/app/Superuser.apk
+/system/app/SuperSU
+/su/bin
+/system/xbin/daemonsu
+
+별도 검사와 구분
+이번 범위는 파일 존재 여부 검사입니다.
+Sentry의 which su 명령 실행, 설치 패키지 조회, 빌드 태그 검사는 별도이며 추가 처리하지 않았습니다.
+Xposed/LSPosed·접근성·메모리·Play Integrity 등 다른 검사도 이번 변경 범위가 아닙니다.
+다른 보안 대상 불일치가 모두 해결됐다거나 모든 루팅 검사에 통과한다고 의미하지 않습니다.
+콜 감지·수락 및 GPS 코드는 그대로 유지했습니다.
+
+적용
 E02.kt 교체 → 새 APK 빌드·설치 → 카카오 강제 종료 후 재실행.
-설치가 성공하면 아래 로그가 남습니다.
+설치 로그:
 KAKAO: rooting status hook installed qf8(ht7, boolean)
-시그니처 또는 필드 형식이 맞지 않으면 기존 실패 로그로 기록됩니다.
-KAKAO: rooting status hook FAILED
+KAKAO: root path hook installed File.exists paths=15 profile=provided_1101
+
+실제로 대상 파일 결과가 true에서 false로 바뀌면 경로당 한 번만 아래 로그를 남깁니다.
+KAKAO: root file result changed path=... original=true result=false
+원래 false였다면 이 변경 로그가 없을 수 있습니다.
+설치 로그는 등록 확인이며 실제 실행·서버 판정 통과를 뜻하지 않습니다.
 
 CMD 로그 저장
-adb logcat -b all -d -t 10000 -v threadtime > "%USERPROFILE%\kakao-root-target.txt" 2>&1
-notepad "%USERPROFILE%\kakao-root-target.txt"
+adb logcat -b all -d -t 10000 -v threadtime > "%USERPROFILE%\kakao-root-files.txt" 2>&1
+notepad "%USERPROFILE%\kakao-root-files.txt"
 
 검증
 Android assembleDebug 성공.
-기존 카카오 카드 데이터 21개·수락 처리 44개·대리/탁송 공통 22개 검사 통과.
+실제 프로필·콜백 36개 + 기존 카카오 카드·수락·공통 87개 검사 통과.
+경로 집합은 첨부 소스에서 독립 추출한 15개와 정확히 일치합니다.
+공유 T맵 훅 보존 및 다른 E02 구간의 불변성을 확인했습니다.
 UTF-8 BOM 없음, CRLF 줄바꿈 유지.
-첨부 소스의 qf8(ht7, boolean), a:ht7, b:boolean 구조와 대조했습니다.
-실제 휴대폰의 훅 호출·필드 변경 결과·서버 판정은 아직 검증하지 않았습니다.
-설치 로그 또는 빌드 성공만으로 실행 중 결과 변경까지 확정할 수 없습니다.
+실제 휴대폰·카카오 서버에서의 판정은 아직 검증하지 않았습니다.
