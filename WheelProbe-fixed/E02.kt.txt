@@ -826,6 +826,7 @@ internal fun ModuleMain.installKakaoRootingReportBypass(classLoader: ClassLoader
     } catch (t: Throwable) {
         ModuleMain.module?.log("KAKAO: rooting dialog hook FAILED", t)
     }
+    installKakaoHookSignalDiagnostics(classLoader)
 }
 
 internal fun ModuleMain.installKakaoReservedExclusiveHooks(classLoader: ClassLoader) {
@@ -1078,6 +1079,145 @@ class KakaoLocationJsonHooker : XposedInterface.Hooker {
             val pair = GpsSpoofState.activeLatLng() ?: return
             ModuleMain.module?.log("KAKAO: location json hook lat=${pair.first}")
         }
+    }
+}
+
+// BEGIN KAKAO_HOOK_SIGNAL_DIAGNOSTICS
+/** Read-only view of the supplied APK's hook report. No raw paths, tokens or user IDs are logged. */
+internal object KakaoHookSignalDiagnostics {
+    data class Layout(
+        val reportClass: Class<*>, val assessmentClass: Class<*>,
+        val assessmentField: java.lang.reflect.Field,
+        val signalFields: List<java.lang.reflect.Field>, val statusMethod: Method
+    )
+
+    data class Snapshot(
+        val status: String, val counts: List<Int>,
+        val markerHints: Set<String>, val sampleTruncated: Boolean
+    )
+
+    private val markers = listOf(
+        "EUNORA" to listOf("com.example.wheelprobe"),
+        "LSPOSED" to listOf("org.lsposed", "LSPosed", "LSPHooker_", "lspd"),
+        "XPOSED" to listOf("de.robv.android.xposed", "XposedBridge"),
+        "RIRU" to listOf("riru"), "EPIC" to listOf("me.weishu.epic")
+    )
+
+    fun resolve(reportClass: Class<*>, assessmentClass: Class<*>): Layout {
+        val assessmentField = reportClass.getDeclaredField("a")
+        require(assessmentField.type == assessmentClass && !Modifier.isStatic(assessmentField.modifiers)) {
+            "unexpected hook assessment field"
+        }
+        val probeField = reportClass.getDeclaredField("b")
+        require(probeField.type == java.util.LinkedHashMap::class.java && !Modifier.isStatic(probeField.modifiers)) {
+            "unexpected hook report shape"
+        }
+        val fields = listOf("a", "b", "c", "d", "e", "f").map { name ->
+            assessmentClass.getDeclaredField(name).apply {
+                require(type == java.util.List::class.java && !Modifier.isStatic(modifiers)) {
+                    "unexpected hook signal field"
+                }
+                isAccessible = true
+            }
+        }
+        val statusMethod = reportClass.getDeclaredMethod("c").apply {
+            require(returnType == String::class.java && !Modifier.isStatic(modifiers)) {
+                "unexpected hook report status method"
+            }
+            isAccessible = true
+        }
+        assessmentField.isAccessible = true
+        return Layout(reportClass, assessmentClass, assessmentField, fields, statusMethod)
+    }
+
+    fun snapshot(report: Any?, layout: Layout): Snapshot {
+        require(report != null && layout.reportClass.isInstance(report)) { "unexpected hook report instance" }
+        val assessment = layout.assessmentField.get(report)
+        require(assessment != null && layout.assessmentClass.isInstance(assessment)) { "missing hook assessment" }
+        val lists = layout.signalFields.map { field ->
+            field.get(assessment) as? List<*> ?: error("missing hook signal list")
+        }
+        val rawStatus = layout.statusMethod.invoke(report) as? String
+        val status = when (rawStatus) {
+            "detected", "not_detected", "unknown" -> rawStatus
+            else -> "STATUS_UNEXPECTED"
+        }
+        val hints = linkedSetOf<String>()
+        for (list in lists) {
+            for (index in 0 until minOf(list.size, 64)) {
+                val entry = list[index] as? String ?: continue
+                for ((label, values) in markers) {
+                    if (values.any { entry.contains(it, ignoreCase = true) }) hints.add(label)
+                }
+            }
+        }
+        return Snapshot(status, lists.map { it.size }, hints, lists.any { it.size > 64 })
+    }
+
+    fun format(snapshot: Snapshot): String {
+        val counts = snapshot.counts
+        require(counts.size == 6 && counts.all { it >= 0 }) { "unexpected hook signal count" }
+        val status = snapshot.status.takeIf { it in setOf("detected", "not_detected", "unknown", "STATUS_UNEXPECTED") }
+            ?: "STATUS_UNEXPECTED"
+        val hints = markers.map { it.first }.filter { it in snapshot.markerHints }
+        return "KAKAO_DIAG: SIGNALS status=$status " +
+                "hook(stack=${counts[0]},classes=${counts[4]}) " +
+                "memory(artifacts=${counts[2]},foreign=${counts[3]}) " +
+                "api(native=${counts[1]},missing=${counts[5]}) " +
+                "markerHints=${hints.joinToString("|").ifEmpty { "NONE_IN_SAMPLE" }} " +
+                "sampleTruncated=${snapshot.sampleTruncated} resultChanged=false serverVerdict=UNVERIFIED"
+    }
+}
+// END KAKAO_HOOK_SIGNAL_DIAGNOSTICS
+
+// BEGIN KAKAO_HOOK_SIGNAL_OBSERVER
+@XposedHooker
+class KakaoHookSignalObserver : XposedInterface.Hooker {
+    companion object {
+        @Volatile private var layout: KakaoHookSignalDiagnostics.Layout? = null
+
+        internal fun configure(value: KakaoHookSignalDiagnostics.Layout) { layout = value }
+
+        private fun log(message: String) { runCatching { ModuleMain.module?.log(message) } }
+
+        @JvmStatic @AfterInvocation
+        fun after(callback: XposedInterface.AfterHookCallback) {
+            try {
+                val originalError = callback.throwable
+                if (originalError != null) {
+                    log("KAKAO_DIAG: ORIGINAL_CHECK_FAILED type=${originalError.javaClass.name} resultChanged=false")
+                    return
+                }
+                val currentLayout = layout
+                if (currentLayout == null) {
+                    log("KAKAO_DIAG: READ_UNAVAILABLE reason=NOT_CONFIGURED resultChanged=false")
+                    return
+                }
+                log(KakaoHookSignalDiagnostics.format(KakaoHookSignalDiagnostics.snapshot(callback.result, currentLayout)))
+            } catch (error: Throwable) {
+                log("KAKAO_DIAG: READ_FAILED type=${error.javaClass.name} resultChanged=false")
+            }
+        }
+    }
+}
+// END KAKAO_HOOK_SIGNAL_OBSERVER
+
+private fun ModuleMain.installKakaoHookSignalDiagnostics(classLoader: ClassLoader) {
+    val module = ModuleMain.module ?: return
+    try {
+        val owner = Class.forName("il4", false, classLoader)
+        val report = Class.forName("bl4", false, classLoader)
+        val assessment = Class.forName("zk4", false, classLoader)
+        val layout = KakaoHookSignalDiagnostics.resolve(report, assessment)
+        val method = owner.getDeclaredMethod("b").apply {
+            require(returnType == report && !Modifier.isStatic(modifiers)) { "unexpected hook detector method" }
+            isAccessible = true
+        }
+        KakaoHookSignalObserver.configure(layout)
+        module.hook(method, KakaoHookSignalObserver::class.java)
+        runCatching { module.log("KAKAO_DIAG: REGISTERED target=il4.b profile=provided_1101 mode=READ_ONLY liveExecution=UNVERIFIED") }
+    } catch (error: Throwable) {
+        runCatching { module.log("KAKAO_DIAG: UNAVAILABLE type=${error.javaClass.name} action=SKIP_NO_FALLBACK") }
     }
 }
 

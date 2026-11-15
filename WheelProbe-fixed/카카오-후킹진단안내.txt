@@ -1,0 +1,66 @@
+카카오 후킹·메모리·시스템 API 진단 추가본 — 2026-11-15
+
+이번 추가는 관찰용입니다.
+새 진단 훅은 감지 결과·인자·예외·보고 객체·목록을 변경하거나 검사를 건너뛰지 않습니다.
+감지 흔적을 숨기는 우회 기능을 추가한 버전이 아닙니다.
+기존 qf8 결과 처리, 파일 경로 15개, Sentry 진단 테스트 설정, 콜 감지·수락 코드는 그대로 유지합니다.
+
+교체
+E02.kt.txt 전체 코드로 기존 E02.kt만 교체합니다.
+새 런타임 .kt 파일을 별도로 추가하지 않습니다.
+
+관찰 대상
+첨부 소스의 il4.b():bl4 보고 객체와 그 안의 zk4 목록을 읽습니다.
+정확한 메서드·반환형·필드 타입이 맞을 때만 관찰 훅을 등록합니다.
+맞지 않으면 UNAVAILABLE로 기록하고 임의의 대상을 찾지 않습니다.
+
+로그 의미
+KAKAO_DIAG: REGISTERED target=il4.b ... mode=READ_ONLY liveExecution=UNVERIFIED
+이것은 등록만 확인하며 실제 검사 호출을 확인한 로그가 아닙니다.
+
+KAKAO_DIAG: SIGNALS status=... hook(stack=...,classes=...) memory(artifacts=...,foreign=...) api(native=...,missing=...) markerHints=... sampleTruncated=... resultChanged=false serverVerdict=UNVERIFIED
+
+status는 보고 객체가 반환한 detected/not_detected/unknown 상태입니다.
+예상하지 못한 상태 문자열은 원문 대신 STATUS_UNEXPECTED로 표시합니다.
+이 상태는 카카오 서버의 최종 허용·차단 판정이 아닙니다.
+
+hook.stack: 후킹 흔적이 있는 호출 기록 수
+hook.classes: 로드된 Xposed 관련 클래스 신호 수
+memory.artifacts: 후킹 모듈 관련 메모리 매핑 신호 수
+memory.foreign: 외부 코드 관련 메모리 매핑 신호 수
+api.native: 예기치 않은 native 메서드 형태 신호 수
+api.missing: 안드로이드 버전에 비해 누락된 API 신호 수
+
+markerHints에는 EUNORA/LSPOSED/XPOSED/RIRU/EPIC 같은 허용된 고정 라벨만 출력합니다.
+각 목록의 앞 64개 항목에서만 힌트를 찾습니다. 실제 항목별 개수는 목록 전체 크기입니다.
+sampleTruncated=true면 힌트 탐색이 일부 항목으로 제한됐다는 뜻입니다.
+NONE_IN_SAMPLE은 표본에서 알려진 이름을 찾지 못했다는 뜻이며 안전 판정이 아닙니다.
+경로·클래스 원문·토큰·사용자 ID·예외 메시지 등은 새 진단 로그에 넣지 않습니다.
+
+오류 상태
+ORIGINAL_CHECK_FAILED: 원래 검사 함수에 예외가 있음. 원래 예외는 그대로 유지합니다.
+READ_FAILED: 진단 결과를 읽거나 형식을 확인하지 못함. 정상 판정으로 바꾸지 않습니다.
+READ_UNAVAILABLE: 관찰 설정이 준비되지 않음.
+UNAVAILABLE: 첨부 소스와 실제 클래스 구조가 맞지 않아 관찰 연결을 생략함.
+
+실행 확인
+새 APK 빌드·설치 → 카카오 강제 종료 후 재실행 → 합의된 테스트 흐름 재현.
+원래 검사 함수가 호출될 때에만 SIGNALS 기록이 생깁니다.
+앱 시작 직후 REGISTERED만 있더라도 모든 검사가 실행됐다는 뜻은 아닙니다.
+이 관찰 훅 자체는 검사 함수나 서버 요청을 강제로 실행하지 않습니다.
+
+CMD 로그 저장
+adb logcat -b all -d -t 10000 -v threadtime > "%USERPROFILE%\kakao-signals.txt" 2>&1
+notepad "%USERPROFILE%\kakao-signals.txt"
+
+유의할 기존 로그
+기존 코드의 cleared/bypassed 문구는 이번 새 진단의 성공 판정이 아닙니다.
+이번 로그는 관찰 시점의 보고 상태이며 다른 훅의 영향이나 서버 정책까지 보증하지 않습니다.
+
+검증
+Android assembleDebug 성공.
+새 읽기 전용 진단 30개 + 기존 카카오 카드·수락·공통 87개 검사 통과.
+보고 객체·목록·인자·결과·예외 보존, 알 수 없는 상태 유지, 원문 비노출과 로깅 실패 격리를 검사했습니다.
+새 진단 구간과 호출 한 줄을 제외하면 이전 E02와 바이트 단위로 동일합니다.
+UTF-8 BOM 없음, CRLF 줄바꿈 유지.
+실제 휴대폰·카카오 APK·서버에서의 실행은 아직 검증하지 않았습니다.
