@@ -627,6 +627,7 @@ internal fun ModuleMain.installKakaoGpsSpoof(classLoader: ClassLoader) {
  * dl4.b = HookDetectionReport(wk4)
  */
 internal fun ModuleMain.installKakaoRootingReportBypass(classLoader: ClassLoader) {
+    installKakaoSentryRootTestConfig(classLoader)
     try {
         val checkTypeClass = Class.forName("ht7", false, classLoader)
         val statusClass = Class.forName("qf8", false, classLoader)
@@ -1076,6 +1077,93 @@ class KakaoLocationJsonHooker : XposedInterface.Hooker {
         fun before(callback: XposedInterface.BeforeHookCallback) {
             val pair = GpsSpoofState.activeLatLng() ?: return
             ModuleMain.module?.log("KAKAO: location json hook lat=${pair.first}")
+        }
+    }
+}
+
+// BEGIN_KAKAO_SENTRY_TEST_CONFIG
+/** Use the SDK's supported diagnostic setting; do not manufacture a clean root verdict. */
+internal object KakaoSentryRootTestConfig {
+    fun resolve(optionsClass: Class<*>): Pair<Method, Method> {
+        val setter = optionsClass.getDeclaredMethod("setEnableRootCheck", java.lang.Boolean.TYPE)
+        val getter = optionsClass.getDeclaredMethod("isEnableRootCheck")
+        require(setter.returnType == Void.TYPE && getter.returnType == java.lang.Boolean.TYPE) {
+            "unexpected Sentry diagnostic option signature"
+        }
+        for (method in listOf(setter, getter)) {
+            require(Modifier.isPublic(method.modifiers) && !Modifier.isStatic(method.modifiers)) {
+                "expected public instance option methods"
+            }
+            method.isAccessible = true
+        }
+        return setter to getter
+    }
+
+    fun apply(options: Any, setter: Method, getter: Method): Boolean {
+        require(setter.declaringClass.isInstance(options) && getter.declaringClass.isInstance(options)) {
+            "unexpected Sentry options instance"
+        }
+        setter.invoke(options, false)
+        return (getter.invoke(options) as? Boolean) == false
+    }
+}
+// END_KAKAO_SENTRY_TEST_CONFIG
+
+// BEGIN_KAKAO_SENTRY_OPTIONS_HOOK
+@XposedHooker
+class KakaoSentryOptionsHooker : XposedInterface.Hooker {
+    companion object {
+        @Volatile private var optionMethods: Pair<Method, Method>? = null
+
+        fun configure(setter: Method, getter: Method) {
+            optionMethods = setter to getter
+        }
+
+        private fun log(message: String) {
+            runCatching { ModuleMain.module?.log(message) }
+        }
+
+        @JvmStatic @BeforeInvocation
+        fun before(callback: XposedInterface.BeforeHookCallback) {
+            try {
+                val methods = optionMethods
+                val options = callback.args.getOrNull(1)
+                if (methods == null || options == null) {
+                    log("KAKAO: Sentry root diagnostic test config NOT_APPLIED reason=MISSING_CONFIGURATION")
+                    return
+                }
+                val applied = KakaoSentryRootTestConfig.apply(options, methods.first, methods.second)
+                log("KAKAO: Sentry root diagnostic test config settingApplied=$applied " +
+                        "requestedEnableRootCheck=false rootVerdict=NOT_FORGED serverVerdict=UNVERIFIED")
+            } catch (error: Throwable) {
+                log("KAKAO: Sentry root diagnostic test config APPLY_UNCONFIRMED type=${error.javaClass.name}")
+            }
+        }
+    }
+}
+// END_KAKAO_SENTRY_OPTIONS_HOOK
+
+private fun ModuleMain.installKakaoSentryRootTestConfig(classLoader: ClassLoader) {
+    val module = ModuleMain.module ?: return
+    try {
+        val optionsClass = Class.forName("io.sentry.android.core.SentryAndroidOptions", false, classLoader)
+        val methods = KakaoSentryRootTestConfig.resolve(optionsClass)
+        val contextClass = Class.forName("io.sentry.android.core.r0", false, classLoader)
+        require(contextClass.getDeclaredField("b").type == optionsClass) { "Sentry context options field mismatch" }
+        require(contextClass.getDeclaredField("g").type == Class.forName("io.sentry.protocol.q", false, classLoader)) {
+            "Sentry OS context field mismatch"
+        }
+        val constructor = contextClass.getDeclaredConstructor(Context::class.java, optionsClass)
+        constructor.isAccessible = true
+        KakaoSentryOptionsHooker.configure(methods.first, methods.second)
+        module.hook(constructor, KakaoSentryOptionsHooker::class.java)
+        runCatching {
+            module.log("KAKAO: Sentry root diagnostic test config hook installed " +
+                    "option=enableRootCheck target=r0(Context,SentryAndroidOptions) coldStartRequired=true")
+        }
+    } catch (error: Throwable) {
+        runCatching {
+            module.log("KAKAO: Sentry root diagnostic test config UNAVAILABLE type=${error.javaClass.name}")
         }
     }
 }
