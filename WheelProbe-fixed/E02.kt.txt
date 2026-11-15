@@ -1154,6 +1154,57 @@ internal object KakaoHookSignalDiagnostics {
         return Snapshot(status, lists.map { it.size }, hints, lists.any { it.size > 64 })
     }
 
+    data class StackDetails(
+        val total: Int, val classes: List<String>, val redacted: Int, val truncated: Boolean
+    )
+
+    fun safeStackClass(value: Any?): String? {
+        val name = value as? String ?: return null
+        if (name.isEmpty() || name.length > 256) return null
+        fun startsIdentifier(c: Char) = c in 'A'..'Z' || c in 'a'..'z' || c == '_' || c == '$'
+        if (!name.split('.').all { part ->
+                part.isNotEmpty() && startsIdentifier(part[0]) &&
+                        part.all { startsIdentifier(it) || it in '0'..'9' }
+            }) return null
+        val knownPackage = listOf(
+            "org.lsposed.", "de.robv.android.xposed.", "com.elderdrivers.riru.",
+            "me.weishu.epic.", "com.example.wheelprobe."
+        ).any { name.startsWith(it) }
+        val generatedClass = '.' !in name &&
+                name.substringBefore('$') in setOf("LSPHooker_", "LSPosedBridge", "HookBridge")
+        return name.takeIf { knownPackage || generatedClass }
+    }
+
+    fun stackDetails(report: Any?, layout: Layout): StackDetails {
+        require(report != null && layout.reportClass.isInstance(report)) { "unexpected hook report instance" }
+        val assessment = layout.assessmentField.get(report)
+        require(assessment != null && layout.assessmentClass.isInstance(assessment)) { "missing hook assessment" }
+        val entries = layout.signalFields[0].get(assessment) as? List<*>
+            ?: error("missing hook stack list")
+        val classes = mutableListOf<String>()
+        var redacted = 0
+        for (index in 0 until minOf(entries.size, 16)) {
+            val name = safeStackClass(entries[index])
+            if (name == null) redacted++ else classes.add(name)
+        }
+        return StackDetails(entries.size, classes, redacted, entries.size > 16)
+    }
+
+    fun formatStackDetails(details: StackDetails): List<String> {
+        require(details.total >= 0 && details.redacted >= 0 &&
+                details.total.toLong() >= details.classes.size.toLong() + details.redacted) {
+            "unexpected stack detail counts"
+        }
+        val sample = details.classes.take(16)
+        val safe = sample.mapNotNull { safeStackClass(it) }
+        val redacted = details.redacted + sample.size - safe.size
+        val truncated = details.truncated || details.classes.size > 16
+        return safe.mapIndexed { index, name ->
+            "KAKAO_DIAG: STACK_CLASS index=${index + 1} className=$name resultChanged=false"
+        } + ("KAKAO_DIAG: STACK_CLASSES total=${details.total} logged=${safe.size} " +
+                "redacted=$redacted sampleTruncated=$truncated resultChanged=false")
+    }
+
     fun format(snapshot: Snapshot): String {
         val counts = snapshot.counts
         require(counts.size == 6 && counts.all { it >= 0 }) { "unexpected hook signal count" }
@@ -1193,7 +1244,11 @@ class KakaoHookSignalObserver : XposedInterface.Hooker {
                     log("KAKAO_DIAG: READ_UNAVAILABLE reason=NOT_CONFIGURED resultChanged=false")
                     return
                 }
-                log(KakaoHookSignalDiagnostics.format(KakaoHookSignalDiagnostics.snapshot(callback.result, currentLayout)))
+                val report = callback.result
+                log(KakaoHookSignalDiagnostics.format(KakaoHookSignalDiagnostics.snapshot(report, currentLayout)))
+                for (line in KakaoHookSignalDiagnostics.formatStackDetails(
+                    KakaoHookSignalDiagnostics.stackDetails(report, currentLayout)
+                )) log(line)
             } catch (error: Throwable) {
                 log("KAKAO_DIAG: READ_FAILED type=${error.javaClass.name} resultChanged=false")
             }

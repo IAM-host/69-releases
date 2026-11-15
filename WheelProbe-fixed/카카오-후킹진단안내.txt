@@ -1,66 +1,62 @@
-카카오 후킹·메모리·시스템 API 진단 추가본 — 2026-11-15
+카카오 후킹·메모리·시스템 API 진단 및 스택 클래스 상세판 — 2026-11-15
 
 이번 추가는 관찰용입니다.
-새 진단 훅은 감지 결과·인자·예외·보고 객체·목록을 변경하거나 검사를 건너뛰지 않습니다.
-감지 흔적을 숨기는 우회 기능을 추가한 버전이 아닙니다.
-기존 qf8 결과 처리, 파일 경로 15개, Sentry 진단 테스트 설정, 콜 감지·수락 코드는 그대로 유지합니다.
+새 진단은 감지 결과·인자·예외·보고 객체·목록을 변경하거나 검사를 건너뛰지 않습니다.
+기존 qf8 처리, 파일 경로 15개, Sentry 설정, 콜 감지·수락 코드는 그대로 유지합니다.
 
-교체
-E02.kt.txt 전체 코드로 기존 E02.kt만 교체합니다.
-새 런타임 .kt 파일을 별도로 추가하지 않습니다.
+왜 새 로그가 필요한가
+직전 로그의 hook(stack=3)는 카카오 보고 객체에 들어 있는 스택 클래스 항목 3개라는 뜻입니다.
+기존 버전은 개수와 마커 힌트만 출력해 그 이름을 볼 수 없었습니다.
+첨부 소스 z23의 해당 검사는 StackTraceElement.getClassName()만 저장합니다.
+따라서 이번에는 원래 저장된 클래스명을 제한적으로 출력합니다. 메서드명이나 전체 호출 스택을 추정하지 않습니다.
+별도로 현재 스레드의 스택을 다시 수집하지도 않습니다.
 
-관찰 대상
-첨부 소스의 il4.b():bl4 보고 객체와 그 안의 zk4 목록을 읽습니다.
-정확한 메서드·반환형·필드 타입이 맞을 때만 관찰 훅을 등록합니다.
-맞지 않으면 UNAVAILABLE로 기록하고 임의의 대상을 찾지 않습니다.
+적용 및 로그 받기
+1. E02.kt.txt 전체 코드로 기존 E02.kt를 교체하고 새 APK를 빌드·설치합니다.
+2. 카카오를 강제 종료한 뒤 재실행합니다.
+3. 직전과 같은 합의된 테스트 동작을 재현한 직후 아래 CMD 명령을 실행합니다.
 
-로그 의미
+cd /d "%LOCALAPPDATA%\Android\Sdk\platform-tools"
+adb logcat -b all -d -t 10000 -v threadtime > "%USERPROFILE%\kakao-stack.txt" 2>&1
+notepad "%USERPROFILE%\kakao-stack.txt"
+
+메모장에서 KAKAO_DIAG: STACK_CLASS를 검색합니다.
+예시 형식(아래 이름은 실제 감지 결과를 미리 단정한 것이 아닙니다):
+KAKAO_DIAG: STACK_CLASS index=1 className=... resultChanged=false
+KAKAO_DIAG: STACK_CLASSES total=3 logged=3 redacted=0 sampleTruncated=false resultChanged=false
+
+total은 원래 보고 객체의 스택 클래스 항목 수입니다.
+logged는 제한 조건에 맞아 출력한 클래스명 수, redacted는 표본 안에서 출력하지 않은 항목 수입니다.
+index는 출력 순서이며 특정 후킹 대상이나 코드 오류 번호가 아닙니다.
+최대 16개 항목만 확인하며, 범위를 넘으면 sampleTruncated=true가 됩니다.
+알려진 프레임워크·모듈 패키지 또는 생성 클래스명이고 256자 이하의 클래스명 형식인 경우만 출력합니다.
+원문 파일 경로·URL·토큰·메서드 서명·줄바꿈·형식에 맞지 않는 임의 문자열은 출력하지 않습니다.
+호출 클래스명은 LSPosed 같은 공통 연결 부품 이름일 수 있으며, 이름만으로 고장 난 코드 위치를 뜻하지 않습니다.
+
+기존 요약 로그
 KAKAO_DIAG: REGISTERED target=il4.b ... mode=READ_ONLY liveExecution=UNVERIFIED
-이것은 등록만 확인하며 실제 검사 호출을 확인한 로그가 아닙니다.
+등록만 확인합니다. 원래 검사 함수가 실행될 때만 SIGNALS와 상세 클래스 로그가 나옵니다.
+KAKAO_DIAG: SIGNALS status=... hook(stack=...,classes=...) memory(artifacts=...,foreign=...) api(native=...,missing=...) ...
 
-KAKAO_DIAG: SIGNALS status=... hook(stack=...,classes=...) memory(artifacts=...,foreign=...) api(native=...,missing=...) markerHints=... sampleTruncated=... resultChanged=false serverVerdict=UNVERIFIED
+status는 보고 객체의 detected/not_detected/unknown 값이며, 서버의 최종 허용 판정이 아닙니다.
+hook.stack은 호출 기록의 후킹 신호, hook.classes는 Xposed 관련 클래스 신호 수입니다.
+memory.artifacts/foreign은 후킹 모듈·외부 코드 매핑 신호 수입니다.
+api.native/missing은 예상 밖 native 메서드 형태·API 누락 신호 수입니다.
+markerHints는 목록별 앞 64개 항목에서 찾은 고정 라벨 힌트입니다.
+NONE_IN_SAMPLE은 알려진 이름을 표본에서 찾지 못했다는 뜻이며 정상 보증이 아닙니다.
+상세 클래스 로그의 16개 제한과 요약 힌트의 64개 제한은 서로 다릅니다.
 
-status는 보고 객체가 반환한 detected/not_detected/unknown 상태입니다.
-예상하지 못한 상태 문자열은 원문 대신 STATUS_UNEXPECTED로 표시합니다.
-이 상태는 카카오 서버의 최종 허용·차단 판정이 아닙니다.
-
-hook.stack: 후킹 흔적이 있는 호출 기록 수
-hook.classes: 로드된 Xposed 관련 클래스 신호 수
-memory.artifacts: 후킹 모듈 관련 메모리 매핑 신호 수
-memory.foreign: 외부 코드 관련 메모리 매핑 신호 수
-api.native: 예기치 않은 native 메서드 형태 신호 수
-api.missing: 안드로이드 버전에 비해 누락된 API 신호 수
-
-markerHints에는 EUNORA/LSPOSED/XPOSED/RIRU/EPIC 같은 허용된 고정 라벨만 출력합니다.
-각 목록의 앞 64개 항목에서만 힌트를 찾습니다. 실제 항목별 개수는 목록 전체 크기입니다.
-sampleTruncated=true면 힌트 탐색이 일부 항목으로 제한됐다는 뜻입니다.
-NONE_IN_SAMPLE은 표본에서 알려진 이름을 찾지 못했다는 뜻이며 안전 판정이 아닙니다.
-경로·클래스 원문·토큰·사용자 ID·예외 메시지 등은 새 진단 로그에 넣지 않습니다.
-
-오류 상태
-ORIGINAL_CHECK_FAILED: 원래 검사 함수에 예외가 있음. 원래 예외는 그대로 유지합니다.
-READ_FAILED: 진단 결과를 읽거나 형식을 확인하지 못함. 정상 판정으로 바꾸지 않습니다.
-READ_UNAVAILABLE: 관찰 설정이 준비되지 않음.
-UNAVAILABLE: 첨부 소스와 실제 클래스 구조가 맞지 않아 관찰 연결을 생략함.
-
-실행 확인
-새 APK 빌드·설치 → 카카오 강제 종료 후 재실행 → 합의된 테스트 흐름 재현.
-원래 검사 함수가 호출될 때에만 SIGNALS 기록이 생깁니다.
-앱 시작 직후 REGISTERED만 있더라도 모든 검사가 실행됐다는 뜻은 아닙니다.
-이 관찰 훅 자체는 검사 함수나 서버 요청을 강제로 실행하지 않습니다.
-
-CMD 로그 저장
-adb logcat -b all -d -t 10000 -v threadtime > "%USERPROFILE%\kakao-signals.txt" 2>&1
-notepad "%USERPROFILE%\kakao-signals.txt"
-
-유의할 기존 로그
-기존 코드의 cleared/bypassed 문구는 이번 새 진단의 성공 판정이 아닙니다.
-이번 로그는 관찰 시점의 보고 상태이며 다른 훅의 영향이나 서버 정책까지 보증하지 않습니다.
+오류와 한계
+ORIGINAL_CHECK_FAILED는 원래 검사 함수의 예외, READ_FAILED는 진단 읽기 실패입니다.
+UNAVAILABLE는 실제 APK의 클래스 구조가 첨부 소스와 맞지 않아 연결을 생략했다는 뜻입니다.
+원래 결과·예외를 정상 판정으로 바꾸지 않습니다.
+기존 코드의 cleared/bypassed 문구는 감지 해제 성공의 근거가 아닙니다.
+현재 관찰한 결과와 서버가 내리는 최종 판정은 별개입니다.
 
 검증
 Android assembleDebug 성공.
-새 읽기 전용 진단 30개 + 기존 카카오 카드·수락·공통 87개 검사 통과.
-보고 객체·목록·인자·결과·예외 보존, 알 수 없는 상태 유지, 원문 비노출과 로깅 실패 격리를 검사했습니다.
-새 진단 구간과 호출 한 줄을 제외하면 이전 E02와 바이트 단위로 동일합니다.
+상세 진단 포함 49개 + 기존 카카오 카드·수락·공통 87개 검사 통과.
+허용 범위·형식·길이·16개 제한·원문 차단·결과와 예외 및 목록 보존을 검사했습니다.
+새 상세 추출 함수와 추가 출력 호출 이외의 E02 코드는 이전과 바이트 단위로 동일합니다.
 UTF-8 BOM 없음, CRLF 줄바꿈 유지.
-실제 휴대폰·카카오 APK·서버에서의 실행은 아직 검증하지 않았습니다.
+실제 휴대폰·카카오 APK·서버에서의 새 버전 실행은 아직 검증하지 않았습니다.
