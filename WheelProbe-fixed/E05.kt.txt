@@ -35,19 +35,6 @@ internal object LogiPackageRoute {
 }
 // END LOGI_PACKAGE_ROUTE
 
-class LogiFakeGpsFalseHooker : XposedInterface.Hooker {
-    companion object {
-        @JvmStatic
-        @AfterInvocation
-        fun after(callback: XposedInterface.AfterHookCallback) {
-            if (!GpsSpoofState.isActive()) return
-            callback.result = false
-        }
-    }
-}
-
-
-
 // BEGIN LOGI_DATA_AND_STATE
 internal object LogiOrderData {
     private val chargePattern = Regex("(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\\.[0-9]+)?")
@@ -646,47 +633,6 @@ internal fun ModuleMain.installLogiGpsSpoof(classLoader: ClassLoader) {
         }
     }
     module.log("LOGI_GPS: coordinates registered=$coordinateHooks/2 package=${LogiPackageRoute.current()} liveExecution=UNVERIFIED")
-    // Keep the existing optional targets unchanged; a lookup failure must not
-    // obscure the independent coordinate-hook installation result.
-    try {
-        val locationClass = Class.forName("android.location.Location", false, classLoader)
-        val fakeGps = Class.forName(
-            "com.logisoft.LogiD.Util.FakeGpsDetector",
-            false,
-            classLoader
-        )
-        val isFake = fakeGps.getDeclaredMethod(
-            "isFakeGps",
-            Context::class.java,
-            locationClass
-        )
-        isFake.isAccessible = true
-        ModuleMain.module?.hook(isFake, LogiFakeGpsFalseHooker::class.java)
-
-        val fused = Class.forName(
-            "com.logisoft.LogiD.location.FusedLocationApi",
-            false,
-            classLoader
-        )
-        val getMock = fused.getDeclaredMethod("getMockLocation")
-        getMock.isAccessible = true
-        ModuleMain.module?.hook(getMock, LogiFakeGpsFalseHooker::class.java)
-
-        // 4) Settings.Secure mock_location_app 조회 가로채기
-        val settingsSecure = Class.forName("android.provider.Settings\$Secure", false, classLoader)
-        val contentResolverClass = Class.forName("android.content.ContentResolver", false, classLoader)
-        val getString = settingsSecure.getDeclaredMethod(
-            "getString",
-            contentResolverClass,
-            String::class.java
-        )
-        getString.isAccessible = true
-        ModuleMain.module?.hook(getString!!, LogiMockLocationAppSettingHooker::class.java)
-
-        module.log("LOGI_GPS: legacy targets registered liveExecution=UNVERIFIED")
-    } catch (t: Throwable) {
-        module.log("LOGI_GPS: legacy target unavailable coordinatesRegistered=$coordinateHooks/2", t)
-    }
 }
 // END LOGI_GPS_INSTALLER
 
@@ -763,20 +709,6 @@ class LogiXposedClassHooker : XposedInterface.Hooker {
             val className = callback.args.getOrNull(0) as? String ?: return
             if (xposedMarkers.any { marker -> className.contains(marker) }) {
                 callback.throwAndSkip(ClassNotFoundException(className))
-            }
-        }
-    }
-}
-
-@XposedHooker
-class LogiMockLocationAppSettingHooker : XposedInterface.Hooker {
-    companion object {
-        @JvmStatic
-        @AfterInvocation
-        fun after(callback: XposedInterface.AfterHookCallback) {
-            val name = callback.args.getOrNull(1) as? String ?: return
-            if (name == "mock_location_app" || name == "mock_location") {
-                callback.result = ""
             }
         }
     }
