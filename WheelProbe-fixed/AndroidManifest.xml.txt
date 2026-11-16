@@ -10,6 +10,7 @@
         <package android:name="com.kakao.wheel.driver" />
         <package android:name="com.tmapmobility.drive.driver" />
         <package android:name="com.callmanerdriver2sharp1" />
+        <package android:name="com.callmanerdriver2sharp2" />
         <package android:name="com.idriver" />
         <package android:name="com.logisoft.Logi4" />
         <package android:name="com.logisoft.Logi5" />

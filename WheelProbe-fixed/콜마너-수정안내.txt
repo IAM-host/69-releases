@@ -1,22 +1,43 @@
-콜마너 금액 해석 수정 안내
+콜마너1·2 공통 적용 안내 — 2026-11-16
 
-이번 교체 파일: E04.kt.txt 한 개
-전체 내용을 기존 app/src/main/java/com/example/wheelprobe/E04.kt에 덮어쓰고 APK를 빌드·설치합니다.
-콜마너를 강제 종료한 뒤 다시 실행하고 EUNORA 감지를 켭니다.
+전체 TXT 파일과 적용 경로
+1. E04.kt.txt → app/src/main/java/com/example/wheelprobe/E04.kt
+2. ModuleMain.kt.txt → app/src/main/java/com/example/wheelprobe/ModuleMain.kt
+3. ConditionProvider.kt.txt → app/src/main/java/com/example/wheelprobe/ConditionProvider.kt
+4. AndroidManifest.xml.txt → app/src/main/AndroidManifest.xml
+5. scope.list.txt → app/src/main/resources/META-INF/xposed/scope.list
+6. E05.kt.txt → app/src/main/java/com/example/wheelprobe/E05.kt
 
-확인된 오류와 수정
-- 일반콜 데이터 감지와 조건 매칭 진입은 실제 로그에서 확인됐습니다.
-- 내부 금액 필드의 현금15K, 후불20K, 현금30K를 기존 코드가 0원으로 해석했습니다.
-- 결제방식은 선택 조건으로 사용하지 않습니다. 금액과 단위를 원 단위 숫자로 해석해 비교합니다.
-- 현금15K·후불15K·카드15K는 모두 15000원입니다. 현금20K·후불20K는 모두 20000원입니다.
-- 결제방식 표기 뒤의 단일 금액을 처리하며, 서로 다른 금액 여러 개를 임의로 합치지 않습니다.
-- 기존 포함·제외 단어, SET 구분, 최소 금액, 최대 거리, 수락 요청 동작은 유지했습니다.
-- 로그의 BUILD는 20261111.2이고 rawFare=현금15K일 때 fare=15000으로 기록되어야 합니다.
+E05는 직전에 전달한 로지 D1·D2 수정본과 동일합니다. 그 수정본을 아직 적용하지 않았다면 E05도 함께 적용해야 새 ModuleMain과 맞습니다. 이미 적용했다면 E05를 다시 바꿀 필요는 없습니다. 새로운 런타임 Kotlin 파일은 만들지 않았으며 콜마너 보조 클래스는 E04 안에 포함했습니다.
 
-검증과 범위
-- 실제 수정 소스 기준 데이터·상태 검사 197개와 native ICU 검사 26개를 통과했습니다.
-- 검증용 Android assembleDebug를 완료했고 APK 안에 새 금액 정규식과 BUILD 식별자가 있음을 확인했습니다.
-- 전달 TXT는 검사한 소스와 바이트가 같고 UTF-8 BOM 없음, CRLF 형식입니다.
-- 이번 로그의 세 콜은 모두 거리가 0.6km를 초과하므로 금액을 바로 읽어도 해당 거리 설정에서는 거절되는 것이 맞습니다.
-- 앞서 말씀하신 여서동원앙 0.5km 콜은 이번 로그에 없어서 그 당시의 모든 원인을 확정한 것은 아닙니다.
-- 실제 조건에 맞는 콜의 서버 수락 성공은 수정본 적용 후 확인해야 합니다. 다른 TXT 파일은 이번 교체 대상이 아닙니다.
+변경 내용
+- 콜마너1(com.callmanerdriver2sharp1)과 콜마너2(com.callmanerdriver2sharp2)를 같은 E04로 지원하도록 연결했습니다.
+- 조건·GPS 전달 대상, 패키지 조회, LSPosed 기본 적용 범위에 콜마너2를 추가했습니다.
+- 두 앱의 공유 프로세스 설정을 고려해 실제 내부 host Class별로 콜 목록·수락 상태·콜백 처리를 분리했습니다. 같은 내부 Class를 여러 ClassLoader가 가리키는 경우 한 번만 등록합니다.
+- 정확히 등록한 메서드·생성자에 해당 처리 상태를 연결합니다. 알 수 없는 훅 이벤트를 다른 앱의 상태로 추측하지 않습니다.
+- 수락 시점의 실제 host 패키지를 요청에 저장합니다. 나중에 다른 앱이 로딩돼도 성공 콜백은 처음 요청한 앱을 앞으로 가져옵니다.
+- 공용 Location 좌표 훅, 각 Google LatLng 생성자 및 기존 File.exists 훅의 중복 등록을 막습니다. GPS 좌표 처리와 기존 보안 후커 본문·대상 목록은 바꾸지 않았습니다.
+- 금액/거리/문자열 처리, SET 조건, 일반/탁송 분류, 원래 수락 인자, 응답 ID 확인과 성공 후 감지 OFF 정책은 유지했습니다.
+- 앞서 전달한 로지 D1·D2 연결도 유지했습니다. 로지의 모의 GPS 검사 대상 클래스명 미수정 제한도 이전과 같습니다.
+
+적용 순서
+1. 위 TXT의 전체 내용을 해당 경로의 파일에 덮어씁니다. .txt 확장자 파일을 Kotlin 소스 폴더에 새로 추가하는 방식은 사용하지 않습니다.
+2. Android Studio에서 APK를 다시 빌드·설치합니다.
+3. LSPosed의 EUNORA 적용 범위에서 사용할 콜마너1·콜마너2를 각각 체크합니다. 로지 D1·D2를 사용한다면 해당 선택도 유지합니다.
+4. 실행 중인 콜마너 앱들을 강제 종료하고 다시 실행합니다. EUNORA에서 조건과 GPS 설정을 전달합니다.
+
+시작 로그 확인
+- EUNORA: Callmaner process loaded package=com.callmanerdriver2sharp1 또는 sharp2
+- CALLMANER: BUILD=20261116.1 startup
+- CALLMANER: DATA_SELF_TEST_OK build=20261116.1
+- CALLMANER: 6.3.9.4 ng.a(og), di, ci.Z and native 221 callback hooks installed
+
+package bound 로그는 패키지와 내부 Class의 연결 정보입니다. 초기화 실패 후에도 나올 수 있으므로 그 로그만으로 설치 성공을 판단하지 말고 위 설치 성공 로그나 initialization failed 로그를 함께 확인합니다.
+실제 콜이 들어와야 DATA_HOOK_FIRED, LIST_PUBLISHED, CALL_DATA, DISPATCH_START, REQUEST_OBSERVED 및 최종 결과까지 진행 여부를 확인할 수 있습니다. DISPATCH_RETURNED만으로 서버 수락 성공을 뜻하지 않습니다.
+
+검증
+- 실제 Android assembleDebug 성공. 생성 APK scope와 Manifest에 콜마너1·2 및 로지D1·D2 포함 확인.
+- 실제 E04의 라우팅·등록 코드를 사용한 72개 검사 통과. 같은 이름의 클래스를 서로 다른 ClassLoader에서 불러오는 경우와 부모 위임 별칭도 검사했습니다.
+- 기존 데이터·상태 197개, 콜백 16개, native ICU 문자열·금액 26개 검사 통과. 총 311개입니다.
+- 전체 TXT는 컴파일한 소스와 바이트가 같습니다. E01·E02·E06과 직전 로지 E05는 이번에 변경하지 않았습니다.
+- 실제 휴대폰의 콜 수신·최종 수락·좌표 전송은 아직 검증하지 않았습니다.

@@ -10,6 +10,36 @@ import io.github.libxposed.api.annotations.XposedHooker
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
+// BEGIN CALLMANER_PACKAGE_ROUTING
+internal object CallmanerPackageRoute {
+    fun supports(packageName: String): Boolean =
+        packageName == "com.callmanerdriver2sharp1" || packageName == "com.callmanerdriver2sharp2"
+
+    fun foreground(packageName: String?): String? = packageName?.takeIf { supports(it) }
+}
+
+internal class CallmanerHookRegistry<T : Any> {
+    private val owners = java.util.IdentityHashMap<Class<*>, T>()
+    private val members = HashMap<java.lang.reflect.Member, T>()
+
+    @Synchronized fun getOrCreate(owner: Class<*>, create: () -> T): T =
+        owners[owner] ?: create().also { owners[owner] = it }
+
+    @Synchronized fun sessions(): List<T> = owners.values.toList()
+
+    @Synchronized fun sessionFor(member: java.lang.reflect.Member): T? = members[member]
+
+    @Synchronized fun install(member: java.lang.reflect.Member, session: T, action: () -> Unit): Boolean {
+        val previous = members[member]
+        check(previous == null || previous === session) { "Hook already belongs to another native session" }
+        if (previous === session) return false
+        action()
+        members[member] = session
+        return true
+    }
+}
+// END CALLMANER_PACKAGE_ROUTING
+
 @XposedHooker
 class CallmanerLatLngHooker : XposedInterface.Hooker {
     companion object {
@@ -411,11 +441,61 @@ private class CallmanerNativeBridge(private val classLoader: ClassLoader) {
 }
 
 private data class CallmanerDispatch(val attempt: CallmanerAcceptAttempt, val item: Any, val source: String,
+    val packageName: String,
     var linked: Boolean = false, var blocked: Boolean = false)
 private data class CallmanerNativeEvent(val result: CallmanerAcceptResult, val callId: String? = null,
     val terminalRejection: Boolean = false, val reason: String = "UNSPECIFIED")
 
+// BEGIN CALLMANER_SESSION_ROUTING
 internal object CallmanerAcceptController {
+    private val sessions = CallmanerHookRegistry<CallmanerSessionController>()
+    private val sharedHooks = CallmanerHookRegistry<Any>()
+    private val sharedOwner = Any()
+
+    @Synchronized fun init(classLoader: ClassLoader,
+        packageName: String? = ModuleMain.getApplicationContext()?.packageName) {
+        if (CallmanerPackageRoute.foreground(packageName) == null) return
+        try {
+            val owner = runCatching { Class.forName("ls0", false, classLoader) }
+                .getOrElse { Class.forName("defpackage.ls0", false, classLoader) }
+            val session = sessions.getOrCreate(owner) { CallmanerSessionController() }
+            session.init(owner.classLoader ?: classLoader)
+            ModuleMain.module?.log("CALLMANER: package bound package=$packageName owner=${System.identityHashCode(owner)}")
+        } catch (error: Throwable) {
+            ModuleMain.module?.log("CALLMANER: package binding failed package=$packageName", error)
+        }
+    }
+
+    internal fun register(member: java.lang.reflect.Executable,
+        hooker: Class<out XposedInterface.Hooker>, session: CallmanerSessionController) {
+        val module = ModuleMain.module ?: error("Module unavailable during hook registration")
+        sessions.install(member, session) { hookExecutable(module, member, hooker) }
+    }
+
+    internal fun sessionFor(member: java.lang.reflect.Member): CallmanerSessionController? =
+        sessions.sessionFor(member)
+
+    internal fun installSharedHook(member: java.lang.reflect.Executable,
+        hooker: Class<out XposedInterface.Hooker>) {
+        val module = ModuleMain.module ?: return
+        sharedHooks.install(member, sharedOwner) { hookExecutable(module, member, hooker) }
+    }
+
+    private fun hookExecutable(module: ModuleMain, member: java.lang.reflect.Executable,
+        hooker: Class<out XposedInterface.Hooker>) {
+        when (member) {
+            is Method -> module.hook(member, hooker)
+            is java.lang.reflect.Constructor<*> -> module.hook(member, hooker)
+            else -> error("Unsupported hook member")
+        }
+    }
+
+    fun foregroundPackage(): String? = sessions.sessions().mapNotNull { it.foregroundPackage() }
+        .distinct().singleOrNull()
+}
+// END CALLMANER_SESSION_ROUTING
+
+internal class CallmanerSessionController {
     private val handler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
     private val ledger = CallmanerAcceptLedger()
     private val dispatching = ThreadLocal<CallmanerDispatch>()
@@ -425,7 +505,7 @@ internal object CallmanerAcceptController {
     @Volatile private var receiver: android.content.BroadcastReceiver? = null
     private var installationAttempted = false
     private var publishedLists: List<Any> = emptyList()
-    private const val DIAGNOSTIC_BUILD = "20261111.2"
+    private val DIAGNOSTIC_BUILD = "20261116.1"
     private val traceTimes = LinkedHashMap<String, Pair<String, Long>>()
 
     private fun trace(key: String, message: String, intervalMs: Long = 10000L) {
@@ -465,12 +545,12 @@ internal object CallmanerAcceptController {
             stage = "NATIVE_BINDINGS"
             val native = CallmanerNativeBridge(classLoader)
             stage = "HOOK_REGISTRATION"
-            module.hook(native.cardAdd, CallmanerDataHooker::class.java)
-            module.hook(native.listConstructor, CallmanerDataHooker::class.java)
-            module.hook(native.listPublish, CallmanerListPublishHooker::class.java)
-            module.hook(native.sendMethod, CallmanerNativeSendHooker::class.java)
+            CallmanerAcceptController.register(native.cardAdd, CallmanerDataHooker::class.java, this)
+            CallmanerAcceptController.register(native.listConstructor, CallmanerDataHooker::class.java, this)
+            CallmanerAcceptController.register(native.listPublish, CallmanerListPublishHooker::class.java, this)
+            CallmanerAcceptController.register(native.sendMethod, CallmanerNativeSendHooker::class.java, this)
             for (name in listOf("onResume", "onDestroy")) {
-                module.hook(native.hostClass.getDeclaredMethod(name), CallmanerHostHooker::class.java)
+                CallmanerAcceptController.register(native.hostClass.getDeclaredMethod(name), CallmanerHostHooker::class.java, this)
             }
             bridge = native
             ready = true
@@ -479,6 +559,10 @@ internal object CallmanerAcceptController {
             ModuleMain.module?.log("CALLMANER: initialization failed stage=$stage build=$DIAGNOSTIC_BUILD; acceptance disabled", error)
         }
     }
+
+    fun foregroundPackage(): String? = try {
+        bridge?.host()?.packageName?.let { CallmanerPackageRoute.foreground(it) }
+    } catch (_: Throwable) { null }
 
     private fun now() = android.os.SystemClock.elapsedRealtime()
     private fun fingerprint() = ConditionClient.current().toString() +
@@ -546,6 +630,11 @@ internal object CallmanerAcceptController {
             trace("gate", "SCAN_BLOCKED reason=${native.hostProblem()}")
             return
         }
+        val packageName = CallmanerPackageRoute.foreground(host.packageName)
+        if (packageName == null) {
+            trace("gate", "SCAN_BLOCKED reason=UNSUPPORTED_HOST_PACKAGE")
+            return
+        }
         val cards = native.cards()
         val selectedCards = cards.filter { native.selectableCard(it) }
         val selectedLists = publishedLists.filter { native.selectableList(it) }
@@ -576,20 +665,20 @@ internal object CallmanerAcceptController {
             refreshSession()
             val attempt = ledger.begin(id, source, now()) ?: continue
             if (!ledger.dispatch(attempt.token)) continue
-            val dispatch = CallmanerDispatch(attempt, fresh, source)
+            val dispatch = CallmanerDispatch(attempt, fresh, source, packageName)
             dispatching.set(dispatch)
             try {
-                trace("dispatch:$id", "DISPATCH_START id=$id source=$source")
+                trace("dispatch:$id", "DISPATCH_START id=$id source=$source package=$packageName")
                 native.start(host, fresh, source)
                 trace("dispatch-return:$id", "DISPATCH_RETURNED id=$id callbackObserved=${dispatch.linked}")
-                if (!dispatch.linked) observe(attempt, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "NATIVE_CALLBACK_NOT_OBSERVED"))
+                if (!dispatch.linked) observe(dispatch, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "NATIVE_CALLBACK_NOT_OBSERVED"))
             } catch (error: Throwable) {
-                observe(attempt, CallmanerNativeEvent(
+                observe(dispatch, CallmanerNativeEvent(
                     if (dispatch.blocked && !dispatch.linked) CallmanerAcceptResult.FAILURE else CallmanerAcceptResult.UNKNOWN))
                 ModuleMain.module?.log("CALLMANER: native acceptance invocation failed id=$id", error)
             } finally { dispatching.remove() }
             handler.postDelayed({
-                if (ledger.phase(attempt.token) != null) observe(attempt, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "OUTCOME_TIMEOUT"))
+                if (ledger.phase(attempt.token) != null) observe(dispatch, CallmanerNativeEvent(CallmanerAcceptResult.UNKNOWN, reason = "OUTCOME_TIMEOUT"))
             }, 45000L)
             return
         }
@@ -600,7 +689,7 @@ internal object CallmanerAcceptController {
         if (dispatch.linked) return
         try {
             val native = bridge ?: error("Native bridge unavailable")
-            val linked = native.wrap(callback.args, callback.thisObject, dispatch) { observe(dispatch.attempt, it) }
+            val linked = native.wrap(callback.args, callback.thisObject, dispatch) { observe(dispatch, it) }
             if (!linked) return
             check(ledger.observing(dispatch.attempt.token)) { "Request no longer dispatchable" }
             dispatch.linked = true
@@ -611,14 +700,15 @@ internal object CallmanerAcceptController {
         }
     }
 
-    private fun observe(attempt: CallmanerAcceptAttempt, event: CallmanerNativeEvent) {
+    private fun observe(dispatch: CallmanerDispatch, event: CallmanerNativeEvent) {
+        val attempt = dispatch.attempt
         val task = Runnable {
             refreshSession()
             when (ledger.finish(attempt.token, event.result, event.callId, now(), event.terminalRejection)) {
                 CallmanerAcceptFinish.SUCCESS -> {
-                    ModuleMain.module?.log("CALLMANER: ACCEPT_CONFIRMED id=${attempt.callId} source=${attempt.source}")
+                    ModuleMain.module?.log("CALLMANER: ACCEPT_CONFIRMED id=${attempt.callId} source=${attempt.source} package=${dispatch.packageName}")
                     ConditionClient.stopDetecting("confirmed:CALLMANER:${attempt.callId}")
-                    ModuleMain.bringAppToFront(ModuleMain.CALLMANER_PACKAGE)
+                    ModuleMain.bringAppToFront(dispatch.packageName)
                 }
                 CallmanerAcceptFinish.STALE_SUCCESS -> ModuleMain.module?.log("CALLMANER: prior-session request confirmed id=${attempt.callId}; current detection unchanged")
                 CallmanerAcceptFinish.FAILURE -> {
@@ -637,7 +727,7 @@ internal object CallmanerAcceptController {
 class CallmanerDataHooker : XposedInterface.Hooker {
     companion object {
         @JvmStatic @AfterInvocation fun after(callback: XposedInterface.AfterHookCallback) {
-            if (callback.throwable == null) CallmanerAcceptController.dataHookFired("${callback.member.declaringClass.simpleName}.${callback.member.name}")
+            if (callback.throwable == null) CallmanerAcceptController.sessionFor(callback.member)?.dataHookFired("${callback.member.declaringClass.simpleName}.${callback.member.name}")
         }
     }
 }
@@ -645,7 +735,7 @@ class CallmanerDataHooker : XposedInterface.Hooker {
 class CallmanerListPublishHooker : XposedInterface.Hooker {
     companion object {
         @JvmStatic @AfterInvocation fun after(callback: XposedInterface.AfterHookCallback) {
-            if (callback.throwable == null) CallmanerAcceptController.publishLists()
+            if (callback.throwable == null) CallmanerAcceptController.sessionFor(callback.member)?.publishLists()
         }
     }
 }
@@ -653,7 +743,7 @@ class CallmanerListPublishHooker : XposedInterface.Hooker {
 class CallmanerHostHooker : XposedInterface.Hooker {
     companion object {
         @JvmStatic @AfterInvocation fun after(callback: XposedInterface.AfterHookCallback) {
-            if (callback.throwable == null) CallmanerAcceptController.hostChanged()
+            if (callback.throwable == null) CallmanerAcceptController.sessionFor(callback.member)?.hostChanged()
         }
     }
 }
@@ -661,7 +751,7 @@ class CallmanerHostHooker : XposedInterface.Hooker {
 class CallmanerNativeSendHooker : XposedInterface.Hooker {
     companion object {
         @JvmStatic @BeforeInvocation fun before(callback: XposedInterface.BeforeHookCallback) {
-            CallmanerAcceptController.wrapNativeSend(callback)
+            CallmanerAcceptController.sessionFor(callback.member)?.wrapNativeSend(callback)
         }
     }
 }
@@ -678,8 +768,8 @@ internal fun ModuleMain.installCallmanerAcceptResponseHook(classLoader: ClassLoa
 internal fun ModuleMain.installCallmanerGpsSpoof(classLoader: ClassLoader) {
     try {
         val locationClass = Class.forName("android.location.Location", false, classLoader)
-        ModuleMain.module?.hook(locationClass.getMethod("getLatitude"), GpsLatitudeHooker::class.java)
-        ModuleMain.module?.hook(locationClass.getMethod("getLongitude"), GpsLongitudeHooker::class.java)
+        CallmanerAcceptController.installSharedHook(locationClass.getMethod("getLatitude"), GpsLatitudeHooker::class.java)
+        CallmanerAcceptController.installSharedHook(locationClass.getMethod("getLongitude"), GpsLongitudeHooker::class.java)
 
         // MainService: es0.h = LatLng(lat, lng) — LatLng 생성 좌표 교체
         val latLngClass = Class.forName(
@@ -690,7 +780,7 @@ internal fun ModuleMain.installCallmanerGpsSpoof(classLoader: ClassLoader) {
         for (ctor in latLngClass.declaredConstructors) {
             ctor.isAccessible = true
             if (ctor.parameterTypes.size >= 2) {
-                ModuleMain.module?.hook(ctor, CallmanerLatLngHooker::class.java)
+                CallmanerAcceptController.installSharedHook(ctor, CallmanerLatLngHooker::class.java)
             }
         }
 
@@ -722,7 +812,7 @@ internal fun ModuleMain.installCallmanerSecurityBypass(classLoader: ClassLoader)
         val fileClass = Class.forName("java.io.File", false, classLoader)
         val exists = fileClass.getDeclaredMethod("exists")
         exists.isAccessible = true
-        ModuleMain.module?.hook(exists, CallmanerRootPathHooker::class.java)
+        CallmanerAcceptController.installSharedHook(exists, CallmanerRootPathHooker::class.java)
         ModuleMain.module?.log("CALLMANER: root path hook installed File.exists")
     } catch (t: Throwable) {
         ModuleMain.module?.log("CALLMANER: root path hook FAILED", t)

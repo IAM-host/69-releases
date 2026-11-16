@@ -111,8 +111,8 @@ class ModuleMain(
         // ====================================================================
         // 콜마너 (원본 그대로 유지)
         // ====================================================================
-        if (pkg == CALLMANER_PACKAGE) {
-            log("EUNORA: Callmaner process loaded")
+        if (CallmanerPackageRoute.supports(pkg)) {
+            log("EUNORA: Callmaner process loaded package=$pkg")
 
             // 감지 ON 전이라도 GPS 브로드캐스트 수신 가능하도록 조건 수신기 등록
             try {
@@ -120,10 +120,7 @@ class ModuleMain(
             } catch (t: Throwable) {
                 log("EUNORA: ConditionClient.initialize FAILED", t)
             }
-            installCallmanerAutoCardHook(classLoader)
-            installCallmanerCallListHook(classLoader)
-            CallmanerAcceptController.init(classLoader)
-            installCallmanerAcceptResponseHook(classLoader)
+            CallmanerAcceptController.init(classLoader, pkg)
             installCallmanerGpsSpoof(classLoader)
             installCallmanerSecurityBypass(classLoader)
         }
@@ -255,7 +252,7 @@ class ModuleMain(
 
         internal fun packageFromCallId(callId: String): String? {
             return when {
-                callId.startsWith("CALLMANER:") -> CALLMANER_PACKAGE
+                callId.startsWith("CALLMANER:") -> CallmanerAcceptController.foregroundPackage()
                 callId.startsWith("TMAP:") -> TMAP_PACKAGE
                 callId.startsWith("IDRIVE:") -> IDRIVE_PACKAGE
                 callId.startsWith("LOGI:") -> LogiPackageRoute.current()
