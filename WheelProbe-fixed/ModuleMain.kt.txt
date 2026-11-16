@@ -171,8 +171,9 @@ class ModuleMain(
         // ====================================================================
         // 로지 (원본 그대로 유지)
         // ====================================================================
-        if (pkg == LOGI_PACKAGE && param.isFirstPackage) {
-            log("EUNORA: Logi package loaded")
+        if (LogiPackageRoute.supports(pkg) && param.isFirstPackage) {
+            LogiPackageRoute.attach(pkg)
+            log("EUNORA: Logi package loaded package=$pkg")
 
             // 감지 ON 전이라도 GPS 브로드캐스트 수신 가능하도록 조건 수신기 등록
             try {
@@ -257,7 +258,7 @@ class ModuleMain(
                 callId.startsWith("CALLMANER:") -> CALLMANER_PACKAGE
                 callId.startsWith("TMAP:") -> TMAP_PACKAGE
                 callId.startsWith("IDRIVE:") -> IDRIVE_PACKAGE
-                callId.startsWith("LOGI:") -> LOGI_PACKAGE
+                callId.startsWith("LOGI:") -> LogiPackageRoute.current()
                 else -> KAKAO_PACKAGE
             }
         }

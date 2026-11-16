@@ -17,6 +17,24 @@ import java.lang.reflect.Proxy
 import java.util.LinkedHashSet
 import java.util.Map
 
+// BEGIN LOGI_PACKAGE_ROUTE
+internal object LogiPackageRoute {
+    private const val D1 = "com.logisoft.Logi4"
+    private const val D2 = "com.logisoft.Logi5"
+    @Volatile private var loadedPackage: String? = null
+
+    fun supports(packageName: String): Boolean = packageName == D1 || packageName == D2
+
+    fun attach(packageName: String): Boolean {
+        if (!supports(packageName)) return false
+        loadedPackage = packageName
+        return true
+    }
+
+    fun current(): String? = loadedPackage
+}
+// END LOGI_PACKAGE_ROUTE
+
 class LogiFakeGpsFalseHooker : XposedInterface.Hooker {
     companion object {
         @JvmStatic
@@ -338,7 +356,7 @@ internal object LogiAcceptController {
             val now = android.os.SystemClock.elapsedRealtime()
             if (now - lastFrontRequest > 3000L) {
                 lastFrontRequest = now
-                ModuleMain.bringAppToFront(ModuleMain.LOGI_PACKAGE)
+                LogiPackageRoute.current()?.let { ModuleMain.bringAppToFront(it) }
                 ModuleMain.module?.log("LOGI: matching order waiting for native foreground host")
             }
             return
@@ -610,12 +628,28 @@ class LogiRejectionHooker : XposedInterface.Hooker {
     }
 }
 
+// BEGIN LOGI_GPS_INSTALLER
 internal fun ModuleMain.installLogiGpsSpoof(classLoader: ClassLoader) {
+    val module = ModuleMain.module ?: return
+    var coordinateHooks = 0
+    val coordinateTargets: List<Pair<String, Class<out XposedInterface.Hooker>>> = listOf(
+        "getLatitude" to GpsLatitudeHooker::class.java,
+        "getLongitude" to GpsLongitudeHooker::class.java
+    )
+    for ((name, hooker) in coordinateTargets) {
+        try {
+            val locationClass = Class.forName("android.location.Location", false, classLoader)
+            module.hook(locationClass.getMethod(name), hooker)
+            coordinateHooks++
+        } catch (error: Throwable) {
+            module.log("LOGI_GPS: coordinate hook unavailable method=$name", error)
+        }
+    }
+    module.log("LOGI_GPS: coordinates registered=$coordinateHooks/2 package=${LogiPackageRoute.current()} liveExecution=UNVERIFIED")
+    // Keep the existing optional targets unchanged; a lookup failure must not
+    // obscure the independent coordinate-hook installation result.
     try {
         val locationClass = Class.forName("android.location.Location", false, classLoader)
-        ModuleMain.module?.hook(locationClass.getMethod("getLatitude"), GpsLatitudeHooker::class.java)
-        ModuleMain.module?.hook(locationClass.getMethod("getLongitude"), GpsLongitudeHooker::class.java)
-
         val fakeGps = Class.forName(
             "com.logisoft.LogiD.Util.FakeGpsDetector",
             false,
@@ -649,11 +683,12 @@ internal fun ModuleMain.installLogiGpsSpoof(classLoader: ClassLoader) {
         getString.isAccessible = true
         ModuleMain.module?.hook(getString!!, LogiMockLocationAppSettingHooker::class.java)
 
-        ModuleMain.module?.log("LOGI: GPS spoof hooks installed (Location + FakeGpsDetector + getMockLocation + mock_location_app)")
+        module.log("LOGI_GPS: legacy targets registered liveExecution=UNVERIFIED")
     } catch (t: Throwable) {
-        ModuleMain.module?.log("LOGI: GPS spoof hook FAILED", t)
+        module.log("LOGI_GPS: legacy target unavailable coordinatesRegistered=$coordinateHooks/2", t)
     }
 }
+// END LOGI_GPS_INSTALLER
 
 
 /**

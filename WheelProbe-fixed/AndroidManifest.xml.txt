@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Android 11+ 다른 앱으로 브로드캐스트/조회 허용 -->
+    <queries>
+        <package android:name="com.kakao.wheel.driver" />
+        <package android:name="com.tmapmobility.drive.driver" />
+        <package android:name="com.callmanerdriver2sharp1" />
+        <package android:name="com.idriver" />
+        <package android:name="com.logisoft.Logi4" />
+        <package android:name="com.logisoft.Logi5" />
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="EUNORA"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.WheelProbe">
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- GPS/조건 공유: 타겟 앱(모듈)이 EUNORA prefs를 읽기 위해 필수 -->
+        <provider
+            android:name=".ConditionProvider"
+            android:authorities="com.example.wheelprobe.conditions"
+            android:exported="true"
+            android:enabled="true"
+            android:grantUriPermissions="true" />
+
+        <receiver
+            android:name=".ConditionBridgeReceiver"
+            android:enabled="true"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="com.example.wheelprobe.action.REQUEST_CONDITIONS" />
+                <action android:name="com.example.wheelprobe.action.STOP_DETECTING" />
+            </intent-filter>
+
+        </receiver>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+    </application>
+
+</manifest>
