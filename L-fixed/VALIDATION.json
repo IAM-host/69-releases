@@ -1,7 +1,7 @@
 {
-  "date": "2026-11-17",
-  "change_scope": "EUNORA one-click package identification and existing-source target audit; confirmed-target observer generation; REA static analysis; no AI integration",
-  "tests_passed": 321,
+  "date": "2026-11-18",
+  "change_scope": "EUNORA security candidate discovery, exact target audit, debug-module-only Boolean false or void skip test hook generation; original Android sources preserved; no AI integration",
+  "tests_passed": 438,
   "subtests_passed": 12,
   "runtime_validation": "Linux Python 3.12.14 / PySide6 6.12.0 offscreen",
   "windows_executable_built": false,
@@ -13,26 +13,39 @@
     "method",
     "references"
   ],
-  "real_generated_kotlin_build": "passed :app:compileDebugKotlin in an isolated project copy; observation template retained",
-  "real_eunora_audit": {
+  "real_generated_kotlin_build": "passed :app:compileDebugKotlin with actual-APK Boolean and void security test targets in an isolated project copy",
+  "real_security_audit": {
     "app_key": "logi",
     "status": "partial",
     "counts": {
-      "class_found": 7,
-      "method_name_found": 4,
-      "total": 11,
-      "detail_attempted": 11,
-      "detail_completed": 11,
-      "unresolved": 8
-    }
+      "ready": 53,
+      "unsupported": 143,
+      "needs_review": 73,
+      "deferred": 97,
+      "scan_candidates": 366,
+      "scan_candidates_total": 366,
+      "total": 366,
+      "detail_attempted": 12,
+      "detail_completed": 12,
+      "choices": 53,
+      "boolean_false": 3,
+      "skip_void": 4,
+      "rows_omitted": 0
+    },
+    "generation_modes": {
+      "observe": 53,
+      "boolean_false": 3,
+      "skip_void": 4
+    },
+    "real_rea_evidence_cache_hits": 14
   },
-  "observer_from_real_audit_matches_previously_compiled_sources": true,
+  "generated_security_test_modes_compiled_together": "passed",
   "original_android_sources_unchanged": true,
   "original_main_sha256": "f0f5167b80f2f5f098aab3985e7ef96a8968d226286815b670000c16aa028592",
   "files": {
-    ".gitignore": "c05ec14eb0b12a81d1bd35da4ae55a339b95c4415559bf26698050667543dce9",
-    "README.md": "9a6a9ddefd25b2d5fa35187882996d8e09bf81293889786a8490ba3a4415907a",
-    "DIRECTION.md": "e8865c66a0341208854eff4c930872e53e59b7ff8edab6acf381050e31e7ea15",
+    ".gitignore": "b3e7ceb0aae4d400cc97efe71f3088752ad371e62d49667fe4acef8c29381ecd",
+    "README.md": "248f1721218ca80733354f9bf8d07269bba78695c2a20d83efdc30c915033cda",
+    "DIRECTION.md": "fc98450c89c33af15a6cdef8b857c6b792c1b5eaf8375c137ebc060cc954d5c1",
     "main.py": "bb604c0d30be55ba782684fab6b046e1125fb8bcd83fb6ef5b9cf2bec608ef63",
     "install_rea.py": "e08a801fa9e9cd72ba53a1e5cea7a3cfec02f2ac62fc1c9dc0046713a8faa33c",
     "pytest.ini": "b160d82f7811555051f8966d8e02750a985227c1d022208c784e606946f2eada",
@@ -57,9 +70,13 @@
     "l_app/processes.py": "d508c262ba282165067728fdd14743916429e6b630b60000f071ef7df590bd6c",
     "l_app/rea.py": "f79c6d6278e1c4227a16345430a3b1427defa65a1e70d5358b86a6c34186fe9e",
     "l_app/rea_dialogs.py": "4d6fe1b6270f45e33dd204f6adfa1bd7a0cc3db9813fc028d02ee7c651ac5b5a",
+    "l_app/security_audit.py": "a7be1bf9f562fabf393834524b228cdf446b5e1d0779dd729ccf47374c577d82",
+    "l_app/security_dialogs.py": "8bfdfde14d011f23ab263d1aaef258927e927824c91977ced693bb25227a04ff",
+    "l_app/security_generator.py": "b070347dbbb594c8ee6f49807e9bb127063cd387abbe6d901543337833c33731",
+    "l_app/security_scan.py": "d79a7c2efe13142a39c0b930818dbdad947fb0dcdd27ea8e80f2bb11f3cc0bbf",
     "l_app/source_catalog.py": "7f29af1ba5e3d743a6042a9d7542a40aee7065939275c3ff5a059572325159db",
     "l_app/state.py": "ba2309d74b992e627d2ac2ef880bf879acd1733071c0e859288f117e39e831e9",
-    "l_app/ui.py": "8b04dc96588904a66a5b8bbc7c83b77b4e0232b06618552c92ed5970a6bd9e38",
+    "l_app/ui.py": "0ff347967f83cbccef3245752c7e7a40b5f2ba9b8fc70af83325400d765ad3e2",
     "l_app/workflows.py": "15e7c94b2e0939ecf42806ea92268d0c51c7a0e5bfd59149de3de3fd34dbdb6e",
     "l_app/eunora_profiles.json": "74968b0b57456439b0cd8adef182908e53e6c0155b962078a6b5059ec27f2e2d",
     "tests/test_analysis.py": "72686e17123b9e97d93880a560e71e3ab89d8914477026a2a22c7f8f5948c404",
@@ -72,9 +89,13 @@
     "tests/test_rea_setup.py": "2fbbd2acffba66edbc8504d57923974adc7cf8c725675d06371e51ec7666ac26",
     "tests/test_rea_ui.py": "d70db3a20baf98966997ba5f60a725a349144119203ee209f1b0d2854fcee88f",
     "tests/test_runtime.py": "ff67db5926e08e542568d59f8610f745a11d3dd9930c060360305d32f2818f3e",
+    "tests/test_security_audit.py": "febbfc96700dbbe5d07001cce8779d2bc00f81466a0db1129a949e11ac66b7e2",
+    "tests/test_security_generator.py": "5d7516682edb7621ebf3bfd0a37135c90a9b83cec26bf66fca75d64c87ea418e",
+    "tests/test_security_scan.py": "60814b201694b79f849426bdb05938933551c19a7bcceddd96b53bc295d51679",
+    "tests/test_security_ui.py": "2455407e6ec51888e6403d55c1f99e2baec15dfd2de73ef65f9310bdbf979117",
     "tests/test_services.py": "c1f7eddc933693922ffb537a63e21e5d2fa4450d5ae361f1e3e8ab4044aa7368",
     "tests/test_source_catalog.py": "3f5cf02254b042d0791aa7fc1b1de784ee5f91741a0836f81daa73edd1890f01",
-    "tests/test_ui.py": "35fa1f3a43d739dfd6d883effb2d3077d9614d5784038671f528fa2e65716f41",
+    "tests/test_ui.py": "c67164f36f194ae75d18a8c2b1cf3ff725269a8c8d4e94b2be1ee2ad85e94a21",
     "tests/fixtures/ui-baseline.json": "28df969fda1f0ab8a7b072c8a227d647d2bcb0172304cb6df82ded8324bf3e1f"
   }
 }

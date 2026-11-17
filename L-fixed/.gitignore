@@ -18,3 +18,4 @@ tools/
 *.log
 L.exe
 eunora_audits/
+security_audits/

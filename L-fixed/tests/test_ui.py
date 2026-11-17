@@ -81,6 +81,8 @@ def test_existing_visual_layout_and_styles_are_preserved(window):
         ("build_validation", "생성본 빌드 검사", ""): 1,
         ("eunora_audit", "EUNORA 자동 점검", ""): 1,
         ("eunora_audit", "점검 결과로 훅 생성", ""): 1,
+        ("security_audit", "보안 자동 점검", ""): 1,
+        ("security_generation", "보안 테스트 훅 생성", ""): 1,
     })
     buttons = Counter((b.text(), b.styleSheet()) for b in window.findChildren(QPushButton) if b not in extensions)
     assert buttons == Counter({(text, style): count for text, style, count in baseline["buttons"]})

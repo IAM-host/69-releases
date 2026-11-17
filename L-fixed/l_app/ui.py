@@ -54,6 +54,9 @@ from .rea_dialogs import REASettingsDialog, REAAnalysisDialog, ObserverGeneratio
 from .generator import load_profiles, list_observer_methods, generate_observer
 from .build_validation import validate_generated_project
 from .eunora_audit import run_eunora_audit as analyze_eunora_project
+from .security_audit import run_security_audit as analyze_security_project
+from .security_generator import generate_security_hook
+from .security_dialogs import SecurityAuditDialog, SecurityGenerationDialog
 
 
 class MainWindow(QMainWindow):
@@ -93,6 +96,7 @@ class MainWindow(QMainWindow):
         self._generator_last_project = ""
         self._rea_settings_dialog = None
         self._last_eunora_audit = None
+        self._last_security_audit = None
 
         self._build_ui()
         self.refresh_devices()
@@ -413,6 +417,18 @@ class MainWindow(QMainWindow):
         self.btn_audit_generate.setProperty("long_job", True)
         self.btn_audit_generate.clicked.connect(self.run_audit_generation)
         audit_row.addWidget(self.btn_audit_generate)
+        self.btn_security_audit = QPushButton("보안 자동 점검")
+        self.btn_security_audit.setObjectName("security_audit_button")
+        self.btn_security_audit.setProperty("feature_extension", "security_audit")
+        self.btn_security_audit.setProperty("long_job", True)
+        self.btn_security_audit.clicked.connect(self.run_security_audit)
+        audit_row.addWidget(self.btn_security_audit)
+        self.btn_security_generate = QPushButton("보안 테스트 훅 생성")
+        self.btn_security_generate.setObjectName("security_generation_button")
+        self.btn_security_generate.setProperty("feature_extension", "security_generation")
+        self.btn_security_generate.setProperty("long_job", True)
+        self.btn_security_generate.clicked.connect(self.run_security_generation)
+        audit_row.addWidget(self.btn_security_generate)
         audit_row.addStretch()
         layout.addLayout(audit_row)
 
@@ -950,6 +966,145 @@ class MainWindow(QMainWindow):
             result["diff_text"] = Path(result["diff"]).read_text(encoding="utf-8")
             return result
         self._start_job("EUNORA 점검 결과로 관찰 코드 생성 중…", work, self._show_generated_result)
+
+    def run_security_audit(self) -> None:
+        if self._job is not None:
+            self.lbl_status.setText("다른 작업이 진행 중입니다")
+            return
+        dialog = SecurityAuditDialog(
+            self.ed_analyze_apk.text().strip(),
+            self._generator_last_project or self.ed_modulemain.text().strip(), self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        request = dict(dialog.request())
+        path = Path(request.get("apk_path") or "").expanduser()
+        project = request.get("project_path") or ""
+        if not path.is_file() or not project or not Path(project).expanduser().exists():
+            QMessageBox.warning(self, "L", "APK와 EUNORA 프로젝트 폴더 또는 ModuleMain.kt를 선택하세요.")
+            return
+        path = path.resolve()
+        project = str(Path(project).expanduser().resolve())
+        try:
+            settings = json.loads(json.dumps(load_rea_settings()))
+        except Exception as error:
+            QMessageBox.critical(self, "L", f"REA 설정 읽기 실패: {error}")
+            return
+        self.ed_analyze_apk.setText(str(path))
+        self._generator_last_project = project
+        def work(progress):
+            result = analyze_security_project(path, project, settings=settings, progress=progress)
+            if (not isinstance(result, dict) or result.get("status") not in {"complete", "partial"}
+                    or not isinstance(result.get("report"), str) or not result["report"].strip()):
+                raise RuntimeError("보안 점검이 유효한 결과를 반환하지 않았습니다")
+            if result.get("app_key") not in DRIVER_APPS:
+                raise RuntimeError("보안 점검 결과의 앱 종류를 확인할 수 없습니다")
+            if Path(result.get("apk_path") or "").resolve() != path:
+                raise RuntimeError("보안 점검 결과의 APK가 선택한 파일과 다릅니다")
+            return result
+        def done(result):
+            snapshot = json.loads(json.dumps(result))
+            self._last_security_audit = snapshot
+            self._last_analysis_text = snapshot["report"]
+            self._last_analysis_result = None
+            self.txt_analyze.setPlainText(snapshot["report"])
+            for name in ("cmb_map_app", "cmb_apk_app", "cmb_app"):
+                combo = getattr(self, name)
+                index = combo.findData(snapshot["app_key"])
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+            self.lbl_status.setText("보안 정적 점검 완료 — 후보와 미확인 범위를 확인하세요")
+        self._start_job("APK 보안 검사 후보 자동 점검 중…", work, done)
+
+    @staticmethod
+    def _security_generation_choices(audit):
+        choices = []
+        for value in audit.get("choices") or []:
+            if not isinstance(value, dict):
+                continue
+            choice = dict(value)
+            evidence = choice.get("class_evidence")
+            if not isinstance(evidence, dict):
+                evidence = (choice.get("class_result") or {}).get("evidence")
+            candidate = choice.get("candidate")
+            modes = [mode for mode in (choice.get("modes") or []) if mode in {"observe", "boolean_false", "skip_void"}]
+            if (not isinstance(evidence, dict) or not isinstance(candidate, dict) or not modes
+                    or not isinstance(choice.get("method_name"), str)
+                    or not isinstance(choice.get("overload_index"), int)
+                    or isinstance(choice.get("overload_index"), bool)):
+                continue
+            choice["class_evidence"] = evidence
+            choice["modes"] = modes
+            choices.append(choice)
+        return choices
+
+    @staticmethod
+    def _assert_security_inputs(audit):
+        try:
+            MainWindow._assert_audit_inputs(audit)
+        except RuntimeError as error:
+            raise RuntimeError(str(error).replace("EUNORA 자동 점검", "보안 자동 점검").replace("자동 점검을 다시", "보안 점검을 다시")) from error
+
+    def run_security_generation(self) -> None:
+        if self._job is not None:
+            self.lbl_status.setText("다른 작업이 진행 중입니다")
+            return
+        if not self._last_security_audit:
+            QMessageBox.information(self, "L", "보안 자동 점검을 먼저 실행하세요. 클래스·메서드 이름은 직접 입력하지 않습니다.")
+            return
+        try:
+            audit = json.loads(json.dumps(self._last_security_audit))
+            current_apk = self.ed_analyze_apk.text().strip()
+            if current_apk and Path(current_apk).expanduser().resolve() != Path(audit["apk_path"]).resolve():
+                QMessageBox.warning(self, "L", "선택한 APK가 보안 점검 결과와 다릅니다. 현재 APK로 보안 자동 점검을 다시 실행하세요.")
+                return
+            choices = self._security_generation_choices(audit)
+            settings = json.loads(json.dumps(load_rea_settings()))
+        except Exception as error:
+            QMessageBox.critical(self, "L", f"보안 점검 근거 확인 실패: {error}")
+            return
+        if not choices:
+            QMessageBox.information(self, "L", "코드 생성에 사용할 정확한 보안 검사 메서드를 확보하지 못했습니다. 점검 결과의 보류·지원 범위를 확인하세요.")
+            return
+        dialog = SecurityGenerationDialog(audit["apk_path"], audit["project_root"], choices, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        request = dict(dialog.request())
+        index, mode = request.get("choice_index"), request.get("mode")
+        if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(choices):
+            QMessageBox.warning(self, "L", "점검에서 확인된 메서드를 하나 선택하세요.")
+            return
+        selected = json.loads(json.dumps(choices[index]))
+        if mode not in {"observe", "boolean_false", "skip_void"} or mode not in selected["modes"]:
+            QMessageBox.warning(self, "L", "이 대상에서 지원하는 생성 동작을 선택하세요.")
+            return
+        def work(progress):
+            progress("보안 점검의 APK와 EUNORA 원본 확인 중…")
+            self._assert_security_inputs(audit)
+            apk = Path(audit["apk_path"])
+            package = run_rea_analysis(apk, settings=settings, operation="package", progress=progress)
+            if package.get("status") not in {"complete", "partial"} or not package.get("evidence"):
+                raise RuntimeError("현재 APK 패키지 근거를 확인하지 못해 보안 코드를 생성할 수 없습니다")
+            self._assert_security_inputs(audit)
+            labels = {
+                "observe": "호출 관찰 코드 생성 중…",
+                "boolean_false": "디버그 EUNORA용 Boolean 결과 변경 테스트 코드 생성 중…",
+                "skip_void": "디버그 EUNORA용 void 검사 실행 생략 테스트 코드 생성 중…",
+            }
+            progress(labels[mode])
+            result = generate_security_hook(
+                audit["project_root"], audit["app_key"], apk, selected["class_evidence"],
+                selected["method_name"], selected["overload_index"], mode=mode,
+                package_evidence=package["evidence"], source_hashes=audit["source_files"],
+                candidate=selected["candidate"], method_evidence=selected.get("method_evidence"),
+            )
+            result["diff_text"] = Path(result["diff"]).read_text(encoding="utf-8")
+            return result
+        def done(result):
+            self._show_generated_result(result)
+            labels = {"observe": "보안 호출 관찰", "boolean_false": "보안 테스트: 반환 false", "skip_void": "보안 테스트: void 실행 생략"}
+            self.lbl_status.setText(labels[mode] + " 생성본 저장 — 빌드 미실행")
+        self._start_job("보안 점검 결과로 선택한 테스트 코드 생성 중…", work, done)
 
     def _show_generated_result(self, result):
         self._last_generated_result = result
