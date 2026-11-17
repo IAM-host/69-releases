@@ -73,9 +73,18 @@ def test_existing_visual_layout_and_styles_are_preserved(window):
     assert window.windowTitle() == baseline["title"] == "L"
     assert [window.width(), window.height()] == baseline["size"]
     assert [window.tabs.tabText(i) for i in range(window.tabs.count())] == baseline["tabs"]
-    buttons = Counter((b.text(), b.styleSheet()) for b in window.findChildren(QPushButton))
+    extensions = [b for b in window.findChildren(QPushButton) if b.property("feature_extension")]
+    assert Counter((b.property("feature_extension"), b.text(), b.styleSheet()) for b in extensions) == Counter({
+        ("rea", "REA 분석", ""): 1,
+        ("rea", "REA 설정", ""): 1,
+        ("generator", "훅 코드 생성", ""): 1,
+        ("build_validation", "생성본 빌드 검사", ""): 1,
+    })
+    buttons = Counter((b.text(), b.styleSheet()) for b in window.findChildren(QPushButton) if b not in extensions)
     assert buttons == Counter({(text, style): count for text, style, count in baseline["buttons"]})
-    assert Counter(type(w).__name__ for w in window.findChildren(QWidget)) == baseline["widget_counts"]
+    widget_counts = Counter(type(w).__name__ for w in window.findChildren(QWidget))
+    widget_counts["QPushButton"] -= len(extensions)
+    assert widget_counts == baseline["widget_counts"]
     assert window.cmb_pull_app.itemText(0) == "7개 전부"
     keys = {window.cmb_pull_app.itemData(i) for i in range(1, window.cmb_pull_app.count())}
     assert keys == {"kakao", "callmaner", "callmaner2", "tmap", "logi", "logi2", "idrive"}

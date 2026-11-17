@@ -1,0 +1,9 @@
+{
+  "kakao": {"label": "카카오 대리", "package": "com.kakao.wheel.driver", "family": "kakao", "source_file": "E02.kt", "startup_anchor": "installKakaoGpsSpoof"},
+  "tmap": {"label": "T맵 대리", "package": "com.tmapmobility.drive.driver", "family": "tmap", "source_file": "E03.kt", "startup_anchor": "installTmapGpsSpoof"},
+  "callmaner": {"label": "콜마너1", "package": "com.callmanerdriver2sharp1", "family": "callmaner", "source_file": "E04.kt", "startup_anchor": "installCallmanerGpsSpoof"},
+  "callmaner2": {"label": "콜마너2", "package": "com.callmanerdriver2sharp2", "family": "callmaner", "source_file": "E04.kt", "startup_anchor": "installCallmanerGpsSpoof"},
+  "logi": {"label": "로지D1", "package": "com.logisoft.Logi4", "family": "logi", "source_file": "E05.kt", "startup_anchor": "installLogiGpsSpoof"},
+  "logi2": {"label": "로지D2", "package": "com.logisoft.Logi5", "family": "logi", "source_file": "E05.kt", "startup_anchor": "installLogiGpsSpoof"},
+  "idrive": {"label": "아이드라이브", "package": "com.idriver", "family": "idrive", "source_file": "E06.kt", "startup_anchor": "installIdriveGpsSpoof"}
+}

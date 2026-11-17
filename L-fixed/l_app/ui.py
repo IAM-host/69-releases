@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QFileDialog,
     QLineEdit,
+    QDialog,
 )
 from .config import APP_LABELS, DEFAULT_HOOKS, DRIVER_APPS, family_for
 from .paths import apk_dir, app_dir, knowledge_path, atomic_write_text, session_path
@@ -47,6 +48,11 @@ from .state import apk_has_symbols, apply_symbol_replacements, collect_log_text_
 
 from .jobs import BackgroundJob
 from .workflows import build_hook_map, create_source_copy
+from .processes import CancelledError
+from .rea import load_rea_settings, save_rea_settings, rea_preflight, run_rea_analysis
+from .rea_dialogs import REASettingsDialog, REAAnalysisDialog, ObserverGenerationDialog
+from .generator import load_profiles, list_observer_methods, generate_observer
+from .build_validation import validate_generated_project
 
 
 class MainWindow(QMainWindow):
@@ -77,6 +83,14 @@ class MainWindow(QMainWindow):
         self.hook_knowledge = load_hook_knowledge()
         self._pending_replaces: list[tuple[str, str]] = []
         self._patched_module_text = ""
+        self._rea_last_request = {}
+        self._last_rea_evidence = None
+        self._last_rea_result = None
+        self._last_rea_class_result = None
+        self._last_generated_result = None
+        self._last_build_result = None
+        self._generator_last_project = ""
+        self._rea_settings_dialog = None
 
         self._build_ui()
         self.refresh_devices()
@@ -370,6 +384,18 @@ class MainWindow(QMainWindow):
         btn_xref.clicked.connect(self.run_jadx_xref)
         btn_xref.setProperty("long_job", True)
         row.addWidget(btn_xref)
+        self.btn_rea_analysis = QPushButton("REA 분석")
+        self.btn_rea_analysis.setObjectName("rea_analysis_button")
+        self.btn_rea_analysis.setProperty("feature_extension", "rea")
+        self.btn_rea_analysis.setProperty("long_job", True)
+        self.btn_rea_analysis.clicked.connect(self.run_rea)
+        row.addWidget(self.btn_rea_analysis)
+        self.btn_rea_settings = QPushButton("REA 설정")
+        self.btn_rea_settings.setObjectName("rea_settings_button")
+        self.btn_rea_settings.setProperty("feature_extension", "rea")
+        self.btn_rea_settings.setProperty("long_job", True)
+        self.btn_rea_settings.clicked.connect(self.configure_rea)
+        row.addWidget(self.btn_rea_settings)
         layout.addLayout(row)
 
         rowx = QHBoxLayout()
@@ -447,6 +473,18 @@ class MainWindow(QMainWindow):
         btn_reload_k = QPushButton("지식 다시 읽기")
         btn_reload_k.clicked.connect(self.reload_hook_knowledge)
         row3.addWidget(btn_reload_k)
+        self.btn_generate_hook = QPushButton("훅 코드 생성")
+        self.btn_generate_hook.setObjectName("observer_generator_button")
+        self.btn_generate_hook.setProperty("feature_extension", "generator")
+        self.btn_generate_hook.setProperty("long_job", True)
+        self.btn_generate_hook.clicked.connect(self.run_observer_generation)
+        row3.addWidget(self.btn_generate_hook)
+        self.btn_build_generated = QPushButton("생성본 빌드 검사")
+        self.btn_build_generated.setObjectName("generated_build_validation_button")
+        self.btn_build_generated.setProperty("feature_extension", "build_validation")
+        self.btn_build_generated.setProperty("long_job", True)
+        self.btn_build_generated.clicked.connect(self.run_generated_build)
+        row3.addWidget(self.btn_build_generated)
         row3.addStretch()
         layout.addLayout(row3)
 
@@ -753,6 +791,169 @@ class MainWindow(QMainWindow):
             self.txt_analyze.setPlainText(combined)
             self.lbl_status.setText("jadx 진단 — 결과 확인" if report.startswith("[jadx") else "jadx XREF 완료")
         self._start_job("jadx XREF 실행 중…", lambda progress: jadx_xref(path, symbols), done)
+
+    def configure_rea(self) -> None:
+        if self._job is not None:
+            self.lbl_status.setText("다른 작업이 진행 중입니다")
+            return
+        try:
+            settings = load_rea_settings()
+        except Exception as error:
+            QMessageBox.critical(self, "L", f"REA 설정 읽기 실패: {error}")
+            return
+        dialog = REASettingsDialog(settings, self)
+        self._rea_settings_dialog = dialog
+        if settings.get("_load_error"):
+            dialog.set_preflight_error(settings["_load_error"])
+        dialog.checkRequested.connect(lambda value: self._check_rea_settings(dialog, value))
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            save_rea_settings(dialog.settings())
+        except Exception as error:
+            QMessageBox.critical(self, "L", f"REA 설정 저장 실패: {error}")
+            return
+        self.lbl_status.setText("REA 설정 저장 — 도구 준비 상태는 사전 검사로 확인")
+
+    def _check_rea_settings(self, dialog, settings) -> None:
+        settings = json.loads(json.dumps(settings))
+        def work(progress):
+            progress("REA 도구 사전 검사 중…")
+            try:
+                return rea_preflight(settings)
+            except CancelledError:
+                raise
+            except Exception as error:
+                return {"ready": False, "status": "error", "errors": [str(error)]}
+        def done(result):
+            if dialog.isVisible():
+                dialog.set_preflight_result(result)
+            self.lbl_status.setText("REA 사전 검사 완료 — 준비됨" if result.get("ready") else "REA 사전 검사 완료 — 설정 확인 필요")
+        if not self._start_job("REA 도구 사전 검사 중…", work, done):
+            dialog.set_preflight_error("다른 작업이 진행 중입니다")
+            return
+        worker = self._job
+        # The existing window-owned job boundary also owns cancellation here.
+        dialog.finished.connect(lambda result: worker.cancel() if self._job is worker else None)
+
+    def run_rea(self) -> None:
+        if self._job is not None:
+            self.lbl_status.setText("다른 작업이 진행 중입니다")
+            return
+        path = Path(self.ed_analyze_apk.text().strip())
+        if not path.is_file():
+            QMessageBox.warning(self, "L", "APK 파일을 선택하세요")
+            return
+        path = path.resolve()
+        try:
+            settings = load_rea_settings()
+        except Exception as error:
+            QMessageBox.critical(self, "L", f"REA 설정 읽기 실패: {error}")
+            return
+        dialog = REAAnalysisDialog(path, self._rea_last_request, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        request = dialog.request()
+        self._rea_last_request = dict(request)
+        settings = json.loads(json.dumps(settings))
+        def work(progress):
+            return run_rea_analysis(path, settings=settings, progress=progress, **request)
+        def done(result):
+            if result.get("status") not in {"complete", "partial"} or not isinstance(result.get("report"), str) or not result["report"].strip():
+                raise RuntimeError("REA가 유효한 분석 결과를 반환하지 않았습니다")
+            report = str(result.get("report") or "")
+            self._last_analysis_text = report
+            self._last_analysis_result = None
+            self._last_rea_evidence = result.get("evidence")
+            self._last_rea_result = {**result, "apk_path": str(path), "request": dict(request)}
+            if request["operation"] == "class":
+                self._last_rea_class_result = json.loads(json.dumps(self._last_rea_result))
+            self.txt_analyze.setPlainText(report)
+            state = "부분 결과" if result.get("status") == "partial" else "완료"
+            self.lbl_status.setText(f"REA 정적 분석 {state} — 기기 실행 검증 아님")
+        self._start_job("REA 정적 분석 중…", work, done)
+
+    def run_observer_generation(self) -> None:
+        if self._job is not None:
+            self.lbl_status.setText("다른 작업이 진행 중입니다")
+            return
+        cached = self._last_rea_class_result
+        if not cached:
+            QMessageBox.information(self, "L", "구조 분석 탭에서 APK를 선택하고 REA 분석 → 클래스 정보를 먼저 실행하세요.")
+            return
+        path = Path(self.ed_analyze_apk.text().strip())
+        if not path.is_file():
+            QMessageBox.warning(self, "L", "구조 분석 탭에서 APK 파일을 선택하세요.")
+            return
+        path = path.resolve()
+        try:
+            evidence = json.loads(json.dumps(cached["evidence"]))
+            methods = list_observer_methods(evidence)
+            profiles = load_profiles()
+            settings = json.loads(json.dumps(load_rea_settings()))
+        except Exception as error:
+            QMessageBox.critical(self, "L", f"생성 입력 확인 실패: {error}")
+            return
+        if not methods:
+            QMessageBox.information(self, "L", "클래스 정보에 생성 가능한 메서드가 없습니다. 다른 클래스를 분석하세요.")
+            return
+        class_name = evidence.get("normalized_result", {}).get("class_name", "")
+        project = self._generator_last_project or self.ed_modulemain.text().strip()
+        dialog = ObserverGenerationDialog(path, class_name, profiles, methods, project, self.cmb_map_app.currentData(), self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        request = dict(dialog.request())
+        self._generator_last_project = request["project_path"]
+        def work(progress):
+            progress("대상 APK·패키지 확인 중…")
+            package = run_rea_analysis(path, settings=settings, operation="package", progress=progress)
+            if package.get("status") not in {"complete", "partial"} or not package.get("evidence"):
+                raise RuntimeError("APK 패키지 분석이 완료되지 않아 코드를 생성할 수 없습니다")
+            progress("확인된 메서드의 관찰 코드 생성 중…")
+            result = generate_observer(
+                request["project_path"], request["app_key"], path, evidence,
+                request["method_name"], request["overload_index"], package_evidence=package["evidence"],
+            )
+            result["diff_text"] = Path(result["diff"]).read_text(encoding="utf-8")
+            return result
+        def done(result):
+            self._last_generated_result = result
+            self._last_build_result = None
+            summary = json.dumps(result["report"], ensure_ascii=False, indent=2, default=str)
+            text = f"생성본 폴더: {result['path']}\n빌드 상태: 미실행\n\n{summary}\n\n======== 변경 사항 ========\n{result['diff_text']}"
+            self.txt_map.setPlainText(text)
+            self.tabs.setCurrentWidget(self.txt_map.parentWidget())
+            self.lbl_status.setText("생성본 저장 — 빌드 미실행")
+        self._start_job("관찰 코드 생성 준비 중…", work, done)
+
+    def run_generated_build(self) -> None:
+        if self._job is not None:
+            self.lbl_status.setText("다른 작업이 진행 중입니다")
+            return
+        if not self._last_generated_result or not self._last_generated_result.get("manifest"):
+            QMessageBox.information(self, "L", "훅 코드 생성으로 생성본을 먼저 만드세요.")
+            return
+        manifest = str(self._last_generated_result["manifest"])
+        try:
+            java_home = load_rea_settings().get("java_home") or None
+        except Exception as error:
+            QMessageBox.critical(self, "L", f"JDK 설정 읽기 실패: {error}")
+            return
+        prior = self.txt_map.toPlainText()
+        def work(progress):
+            return validate_generated_project(manifest, java_home=java_home, progress=progress)
+        def done(result):
+            if result.get("status") not in {"passed", "failed"} or not isinstance(result.get("report"), str) or not result["report"].strip():
+                raise RuntimeError("빌드 검사 결과가 올바르지 않습니다")
+            self._last_build_result = result
+            if self._last_generated_result.get("manifest") == manifest:
+                self._last_generated_result["build_status"] = result["status"]
+            state = "통과" if result["status"] == "passed" else "실패"
+            summary = re.sub(r"(?m)^빌드 상태: (?:미실행|통과|실패)$", f"빌드 상태: {state}", prior, count=1)
+            self.txt_map.setPlainText(summary + "\n\n======== 생성본 빌드 검사 ========\n" + result["report"])
+            self.tabs.setCurrentWidget(self.txt_map.parentWidget())
+            self.lbl_status.setText("생성본 빌드 통과 — 기기 실행 검증 별도" if result["status"] == "passed" else "생성본 빌드 실패 — 로그 확인")
+        self._start_job("생성본 빌드 검사 중…", work, done)
 
     def add_selected_apk_to_hooks(self) -> None:
         items = self.list_apk_added.selectedItems()

@@ -11,3 +11,9 @@ hooks.json
 eunora_hooks.json
 jadx_path.txt
 ModuleMain_patched*.kt
+rea_results/
+generated_hooks/
+rea_settings.json
+tools/
+*.log
+L.exe
