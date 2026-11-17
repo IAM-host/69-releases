@@ -1,0 +1,179 @@
+{
+  "source_sha256": "f0f5167b80f2f5f098aab3985e7ef96a8968d226286815b670000c16aa028592",
+  "title": "L",
+  "size": [
+    1120,
+    760
+  ],
+  "tabs": [
+    "로그·캡처",
+    "세션",
+    "후보군",
+    "추출·비교",
+    "구조 분석",
+    "훅 지도"
+  ],
+  "buttons": [
+    [
+      "apks 폴더",
+      "",
+      1
+    ],
+    [
+      "hooks.json 저장",
+      "background:#16a34a;color:white;font-weight:bold;",
+      1
+    ],
+    [
+      "jadx XREF",
+      "",
+      1
+    ],
+    [
+      "기기 새로고침",
+      "",
+      1
+    ],
+    [
+      "기본값",
+      "",
+      1
+    ],
+    [
+      "로그 시작",
+      "",
+      1
+    ],
+    [
+      "로그 중지",
+      "",
+      1
+    ],
+    [
+      "목록 새로고침",
+      "",
+      1
+    ],
+    [
+      "방금 추출 vs 이전",
+      "",
+      1
+    ],
+    [
+      "보고서 저장",
+      "",
+      1
+    ],
+    [
+      "비교 실행",
+      "background:#2563eb;color:white;font-weight:bold;padding:6px 16px;",
+      1
+    ],
+    [
+      "삭제",
+      "",
+      1
+    ],
+    [
+      "선택 항목 → 후보군 추가",
+      "",
+      1
+    ],
+    [
+      "심화 분석",
+      "",
+      1
+    ],
+    [
+      "자동 찾기",
+      "",
+      1
+    ],
+    [
+      "전체 구조 분석",
+      "",
+      1
+    ],
+    [
+      "전체코드 만들기",
+      "",
+      1
+    ],
+    [
+      "전체코드 복사",
+      "",
+      1
+    ],
+    [
+      "지도 대조",
+      "background:#2563eb;color:white;font-weight:bold;padding:6px 14px;",
+      1
+    ],
+    [
+      "지식 다시 읽기",
+      "",
+      1
+    ],
+    [
+      "찾기",
+      "",
+      5
+    ],
+    [
+      "추가",
+      "",
+      1
+    ],
+    [
+      "캡처 시작",
+      "background:#2563eb;color:white;font-weight:bold;padding:6px 14px;",
+      1
+    ],
+    [
+      "캡처 종료·저장",
+      "",
+      1
+    ],
+    [
+      "폰에서 APK 추출",
+      "background:#0f766e;color:white;font-weight:bold;padding:6px 14px;",
+      1
+    ],
+    [
+      "폴더 열기",
+      "",
+      1
+    ],
+    [
+      "화면 지우기",
+      "",
+      1
+    ],
+    [
+      "후보군 매칭",
+      "",
+      1
+    ]
+  ],
+  "widget_counts": {
+    "QWidget": 94,
+    "QLabel": 22,
+    "QPushButton": 32,
+    "QComboBox": 7,
+    "QFrame": 7,
+    "QListView": 7,
+    "QScrollBar": 46,
+    "QTabWidget": 1,
+    "QStackedWidget": 1,
+    "QLineEdit": 7,
+    "QTableWidget": 2,
+    "QHeaderView": 4,
+    "QAbstractButton": 2,
+    "QPlainTextEdit": 7,
+    "QSplitter": 2,
+    "QListWidget": 3,
+    "QSplitterHandle": 4,
+    "QTabBar": 1,
+    "QToolButton": 2
+  }
+}

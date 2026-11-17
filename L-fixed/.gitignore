@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+.pytest_cache/
+build/
+dist/
+*.spec
+sessions/
+apks/
+jadx_out/
+hooks.json
+eunora_hooks.json
+jadx_path.txt
+ModuleMain_patched*.kt
