@@ -47,12 +47,13 @@ from .adb import find_adb, parse_pm_paths, run_adb_command, pull_package
 from .state import apk_has_symbols, apply_symbol_replacements, collect_log_text_from_sessions, find_modulemain, load_hook_knowledge, log_symbol_hits, modulemain_symbol_counts, previous_snapshot
 
 from .jobs import BackgroundJob
-from .workflows import build_hook_map, create_source_copy
+from .workflows import build_hook_map, create_source_copy, file_digest
 from .processes import CancelledError
 from .rea import load_rea_settings, save_rea_settings, rea_preflight, run_rea_analysis
-from .rea_dialogs import REASettingsDialog, REAAnalysisDialog, ObserverGenerationDialog
+from .rea_dialogs import REASettingsDialog, REAAnalysisDialog, ObserverGenerationDialog, EunoraAuditDialog, AuditObserverDialog
 from .generator import load_profiles, list_observer_methods, generate_observer
 from .build_validation import validate_generated_project
+from .eunora_audit import run_eunora_audit as analyze_eunora_project
 
 
 class MainWindow(QMainWindow):
@@ -91,6 +92,7 @@ class MainWindow(QMainWindow):
         self._last_build_result = None
         self._generator_last_project = ""
         self._rea_settings_dialog = None
+        self._last_eunora_audit = None
 
         self._build_ui()
         self.refresh_devices()
@@ -397,6 +399,22 @@ class MainWindow(QMainWindow):
         self.btn_rea_settings.clicked.connect(self.configure_rea)
         row.addWidget(self.btn_rea_settings)
         layout.addLayout(row)
+
+        audit_row = QHBoxLayout()
+        self.btn_eunora_audit = QPushButton("EUNORA 자동 점검")
+        self.btn_eunora_audit.setObjectName("eunora_audit_button")
+        self.btn_eunora_audit.setProperty("feature_extension", "eunora_audit")
+        self.btn_eunora_audit.setProperty("long_job", True)
+        self.btn_eunora_audit.clicked.connect(self.run_eunora_audit)
+        audit_row.addWidget(self.btn_eunora_audit)
+        self.btn_audit_generate = QPushButton("점검 결과로 훅 생성")
+        self.btn_audit_generate.setObjectName("eunora_audit_generate_button")
+        self.btn_audit_generate.setProperty("feature_extension", "eunora_audit")
+        self.btn_audit_generate.setProperty("long_job", True)
+        self.btn_audit_generate.clicked.connect(self.run_audit_generation)
+        audit_row.addWidget(self.btn_audit_generate)
+        audit_row.addStretch()
+        layout.addLayout(audit_row)
 
         rowx = QHBoxLayout()
         rowx.addWidget(QLabel("XREF 심볼"))
@@ -792,6 +810,156 @@ class MainWindow(QMainWindow):
             self.lbl_status.setText("jadx 진단 — 결과 확인" if report.startswith("[jadx") else "jadx XREF 완료")
         self._start_job("jadx XREF 실행 중…", lambda progress: jadx_xref(path, symbols), done)
 
+    def run_eunora_audit(self) -> None:
+        if self._job is not None:
+            self.lbl_status.setText("다른 작업이 진행 중입니다")
+            return
+        dialog = EunoraAuditDialog(
+            self.ed_analyze_apk.text().strip(),
+            self._generator_last_project or self.ed_modulemain.text().strip(), self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        request = dict(dialog.request())
+        path = Path(request.get("apk_path") or "").expanduser()
+        project = request.get("project_path") or ""
+        if not path.is_file() or not project or not Path(project).expanduser().exists():
+            QMessageBox.warning(self, "L", "APK와 EUNORA 프로젝트 폴더 또는 ModuleMain.kt를 선택하세요.")
+            return
+        path = path.resolve()
+        project = str(Path(project).expanduser().resolve())
+        try:
+            settings = json.loads(json.dumps(load_rea_settings()))
+        except Exception as error:
+            QMessageBox.critical(self, "L", f"REA 설정 읽기 실패: {error}")
+            return
+        self.ed_analyze_apk.setText(str(path))
+        self._generator_last_project = project
+        def work(progress):
+            result = analyze_eunora_project(path, project, settings=settings, progress=progress)
+            if not isinstance(result, dict) or not isinstance(result.get("report"), str) or not result["report"].strip():
+                raise RuntimeError("EUNORA 점검이 유효한 결과를 반환하지 않았습니다")
+            if result.get("app_key") not in DRIVER_APPS:
+                raise RuntimeError("점검 결과의 앱 종류를 확인할 수 없습니다")
+            if Path(result.get("apk_path") or "").resolve() != path:
+                raise RuntimeError("점검 결과의 APK가 선택한 파일과 다릅니다")
+            return result
+        def done(result):
+            snapshot = json.loads(json.dumps(result))
+            self._last_eunora_audit = snapshot
+            self._last_analysis_text = snapshot["report"]
+            self._last_analysis_result = None
+            self.txt_analyze.setPlainText(snapshot["report"])
+            for name in ("cmb_map_app", "cmb_apk_app", "cmb_app"):
+                combo = getattr(self, name)
+                index = combo.findData(snapshot["app_key"])
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+            self.lbl_status.setText("EUNORA 정적 점검 완료 — 결과와 추가 확인 항목을 확인하세요")
+        self._start_job("EUNORA APK·기존 소스 자동 점검 중…", work, done)
+
+    @staticmethod
+    def _audit_generation_choices(audit):
+        choices, seen = [], set()
+        for result in audit.get("class_results") or []:
+            if not isinstance(result, dict) or result.get("status") not in {"complete", "partial"}:
+                continue
+            evidence = result.get("evidence")
+            if not isinstance(evidence, dict):
+                continue
+            try:
+                methods = list_observer_methods(evidence)
+            except (ValueError, TypeError, KeyError):
+                continue
+            target = result.get("target") or {}
+            method_names = target.get("methods") or []
+            class_name = evidence.get("normalized_result", {}).get("class_name", "")
+            for method in methods:
+                if method_names and method.get("name") not in method_names:
+                    continue
+                key = (class_name, method.get("name"), method.get("dex_descriptor"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                choices.append({
+                    "class_name": class_name, "method": dict(method), "evidence": evidence,
+                    "label": f"{class_name} — {method['label']}",
+                })
+        return choices
+
+    @staticmethod
+    def _assert_audit_inputs(audit):
+        """Run only in a worker: reject stale APK/source evidence before generation."""
+        apk = Path(audit.get("apk_path") or "").expanduser().resolve()
+        project = Path(audit.get("project_root") or "").expanduser().resolve()
+        sources = audit.get("source_files")
+        if not apk.is_file() or file_digest(apk) != audit.get("apk_digest"):
+            raise RuntimeError("점검 후 APK가 바뀌었거나 없어졌습니다. EUNORA 자동 점검을 다시 실행하세요.")
+        if not project.is_dir() or not isinstance(sources, dict) or not sources:
+            raise RuntimeError("점검한 EUNORA 원본 기록이 없습니다. 자동 점검을 다시 실행하세요.")
+        for name, expected in sources.items():
+            if not isinstance(name, str) or not isinstance(expected, str):
+                raise RuntimeError("점검한 원본 기록의 형식이 잘못되었습니다. 자동 점검을 다시 실행하세요.")
+            source = (project / name).resolve()
+            if not source.is_relative_to(project) or not source.is_file() or file_digest(source) != expected:
+                raise RuntimeError("점검 후 EUNORA 원본 코드가 바뀌었거나 없어졌습니다. 자동 점검을 다시 실행하세요.")
+
+    def run_audit_generation(self) -> None:
+        if self._job is not None:
+            self.lbl_status.setText("다른 작업이 진행 중입니다")
+            return
+        if not self._last_eunora_audit:
+            QMessageBox.information(self, "L", "EUNORA 자동 점검을 먼저 실행하세요. 클래스·메서드 이름을 따로 입력할 필요가 없습니다.")
+            return
+        try:
+            audit = json.loads(json.dumps(self._last_eunora_audit))
+            current_apk = self.ed_analyze_apk.text().strip()
+            if current_apk and Path(current_apk).expanduser().resolve() != Path(audit["apk_path"]).resolve():
+                QMessageBox.warning(self, "L", "선택한 APK가 점검 결과와 다릅니다. 현재 APK로 EUNORA 자동 점검을 다시 실행하세요.")
+                return
+            choices = self._audit_generation_choices(audit)
+            settings = json.loads(json.dumps(load_rea_settings()))
+        except Exception as error:
+            QMessageBox.critical(self, "L", f"점검 근거 확인 실패: {error}")
+            return
+        if not choices:
+            QMessageBox.information(self, "L", "점검에서 코드 생성에 사용할 정확한 메서드 정보를 확보하지 못했습니다. 결과의 미발견·추가 확인 항목을 확인하세요.")
+            return
+        dialog = AuditObserverDialog(audit["apk_path"], audit["project_root"], choices, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        index = dialog.request().get("choice_index")
+        if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(choices):
+            QMessageBox.warning(self, "L", "점검에서 확인된 메서드를 하나 선택하세요.")
+            return
+        selected = json.loads(json.dumps(choices[index]))
+        def work(progress):
+            progress("점검한 APK와 EUNORA 원본이 유지되는지 확인 중…")
+            self._assert_audit_inputs(audit)
+            apk = Path(audit["apk_path"])
+            package = run_rea_analysis(apk, settings=settings, operation="package", progress=progress)
+            if package.get("status") not in {"complete", "partial"} or not package.get("evidence"):
+                raise RuntimeError("현재 APK 패키지 근거를 확인하지 못해 코드를 생성할 수 없습니다")
+            self._assert_audit_inputs(audit)
+            method = selected["method"]
+            progress("점검에서 확인된 메서드의 관찰 코드 생성 중…")
+            result = generate_observer(
+                audit["project_root"], audit["app_key"], apk, selected["evidence"],
+                method["name"], method["overload_index"], package_evidence=package["evidence"],
+            )
+            result["diff_text"] = Path(result["diff"]).read_text(encoding="utf-8")
+            return result
+        self._start_job("EUNORA 점검 결과로 관찰 코드 생성 중…", work, self._show_generated_result)
+
+    def _show_generated_result(self, result):
+        self._last_generated_result = result
+        self._last_build_result = None
+        summary = json.dumps(result["report"], ensure_ascii=False, indent=2, default=str)
+        text = f"생성본 폴더: {result['path']}\n빌드 상태: 미실행\n\n{summary}\n\n======== 변경 사항 ========\n{result['diff_text']}"
+        self.txt_map.setPlainText(text)
+        self.tabs.setCurrentWidget(self.txt_map.parentWidget())
+        self.lbl_status.setText("생성본 저장 — 빌드 미실행")
+
     def configure_rea(self) -> None:
         if self._job is not None:
             self.lbl_status.setText("다른 작업이 진행 중입니다")
@@ -916,15 +1084,7 @@ class MainWindow(QMainWindow):
             )
             result["diff_text"] = Path(result["diff"]).read_text(encoding="utf-8")
             return result
-        def done(result):
-            self._last_generated_result = result
-            self._last_build_result = None
-            summary = json.dumps(result["report"], ensure_ascii=False, indent=2, default=str)
-            text = f"생성본 폴더: {result['path']}\n빌드 상태: 미실행\n\n{summary}\n\n======== 변경 사항 ========\n{result['diff_text']}"
-            self.txt_map.setPlainText(text)
-            self.tabs.setCurrentWidget(self.txt_map.parentWidget())
-            self.lbl_status.setText("생성본 저장 — 빌드 미실행")
-        self._start_job("관찰 코드 생성 준비 중…", work, done)
+        self._start_job("관찰 코드 생성 준비 중…", work, self._show_generated_result)
 
     def run_generated_build(self) -> None:
         if self._job is not None:

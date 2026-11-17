@@ -253,3 +253,91 @@ class ObserverGenerationDialog(QDialog):
             QMessageBox.warning(self, "L", "확인된 앱과 메서드를 선택하세요.")
             return
         self.accept()
+
+
+class EunoraAuditDialog(QDialog):
+    """Only an APK and existing source project are needed for an automatic audit."""
+
+    def __init__(self, apk_path="", project_path="", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("EUNORA 자동 점검")
+        self.resize(730, 260)
+        layout = QVBoxLayout(self)
+        note = QLabel("APK의 앱 종류를 확인하고 해당 E파일의 기존 클래스·메서드 대상을 대조합니다.\n클래스 이름을 직접 입력할 필요가 없습니다. 원본 코드는 변경하지 않습니다.")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        form = QFormLayout()
+        self.ed_apk = QLineEdit(str(apk_path or ""))
+        self.ed_project = QLineEdit(str(project_path or ""))
+        for label, field, handler in (
+            ("APK", self.ed_apk, self._browse_apk),
+            ("EUNORA 프로젝트 / ModuleMain.kt", self.ed_project, self._browse_project),
+        ):
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.addWidget(field, 1)
+            browse = QPushButton("찾기")
+            browse.clicked.connect(handler)
+            row_layout.addWidget(browse)
+            form.addRow(label, row)
+        layout.addLayout(form)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("자동 점검 실행")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("취소")
+        buttons.accepted.connect(self._accept_request)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def _browse_apk(self):
+        path, _ = QFileDialog.getOpenFileName(self, "점검할 APK 선택", self.ed_apk.text().strip(), "Android APK (*.apk);;모든 파일 (*)")
+        if path:
+            self.ed_apk.setText(path)
+
+    def _browse_project(self):
+        path = QFileDialog.getExistingDirectory(self, "EUNORA 프로젝트 폴더 선택", self.ed_project.text().strip())
+        if path:
+            self.ed_project.setText(path)
+
+    def request(self):
+        return {"apk_path": self.ed_apk.text().strip(), "project_path": self.ed_project.text().strip()}
+
+    def _accept_request(self):
+        request = self.request()
+        if not Path(request["apk_path"]).is_file():
+            QMessageBox.warning(self, "L", "점검할 APK 파일을 선택하세요.")
+            return
+        if not request["project_path"] or not Path(request["project_path"]).exists():
+            QMessageBox.warning(self, "L", "EUNORA 프로젝트 폴더 또는 ModuleMain.kt를 선택하세요.")
+            return
+        self.accept()
+
+
+class AuditObserverDialog(QDialog):
+    """Select a verified existing-source target without retyping identifiers."""
+
+    def __init__(self, apk_path, project_path, choices, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("점검 결과로 훅 생성")
+        self.resize(800, 260)
+        layout = QVBoxLayout(self)
+        source = QLabel(f"APK: {apk_path}\nEUNORA: {project_path}")
+        source.setWordWrap(True)
+        layout.addWidget(source)
+        self.cmb_target = QComboBox()
+        for index, choice in enumerate(choices):
+            self.cmb_target.addItem(choice["label"], index)
+        layout.addWidget(QLabel("APK에서 확인된 기존 소스 대상의 메서드"))
+        layout.addWidget(self.cmb_target)
+        note = QLabel("선택한 메서드의 호출을 기록하는 훅 사본을 생성합니다.\n인자·반환값·예외와 기존 수락 로직은 변경하지 않습니다. 수정한 전체 코드와 TXT·차이점을 새 폴더에 저장합니다.")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("생성본 만들기")
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("취소")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def request(self):
+        return {"choice_index": self.cmb_target.currentData()}
