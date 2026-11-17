@@ -309,4 +309,3 @@ def apply_symbol_replacements(text: str, pairs: list[tuple[str, str]]) -> tuple[
         cursor = end
     parts.append(text[cursor:])
     return "".join(parts), [f"{old} → {new}" for old, new in mapping.items() if old in applied]
-

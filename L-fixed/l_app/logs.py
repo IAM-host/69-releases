@@ -91,4 +91,3 @@ def summarize_lines(lines: list[str]) -> str:
         eunora_n = sum(1 for x in lines if "EUNORA" in x.upper())
         return f"요약 없음 (전체 {len(lines)}줄, EUNORA {eunora_n}줄)"
     return "\n".join(out)
-

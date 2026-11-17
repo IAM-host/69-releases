@@ -105,4 +105,3 @@ SKIP_PREFIX = (
     "com.google.", "com.samsung.", "com.android.", "dalvik.", "org.",
     "okhttp", "okio", "retrofit", "gson", "glide",
 )
-

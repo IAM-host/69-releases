@@ -1240,4 +1240,3 @@ def main() -> None:
     win = MainWindow()
     win.show()
     sys.exit(app.exec())
-

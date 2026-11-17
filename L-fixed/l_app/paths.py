@@ -57,4 +57,3 @@ def session_path(directory: Path, stamp: str, app_tag: str, device: str) -> Path
         if not candidate.exists() and not candidate.with_suffix(".txt").exists():
             return candidate
     raise RuntimeError("같은 시각의 세션 파일이 너무 많습니다")
-

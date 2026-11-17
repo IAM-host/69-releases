@@ -1677,4 +1677,3 @@ def check_needles(apk_path: Path, needles: list[str]) -> list[tuple[str, bool]]:
             if re.fullmatch(r"classes(?:[0-9]+)?\.dex", name):
                 strings.update(value.lower() for value in _checked_apk_dex_strings(archive.read(name), name))
     return [(needle, any(needle.lower() in value for value in strings)) for needle in requested]
-

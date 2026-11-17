@@ -231,4 +231,3 @@ def pull_package(
     result["metadata"] = metadata
     result["report"] = "\n".join(lines)
     return result
-
