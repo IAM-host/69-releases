@@ -1,6 +1,7 @@
 """REA controls use the real Qt event loop with local, deterministic service doubles."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import threading
@@ -473,3 +474,69 @@ def test_build_error_preserves_generated_diff_without_reporting_a_pass(window, m
     assert window._last_build_result is None
     assert window.lbl_status.text() == "작업 실패"
     assert "Gradle wrapper" in str(window._test_dialogs)
+
+
+@pytest.mark.parametrize("status", ["passed", "failed"])
+def test_build_updates_structured_status_and_keeps_generation_mode_and_diff(window, monkeypatch, tmp_path, status):
+    diff = '+ val originalJson = "build_status: not_run"\n+ callback.result = false\n'
+    generated = {
+        "manifest": str(tmp_path / "manifest.json"), "path": str(tmp_path / "generated"),
+        "build_status": "not_run", "diff_text": diff,
+        "report": {"build_status": "not_run", "mode": "boolean_false", "debug_only": True,
+                   "selected_method": {"class_name": "ar1", "name": "I", "dex_descriptor": "()Z"}},
+    }
+    window._show_generated_result(generated)
+    monkeypatch.setattr(ui, "load_rea_settings", lambda: {})
+    detail = "빌드 통과" if status == "passed" else "What went wrong:\nYour project path contains non-ASCII characters."
+    result = {"status": status, "report": detail, "log_path": "build.log", "project_path": "copy", "manifest_path": generated["manifest"]}
+    monkeypatch.setattr(ui, "validate_generated_project", lambda *args, **kwargs: result)
+
+    window.run_generated_build()
+    spin_until(lambda: window._job is None)
+
+    displayed = window.txt_map.toPlainText()
+    prefix, remainder = displayed.split("\n\n======== 변경 사항 ========\n", 1)
+    report = json.loads(prefix.split("\n\n", 1)[1])
+    assert report["build_status"] == status
+    assert report["mode"] == "boolean_false" and report["debug_only"] is True
+    assert report["selected_method"] == generated["report"]["selected_method"]
+    assert remainder.split("\n\n======== 생성본 빌드 검사 ========\n", 1)[0] == diff
+    assert f"빌드 상태: {'통과' if status == 'passed' else '실패'}" in prefix
+    assert detail in displayed
+    assert window._last_generated_result["report"]["build_status"] == status
+    assert window._last_build_result is result
+
+
+@pytest.mark.parametrize("structured", [True, False])
+def test_repeated_build_replaces_previous_result_without_stale_pass(window, monkeypatch, tmp_path, structured):
+    generated = {"manifest": str(tmp_path / "manifest.json"), "build_status": "not_run"}
+    if structured:
+        generated.update(path=str(tmp_path / "generated"), diff_text="original diff", report={"build_status": "not_run", "mode": "skip_void"})
+        window._show_generated_result(generated)
+    else:
+        window._last_generated_result = generated
+        window.txt_map.setPlainText("빌드 상태: 미실행\n\noriginal diff")
+    monkeypatch.setattr(ui, "load_rea_settings", lambda: {})
+    results = iter([
+        {"status": "passed", "report": "first compile passed", "log_path": "first.log"},
+        {"status": "failed", "report": "latest compile failed\ne: syntax problem", "log_path": "second.log"},
+    ])
+    monkeypatch.setattr(ui, "validate_generated_project", lambda *args, **kwargs: next(results))
+
+    for expected in ("passed", "failed"):
+        window.run_generated_build()
+        spin_until(lambda: window._job is None)
+        assert window._last_build_result["status"] == expected
+
+    displayed = window.txt_map.toPlainText()
+    assert displayed.count("======== 생성본 빌드 검사 ========") == 1
+    assert "빌드 상태: 실패" in displayed and "빌드 상태: 통과" not in displayed
+    assert "first compile passed" not in displayed
+    assert "latest compile failed\ne: syntax problem" in displayed
+    assert "original diff" in displayed
+    assert window._last_generated_result["build_status"] == "failed"
+    assert window._last_build_result["log_path"] == "second.log"
+    if structured:
+        prefix = displayed.split("\n\n======== 변경 사항 ========\n", 1)[0]
+        report = json.loads(prefix.split("\n\n", 1)[1])
+        assert report["build_status"] == "failed" and report["mode"] == "skip_void"

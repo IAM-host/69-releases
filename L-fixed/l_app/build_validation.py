@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
+import re
 import shutil
 import subprocess
 import tempfile
@@ -18,6 +19,80 @@ class BuildValidationError(RuntimeError):
 
 
 _IGNORED = {".git", ".gradle", ".idea", ".venv", "__pycache__", "build", "dist", ".pytest_cache"}
+_MAX_WINDOWS_ROOT_LENGTH = 100
+
+
+def _is_windows():
+    # Keep this separate from pathlib's platform selection so path behaviour can
+    # be exercised on another host without changing the process-wide os.name.
+    return os.name == "nt"
+
+
+def _create_windows_workspace(project):
+    """Allocate a short ASCII path; Gradle must never run under a Unicode bundle."""
+    explicit = os.environ.get("L_BUILD_DIR")
+    if explicit is not None:
+        candidates = [(explicit, "L_BUILD_DIR")]
+    else:
+        candidates = [
+            (str(Path(value) / "L-build"), name)
+            for name in ("LOCALAPPDATA", "PUBLIC", "TEMP")
+            if (value := os.environ.get(name))
+        ]
+        candidates.append((str(Path(tempfile.gettempdir()) / "L-build"), "TEMP"))
+    failures, seen = [], set()
+    for value, label in candidates:
+        check_cancelled()
+        try:
+            candidate = Path(value).expanduser()
+            if not value or not candidate.is_absolute():
+                raise ValueError("절대 경로가 필요합니다")
+            # resolve follows junctions/symlinks before the same path is passed
+            # as Gradle's cwd, avoiding a nominally ASCII alias to a Unicode path.
+            candidate = candidate.resolve()
+            key = str(candidate).casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            if not str(candidate).isascii():
+                raise ValueError("한글 등 비 ASCII 문자가 포함되어 있습니다")
+            if len(str(candidate)) > _MAX_WINDOWS_ROOT_LENGTH:
+                raise ValueError("경로가 너무 깁니다")
+            if candidate.is_relative_to(project):
+                raise ValueError("원본 Android 프로젝트 밖의 경로가 필요합니다")
+            candidate.mkdir(parents=True, exist_ok=True)
+            return Path(tempfile.mkdtemp(prefix="b_", dir=candidate))
+        except (OSError, ValueError) as error:
+            failures.append(f"{label}: {error}")
+    detail = " / ".join(failures)
+    raise BuildValidationError(
+        "짧은 영문 빌드 검사 폴더를 만들 수 없습니다. "
+        "L_BUILD_DIR에 원본 프로젝트 밖의 쓰기 가능한 영문 절대 경로를 지정하세요 "
+        "(예: C:\\L-build)." + (f" {detail}" if detail else "")
+    )
+
+
+def _failure_excerpt(log, limit=3200):
+    """Surface Gradle's cause and Kotlin errors without hiding the full log."""
+    clean = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", log)
+    lines = clean.splitlines()
+    chosen = set()
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped in {"* Where:", "* What went wrong:"}:
+            end = index + 1
+            while end < len(lines) and not lines[end].strip().startswith("* "):
+                end += 1
+            chosen.update(range(index, min(end, index + 35)))
+        elif stripped.startswith(("e:", "error:", "Caused by:")):
+            chosen.add(index)
+    if chosen:
+        excerpt = "\n".join(lines[index] for index in sorted(chosen)).strip()
+    else:
+        excerpt = "\n".join(lines[-30:]).strip()
+    if not excerpt:
+        excerpt = "빌드 도구가 오류 내용을 출력하지 않았습니다. 전체 로그를 확인하세요."
+    return excerpt if len(excerpt) <= limit else excerpt[:limit] + "\n… 나머지는 전체 빌드 로그에서 확인하세요."
 
 
 def _digest(path):
@@ -122,7 +197,10 @@ def validate_generated_project(manifest_path, java_home=None, *, progress=None,
     checks = bundle / "build_checks"
     checks.mkdir(exist_ok=True)
     check_dir = Path(tempfile.mkdtemp(prefix="check_", dir=checks))
-    copied_project = check_dir / "project"
+    if _is_windows():
+        copied_project = _create_windows_workspace(project) / "p"
+    else:
+        copied_project = check_dir / "project"
     if progress:
         progress("원본을 보존하고 빌드용 프로젝트 사본을 만드는 중…")
     try:
@@ -151,10 +229,20 @@ def validate_generated_project(manifest_path, java_home=None, *, progress=None,
             status = "failed"
             log = f"빌드 실행 실패: {error}\n"
         atomic_write_text(log_path, log)
-        report = ("생성본 Kotlin 빌드 통과" if status == "passed" else "생성본 Kotlin 빌드 실패 — 로그를 확인하세요")
+        excerpt = _failure_excerpt(log) if status == "failed" else ""
+        failure_kind = None
+        report = ("생성본 Kotlin 빌드 통과" if status == "passed" else "생성본 Kotlin 빌드 실패")
+        if status == "failed":
+            failure_kind = "build_failure"
+            if "your project path contains non-ascii characters" in log.casefold():
+                failure_kind = "non_ascii_project_path"
+                report += "\n원인: Windows 빌드 프로젝트 경로에 한글 등 비 ASCII 문자가 포함되어 있습니다."
+                report += "\nL_BUILD_DIR에 짧은 영문 검사 폴더를 지정한 뒤 다시 검사하세요."
+            report += "\n\n실패 원인 발췌:\n" + excerpt
         report += f"\n프로젝트 사본: {copied_project}\n빌드 로그: {log_path}\n기기에서의 동작은 별도 확인이 필요합니다."
         validation = dict(status=status, report=report, log_path=str(log_path),
-                          project_path=str(copied_project), manifest_path=str(manifest_path))
+                          project_path=str(copied_project), manifest_path=str(manifest_path),
+                          log_excerpt=excerpt, failure_kind=failure_kind)
         atomic_write_text(check_dir / "validation.json", json.dumps(validation, ensure_ascii=False, indent=2))
         manifest["build_status"] = status
         manifest["build_validation"] = validation

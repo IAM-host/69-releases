@@ -1106,12 +1106,18 @@ class MainWindow(QMainWindow):
             self.lbl_status.setText(labels[mode] + " 생성본 저장 — 빌드 미실행")
         self._start_job("보안 점검 결과로 선택한 테스트 코드 생성 중…", work, done)
 
+    @staticmethod
+    def _generated_result_text(result):
+        state = {"not_run": "미실행", "passed": "통과", "failed": "실패"}.get(
+            result.get("build_status", "not_run"), "미실행"
+        )
+        summary = json.dumps(result["report"], ensure_ascii=False, indent=2, default=str)
+        return f"생성본 폴더: {result['path']}\n빌드 상태: {state}\n\n{summary}\n\n======== 변경 사항 ========\n{result['diff_text']}"
+
     def _show_generated_result(self, result):
         self._last_generated_result = result
         self._last_build_result = None
-        summary = json.dumps(result["report"], ensure_ascii=False, indent=2, default=str)
-        text = f"생성본 폴더: {result['path']}\n빌드 상태: 미실행\n\n{summary}\n\n======== 변경 사항 ========\n{result['diff_text']}"
-        self.txt_map.setPlainText(text)
+        self.txt_map.setPlainText(self._generated_result_text(result))
         self.tabs.setCurrentWidget(self.txt_map.parentWidget())
         self.lbl_status.setText("생성본 저장 — 빌드 미실행")
 
@@ -1261,10 +1267,20 @@ class MainWindow(QMainWindow):
             if result.get("status") not in {"passed", "failed"} or not isinstance(result.get("report"), str) or not result["report"].strip():
                 raise RuntimeError("빌드 검사 결과가 올바르지 않습니다")
             self._last_build_result = result
-            if self._last_generated_result.get("manifest") == manifest:
-                self._last_generated_result["build_status"] = result["status"]
+            generated = self._last_generated_result
+            current = generated is not None and generated.get("manifest") == manifest
+            if current:
+                generated["build_status"] = result["status"]
+                if isinstance(generated.get("report"), dict):
+                    generated["report"]["build_status"] = result["status"]
             state = "통과" if result["status"] == "passed" else "실패"
-            summary = re.sub(r"(?m)^빌드 상태: (?:미실행|통과|실패)$", f"빌드 상태: {state}", prior, count=1)
+            if current and all(key in generated for key in ("path", "report", "diff_text")):
+                summary = self._generated_result_text(generated)
+            else:
+                # Older in-memory results may lack the structured generation
+                # fields. Retain their diff, replacing only the status header.
+                summary = prior.partition("\n\n======== 생성본 빌드 검사 ========\n")[0]
+                summary = re.sub(r"(?m)^빌드 상태: (?:미실행|통과|실패)$", f"빌드 상태: {state}", summary, count=1)
             self.txt_map.setPlainText(summary + "\n\n======== 생성본 빌드 검사 ========\n" + result["report"])
             self.tabs.setCurrentWidget(self.txt_map.parentWidget())
             self.lbl_status.setText("생성본 빌드 통과 — 기기 실행 검증 별도" if result["status"] == "passed" else "생성본 빌드 실패 — 로그 확인")

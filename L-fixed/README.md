@@ -86,6 +86,14 @@ APK나 원본 코드가 점검 후 변경되면 그 점검 결과로 생성하�
 
 보안 보고서는 `security_audits`에 저장합니다. 공개 배포 ZIP에는 사용자 APK·분석 원문·설치된 외부 도구를 포함하지 않습니다. 기기에서 확인할 로그 접두사는 `L_SECURITY_TEST`입니다.
 
+## Windows의 한글 경로와 빌드 검사
+
+Windows에서는 빌드용 프로젝트 사본을 짧은 ASCII 경로에 만듭니다. 기본 위치는 `%LOCALAPPDATA%\L-build`이며, 한글 사용자 경로나 쓰기 권한 등으로 사용할 수 없으면 `%PUBLIC%` 또는 임시 폴더의 영문 경로를 확인합니다. L 프로그램과 생성본 폴더를 바탕 화면에서 옮길 필요는 없습니다.
+
+직접 위치를 지정하려면 `L_BUILD_DIR` 환경변수에 짧고 쓰기 가능한 영문 절대 경로를 지정할 수 있습니다. 원본 Android 프로젝트 밖의 폴더여야 합니다. 검사에 사용한 실제 프로젝트 경로는 결과창에 표시합니다.
+
+`build.log`와 검사 결과 JSON은 기존 생성본의 `build_checks` 안에 보관합니다. 실패 시 Gradle의 `What went wrong` 및 Kotlin 오류 발췌를 화면에 바로 표시하고, 헤더와 JSON의 빌드 상태도 함께 갱신합니다. 원본 프로젝트의 Gradle 경로 검사 설정은 바꾸지 않습니다.
+
 ## L.exe 만들기와 데이터 위치
 
 Windows에서 `build_L.bat`를 실행하면 PyInstaller가 `dist\L.exe`를 만들고 **이 소스 폴더의 `L.exe`로 복사**합니다. `setup_rea.bat`를 실행한 같은 폴더의 `L.exe`를 사용하세요. 현재 전달물은 소스이며 Windows에서 빌드한 EXE를 포함하지 않습니다.
