@@ -80,11 +80,14 @@ def kotlin_outputs(result):
             if Path(path).suffix == ".kt"}
 
 
-def test_debug_test_hook_preserves_origin_exceptions_and_arguments(case):
+def test_boolean_hook_preserves_origin_exceptions_arguments_and_module_identity(case):
     code = kotlin_outputs(generate(case))["E05.kt"].decode()
-    assert "FLAG_DEBUGGABLE" in code
+    assert "FLAG_DEBUGGABLE" not in code
+    assert "BuildConfig" not in code
+    assert "Release" not in code and "RELEASE" not in code
     assert "com.example.wheelprobe" in code
     assert "applicationInfo" in code or "getApplicationInfo" in code
+    assert code.count('moduleInfo.packageName != "com.example.wheelprobe"') == 2
     assert "@io.github.libxposed.api.annotations.AfterInvocation" in code or "@AfterInvocation" in code
     assert re.search(r"callback\.result\s*=\s*false", code)
     assert "callback.throwable" in code
@@ -107,6 +110,9 @@ def test_full_source_copies_txt_and_manifest_match_without_input_edits(case):
     manifest = json.loads(Path(result["manifest"]).read_text())
     assert manifest["build_status"] == "not_run"
     assert manifest["runtime_status"] == "unverified"
+    assert manifest["debug_only"] is False
+    assert manifest["debug_guard"] is None
+    assert manifest["module_guard"] == "libxposed module ApplicationInfo package"
     assert manifest["apk_sha256"] == sha(case["apk"])
     assert manifest["originals"] == case["hashes"]
     for relative, record in manifest["generated"].items():
@@ -259,13 +265,16 @@ def make_void_case(case):
     case["candidate"]["modes"] = ["observe", "skip_void"]
 
 
-def test_void_skip_is_explicit_debug_guarded_and_typed(case):
+def test_void_skip_is_typed_and_keeps_identity_without_build_type_gate(case):
     make_void_case(case)
     result = generate(case, method_name="populateRootFlags", mode="skip_void")
     code = kotlin_outputs(result)["E05.kt"].decode()
     assert "BeforeInvocation" in code
     assert "returnAndSkip(null)" in code
-    assert "FLAG_DEBUGGABLE" in code and "com.example.wheelprobe" in code
+    assert "FLAG_DEBUGGABLE" not in code
+    assert "BuildConfig" not in code
+    assert "Release" not in code and "RELEASE" not in code
+    assert code.count('moduleInfo.packageName != "com.example.wheelprobe"') == 2
     assert "java.lang.Void.TYPE" in code
     assert "parameterTypes.contentEquals" in code
     assert "java.lang.String" in code
@@ -274,7 +283,8 @@ def test_void_skip_is_explicit_debug_guarded_and_typed(case):
     assert not re.search(r"callback\.args\s*\[.*?\]\s*=", code)
     manifest = json.loads(Path(result["manifest"]).read_text())
     assert manifest["mode"] == "skip_void"
-    assert manifest["debug_only"] is True
+    assert manifest["debug_only"] is False
+    assert manifest["debug_guard"] is None
     assert manifest["observation_only"] is False
     assert manifest["original_execution_preserved"] is False
 
@@ -306,3 +316,35 @@ def test_skip_void_generation_is_idempotent(case):
     case["family"].write_bytes(first["E05.kt"])
     case["hashes"] = source_hashes(case)
     assert kotlin_outputs(generate(case, method_name="populateRootFlags", mode="skip_void")) == first
+
+
+@pytest.mark.parametrize("mode", ["boolean_false", "skip_void"])
+def test_regeneration_upgrades_existing_debug_guarded_block_without_duplicates(case, mode):
+    if mode == "skip_void":
+        make_void_case(case)
+        method_name = "populateRootFlags"
+    else:
+        method_name = "isRooted"
+    first = generate(case, method_name=method_name, mode=mode)
+    expected = kotlin_outputs(first)
+    legacy = expected["E05.kt"].decode().replace(
+        'if (moduleInfo.packageName != "com.example.wheelprobe")',
+        'if (moduleInfo.packageName != "com.example.wheelprobe" ||\r\n'
+        '                    (moduleInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0)',
+    ).replace("installed: security test", "installed: debug security test")
+    assert legacy.count("FLAG_DEBUGGABLE") == 2
+    case["module"].write_bytes(expected["ModuleMain.kt"])
+    case["family"].write_bytes(legacy.encode())
+    case["hashes"] = source_hashes(case)
+
+    upgraded = generate(case, method_name=method_name, mode=mode)
+    actual = kotlin_outputs(upgraded)
+    assert actual == expected
+    assert upgraded["report"]["security_test_id"] == first["report"]["security_test_id"]
+    assert upgraded["report"]["debug_only"] is False
+    assert upgraded["report"]["debug_guard"] is None
+    assert actual["ModuleMain.kt"].count(b"// BEGIN L_SECURITY_TEST_CALL ") == 1
+    assert actual["E05.kt"].count(b"// BEGIN L_SECURITY_TEST ") == 1
+    # The updated code is published as a copy: the selected existing project
+    # still contains its old block until the user applies the generated files.
+    assert case["family"].read_bytes() == legacy.encode()

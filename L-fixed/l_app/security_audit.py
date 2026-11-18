@@ -99,7 +99,7 @@ def _make_report(profile, apk, root, rows, choices, scan, counts, status):
              f"프로젝트: {root}", f"생성 대상 E파일: {profile['source_file']}", "",
              f"스캔 후보 {counts['scan_candidates_total']}개 중 반환 {counts['scan_candidates']}개 / 상세 클래스 {counts['detail_completed']}개 / 선택 가능한 메서드 {len(choices)}개",
              "보안 문자열·이름은 후보의 근거이며 검사 의미·전체 탐지 경로·실기기 동작을 증명하지 않습니다.",
-             "코드 생성은 별도로 선택합니다. 관찰과 debug 전용 판정 변경·void 실행 생략 테스트는 서로 다른 모드입니다.",
+             "코드 생성은 별도로 선택합니다. 관찰과 Boolean 판정 변경·void 실행 생략 테스트는 서로 다른 모드입니다.",
              "Boolean=false는 primitive boolean, 실행 생략은 지원되는 void 메서드만 대상으로 하며 무결성 증명·서명·서버 응답은 생성하지 않습니다.", ""]
     for row in rows[:80]:
         candidate = row["candidate"]
@@ -109,7 +109,7 @@ def _make_report(profile, apk, root, rows, choices, scan, counts, status):
         if candidate["signals"]:
             lines.append("  근거: " + ", ".join(candidate["signals"][:8]))
         if row.get("modes"):
-            labels = {"observe": "호출 관찰", "boolean_false": "debug Boolean=false 테스트", "skip_void": "debug void 실행 생략 테스트"}
+            labels = {"observe": "호출 관찰", "boolean_false": "Boolean=false 테스트", "skip_void": "void 실행 생략 테스트"}
             lines.append("  생성: " + ", ".join(labels[item] for item in row["modes"]))
         if row.get("note"):
             lines.append("  " + row["note"])

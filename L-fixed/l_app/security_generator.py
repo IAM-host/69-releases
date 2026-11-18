@@ -1,8 +1,9 @@
-"""Generate exact, debug-module-only security test hooks from bound APK evidence.
+"""Generate exact security test hooks from bound APK evidence.
 
 The observation mode uses the existing observer generator. Boolean tests change
 one successful primitive Boolean return after original execution; void tests
-skip one exact method body. Test hooks require the loaded EUNORA debug module.
+skip one exact method body. Test hooks require the loaded EUNORA module identity;
+their execution does not depend on its build type.
 Neither mode alters request bodies, attestation tokens, platform APIs, arguments,
 or input project files. Skipped void bodies do not execute or throw.
 """
@@ -141,8 +142,7 @@ def _test_code(identifier: str, package: str, target: dict, family: str, mode: s
     label = _g._kotlin("L_SECURITY_TEST " + identifier + " " + target["class_name"] + "." + target["name"] + target["dex_descriptor"])
     guard = f'''                val module = ModuleMain.module ?: return
                 val moduleInfo = module.applicationInfo
-                if (moduleInfo.packageName != {_g._kotlin(_MODULE_PACKAGE)} ||
-                    (moduleInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) return'''
+                if (moduleInfo.packageName != {_g._kotlin(_MODULE_PACKAGE)}) return'''
     if mode == "boolean_false":
         hook = f'''        @JvmStatic
         @io.github.libxposed.api.annotations.AfterInvocation
@@ -166,13 +166,13 @@ def _test_code(identifier: str, package: str, target: dict, family: str, mode: s
             try {{
 {guard}
                 callback.returnAndSkip(null)
-                module.log({label} + " skipped: debug void-method test")
+                module.log({label} + " skipped: void-method test")
             }} catch (_: Throwable) {{ /* Do not propagate instrumentation failures. */ }}
         }}'''
-        description = "The selected void method is skipped for a debug test; its body does not execute."
+        description = "The selected void method is skipped for a test; its body does not execute."
         return_type = "java.lang.Void.TYPE"
     return f'''// BEGIN L_SECURITY_TEST {identifier}
-// Local debug-module test: {mode}.
+// Local module test: {mode}.
 // {description}
 @io.github.libxposed.api.annotations.XposedHooker
 class LSecurityTestHooker_{identifier} : io.github.libxposed.api.XposedInterface.Hooker {{
@@ -186,9 +186,8 @@ internal fun ModuleMain.installLSecurityTest_{identifier}(classLoader: ClassLoad
     val module = ModuleMain.module ?: return
     try {{
         val moduleInfo = module.applicationInfo
-        if (moduleInfo.packageName != {_g._kotlin(_MODULE_PACKAGE)} ||
-            (moduleInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) == 0) {{
-            module.log({label} + " skipped: module is not the EUNORA debug package")
+        if (moduleInfo.packageName != {_g._kotlin(_MODULE_PACKAGE)}) {{
+            module.log({label} + " skipped: module is not the EUNORA package")
             return
         }}
         val owner = java.lang.Class.forName({_g._kotlin(target['class_name'])}, false, classLoader)
@@ -206,7 +205,7 @@ internal fun ModuleMain.installLSecurityTest_{identifier}(classLoader: ClassLoad
             module.hook(method, LSecurityTestHooker_{identifier}::class.java)
             LSecurityTestRegistry_{family}.installed.add(method)
         }}
-        module.log({label} + " installed: debug security test {mode}")
+        module.log({label} + " installed: security test {mode}")
     }} catch (error: Throwable) {{
         try {{ module.log({label} + " installation failed type=" + error.javaClass.name) }}
         catch (_: Throwable) {{ }}
@@ -255,7 +254,7 @@ def generate_security_hook(project_path, app_key, apk_path, class_evidence,
                            method_name, overload_index=None, *, mode="observe",
                            package_evidence=None, method_evidence=None,
                            source_hashes=None, candidate=None) -> dict:
-    """Create full Kotlin/TXT copies for an exact observation or debug test."""
+    """Create full Kotlin/TXT copies for an exact observation or security test."""
     check_cancelled()
     if not isinstance(mode, str) or mode not in {"observe", "boolean_false", "skip_void"}:
         raise SecurityGenerationError("지원하지 않는 보안 코드 생성 모드입니다")
@@ -335,8 +334,9 @@ def generate_security_hook(project_path, app_key, apk_path, class_evidence,
     generated, files = {}, {}
     report = {
         "profile": app_key, "package_name": profile["package"], "security_test_id": identifier,
-        "mode": mode, "observation_only": False, "debug_only": True,
-        "debug_guard": "libxposed module ApplicationInfo package and FLAG_DEBUGGABLE",
+        "mode": mode, "observation_only": False, "debug_only": False,
+        "debug_guard": None,
+        "module_guard": "libxposed module ApplicationInfo package",
         "original_execution_preserved": mode == "boolean_false", "throwable_preserved": mode == "boolean_false",
         "selected_method": {key: target[key] for key in ("class_name", "name", "dex_descriptor", "access_flags")},
         "candidate_id": verified["id"], "categories": list(verified["categories"]),

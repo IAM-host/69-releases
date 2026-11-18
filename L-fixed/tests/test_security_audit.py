@@ -85,6 +85,9 @@ def test_automatic_profile_and_exact_choice_preserve_originals(case):
     assert [operation for operation, _ in case["calls"]] == ["package", "class_search", "class"]
     assert "후보의 근거" in result["report"]
     assert "실기기 동작을 증명하지 않습니다" in result["report"]
+    assert "Boolean=false 테스트" in result["report"]
+    assert "debug" not in result["report"].casefold()
+    assert "디버그" not in result["report"]
     assert json.loads(Path(result["json_path"]).read_text())["counts"]["boolean_false"] == 1
     assert Path(result["report_path"]).read_text().startswith("EUNORA 보안 자동 점검")
     assert all(path.read_bytes() == before for path, before in originals.items())

@@ -136,7 +136,9 @@ def test_dialog_inputs_are_files_only_and_result_change_is_explicit(app, case):
     dialog.cmb_mode.setCurrentIndex(dialog.cmb_mode.findData('boolean_false'))
     assert dialog.request()['mode'] == 'boolean_false'
     assert 'false로 변경' in dialog.lbl_mode.text()
-    assert '디버그 EUNORA' in dialog.lbl_mode.text()
+    assert '빌드 종류로 실행을 제한하지 않습니다' in dialog.lbl_mode.text()
+    assert '디버그' not in dialog.lbl_mode.text()
+    assert '디버그' not in dialog.cmb_mode.currentText()
     assert '/system/bin/su' in dialog.txt_evidence.toPlainText()
     dialog.cmb_target.setCurrentIndex(1)
     assert dialog.cmb_mode.count() == 1
@@ -323,4 +325,7 @@ def test_void_skip_dialog_explains_that_the_original_body_is_not_executed(app, c
     assert dialog.request()['mode'] == 'skip_void'
     assert '본문을 실행하지 않고' in dialog.lbl_mode.text()
     assert '부수 효과' in dialog.lbl_mode.text()
+    assert '빌드 종류로 실행을 제한하지 않습니다' in dialog.lbl_mode.text()
+    assert '디버그' not in dialog.lbl_mode.text()
+    assert '디버그' not in dialog.cmb_mode.currentText()
     dialog.deleteLater()

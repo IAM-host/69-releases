@@ -30,8 +30,8 @@ class SecurityGenerationDialog(QDialog):
 
     MODES = {
         "observe": "호출 관찰 — 반환값 유지",
-        "boolean_false": "테스트: Boolean 결과 false — 디버그 EUNORA 전용",
-        "skip_void": "테스트: void 검사 실행 생략 — 디버그 EUNORA 전용",
+        "boolean_false": "테스트: Boolean 결과 false",
+        "skip_void": "테스트: void 검사 실행 생략",
     }
 
     def __init__(self, apk_path, project_path, choices, parent=None):
@@ -101,14 +101,14 @@ class SecurityGenerationDialog(QDialog):
         elif mode == "boolean_false":
             self.lbl_mode.setText(
                 "이 모드는 선택한 메서드가 정상 반환한 Boolean 결과를 false로 변경하는 테스트 코드를 생성합니다.\n"
-                "디버그 EUNORA에서만 활성화하며 예외는 유지합니다. 선택한 로컬 메서드의 반환값에 적용합니다.\n"
+                "예외는 유지하며 선택한 로컬 메서드의 반환값에 적용합니다. 빌드 종류로 실행을 제한하지 않습니다.\n"
                 "원본은 보존하고 전체 E파일·ModuleMain 사본, TXT와 변경 내역을 저장합니다."
             )
         elif self.cmb_mode.currentData() == "skip_void":
             self.lbl_mode.setText(
                 "이 모드는 선택한 void 검사 메서드의 본문을 실행하지 않고 반환하는 테스트 코드를 생성합니다.\n"
                 "해당 메서드의 부수 효과와 예외 발생도 생략되므로 대상의 실제 역할을 확인해야 합니다.\n"
-                "디버그 EUNORA에서만 활성화하며 선택한 로컬 검사 메서드에 적용합니다.\n"
+                "선택한 로컬 검사 메서드에 적용하며 빌드 종류로 실행을 제한하지 않습니다.\n"
                 "원본은 보존하고 전체 E파일·ModuleMain 사본, TXT와 변경 내역을 저장합니다."
             )
         else:
