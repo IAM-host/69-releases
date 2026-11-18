@@ -1,0 +1,1727 @@
+--- a/app/src/main/java/com/example/wheelprobe/E02.kt
++++ b/app/src/main/java/com/example/wheelprobe/E02.kt
+@@ -15,38 +15,6 @@
+ import java.lang.reflect.Modifier
+ import java.lang.reflect.Proxy
+ import java.util.LinkedHashSet
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-private fun clearIntegrityToken(args: Array<Any?>) {
+-    for (index in args.indices) {
+-        val value = args[index] as? String ?: continue
+-        if (value.length < 40) continue
+-        if (value.startsWith("{") || value.startsWith("/") || value.startsWith("drivers/")) continue
+-        args[index] = ""
+-    }
+-}
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+ 
+ 
+ 
+@@ -620,213 +588,10 @@
+     }
+ }
+ 
+-/**
+- * 10/03 APK: 서버로 나가는 출근·루팅 검사.
+- * q0b.a = 출근 진입, cb4.a = Play Integrity, i9a.S = drivers/work
+- * qf8(ht7, boolean) = RootingStatus. qf8.a = ht7.OFF/WARN/BLOCK, qf8.b = isRooted
+- * dl4.b = HookDetectionReport(wk4)
+- */
++/** Local root and hook-report contracts verified against the supplied 1101 sources. */
+ internal fun ModuleMain.installKakaoRootingReportBypass(classLoader: ClassLoader) {
+     installKakaoSentryRootTestConfig(classLoader)
+-    try {
+-        val checkTypeClass = Class.forName("ht7", false, classLoader)
+-        val statusClass = Class.forName("qf8", false, classLoader)
+-        require(statusClass.getDeclaredField("a").type == checkTypeClass) { "rooting status mode field mismatch" }
+-        require(statusClass.getDeclaredField("b").type == java.lang.Boolean.TYPE) { "rooting status boolean field mismatch" }
+-        val statusCtor = statusClass.getDeclaredConstructor(checkTypeClass, java.lang.Boolean.TYPE)
+-        statusCtor.isAccessible = true
+-        ModuleMain.module?.hook(statusCtor, KakaoRootingStatusHooker::class.java)
+-        ModuleMain.module?.log("KAKAO: rooting status hook installed qf8(ht7, boolean)")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: rooting status hook FAILED", t)
+-    }
+-    try {
+-        val reportClass = Class.forName("wk4", false, classLoader)
+-        val yMethod = reportClass.declaredMethods.firstOrNull { it.name == "y" }
+-        if (yMethod != null) {
+-            yMethod.isAccessible = true
+-            ModuleMain.module?.hook(yMethod, KakaoHookVerdictHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: hook report bypass installed wk4.y")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: hook report bypass FAILED", t)
+-    }
+-    try {
+-        val scannerClass = Class.forName("dl4", false, classLoader)
+-        val scan = scannerClass.declaredMethods.firstOrNull { it.returnType == List::class.java || it.returnType.name.contains("List") }
+-        if (scan != null) {
+-            scan.isAccessible = true
+-            ModuleMain.module?.hook(scan, KakaoHookScanHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: hook scan bypass installed dl4.${scan.name}")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: hook scan bypass FAILED", t)
+-    }
+-    try {
+-        val statusClass = Class.forName("xb4", false, classLoader)
+-        val statusMethod = statusClass.declaredMethods.firstOrNull { it.name == "a" }
+-        if (statusMethod != null) {
+-            statusMethod.isAccessible = true
+-            ModuleMain.module?.hook(statusMethod, KakaoWorkRootStatusHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: work root status hook installed xb4.a")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: work root status hook FAILED", t)
+-    }
+-    try {
+-        val workStatusClass = try { Class.forName("mi4", false, classLoader) } catch (e: Throwable) { null }
+-        if (workStatusClass == null) {
+-            ModuleMain.module?.log("KAKAO: mi4 not found, skipping work status dto")
+-        } else {
+-            val checkTypeClass = Class.forName("bt7", false, classLoader)
+-            val ctor = workStatusClass.declaredConstructors.firstOrNull { ctor ->
+-                ctor.parameterTypes.any { it == checkTypeClass }
+-            }
+-            if (ctor != null) {
+-                ctor.isAccessible = true
+-                ModuleMain.module?.hook(ctor, KakaoWorkStatusDtoHooker::class.java)
+-                ModuleMain.module?.log("KAKAO: work status dto hook installed mi4")
+-            }
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: work status dto hook FAILED", t)
+-    }
+-    try {
+-        val workClass = Class.forName("q0b", false, classLoader)
+-        val workMethod = workClass.declaredMethods.firstOrNull { it.parameterCount >= 1 }
+-        if (workMethod != null) {
+-            workMethod.isAccessible = true
+-            ModuleMain.module?.hook(workMethod, KakaoWorkEntryHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: work entry hook installed q0b.${workMethod.name}")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: work entry hook FAILED", t)
+-    }
+-    try {
+-        val integrityClass = Class.forName("cb4", false, classLoader)
+-        val integrityMethod = integrityClass.declaredMethods.firstOrNull { it.name == "a" }
+-        if (integrityMethod != null) {
+-            integrityMethod.isAccessible = true
+-            ModuleMain.module?.hook(integrityMethod, KakaoIntegrityFetchHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: integrity fetch hook installed cb4.a")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: integrity fetch hook FAILED", t)
+-    }
+-    try {
+-        val tokenDto = try { Class.forName("y97", false, classLoader) } catch (e: Throwable) { null }
+-        if (tokenDto == null) {
+-            ModuleMain.module?.log("KAKAO: y97 not found, skipping integrity dto")
+-        } else {
+-            for (ctor in tokenDto.declaredConstructors) {
+-                ctor.isAccessible = true
+-                ModuleMain.module?.hook(ctor, KakaoIntegrityDtoHooker::class.java)
+-            }
+-            ModuleMain.module?.log("KAKAO: integrity dto hook installed y97")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: integrity dto hook FAILED", t)
+-    }
+-    try {
+-        val apiClass = Class.forName("i9a", false, classLoader)
+-        val workRequest = apiClass.declaredMethods.firstOrNull { it.name == "S" }
+-        if (workRequest != null) {
+-            workRequest.isAccessible = true
+-            ModuleMain.module?.hook(workRequest, KakaoWorkRequestHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: drivers/work hook installed i9a.S")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: drivers/work hook FAILED", t)
+-    }
+-    try {
+-        val il4Class = Class.forName("il4", false, classLoader)
+-        val bMethod = il4Class.declaredMethods.firstOrNull { it.name == "b" }
+-        if (bMethod != null) {
+-            bMethod.isAccessible = true
+-            ModuleMain.module?.hook(bMethod, KakaoHookDetectionHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: hook detection bypass installed")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: hook detection bypass FAILED", t)
+-    }
+-    try {
+-        val okhttpClass = Class.forName("okhttp3.Interceptor", false, classLoader)
+-        val interceptMethod = okhttpClass.declaredMethods.firstOrNull { it.name == "intercept" }
+-        if (interceptMethod != null) {
+-            interceptMethod.isAccessible = true
+-            ModuleMain.module?.hook(interceptMethod, KakaoOkHttpInterceptorHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: OkHttp interceptor hook installed")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: OkHttp interceptor hook FAILED", t)
+-    }
+-    try {
+-        val headerApi = Class.forName("h31", false, classLoader)
+-        val integrityCall = headerApi.declaredMethods.firstOrNull { it.name == "a" }
+-        if (integrityCall != null) {
+-            integrityCall.isAccessible = true
+-            ModuleMain.module?.hook(integrityCall, KakaoIntegrityHeaderHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: integrity header hook installed h31.a")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: integrity header hook FAILED", t)
+-    }
+-    try {
+-        val accessibilityClass = Class.forName("zy3", false, classLoader)
+-        for (method in accessibilityClass.declaredMethods) {
+-            if (method.name !in setOf("a", "b")) continue
+-            if (method.name == "b" && method.parameterCount != 0) continue
+-            if (method.name == "a" && method.parameterCount != 1) continue
+-            method.isAccessible = true
+-            ModuleMain.module?.hook(method, KakaoAccessibilitySignalHooker::class.java)
+-        }
+-        ModuleMain.module?.log("KAKAO: accessibility signal hook installed zy3")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: accessibility signal hook FAILED", t)
+-    }
+-    try {
+-        val fileClass = Class.forName("java.io.File", false, classLoader)
+-        val exists = fileClass.getDeclaredMethod("exists")
+-        exists.isAccessible = true
+-        ModuleMain.module?.hook(exists, KakaoRootFileHooker::class.java)
+-        ModuleMain.module?.log("KAKAO: root path hook installed File.exists paths=${KakaoRootFileProfile.paths.size} profile=provided_1101")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: root path hook FAILED", t)
+-    }
+-    try {
+-        val tagsClass = Class.forName("xq1", false, classLoader)
+-        val tags = tagsClass.declaredMethods.firstOrNull { it.name == "y" }
+-        if (tags != null) {
+-            tags.isAccessible = true
+-            ModuleMain.module?.hook(tags, KakaoBuildTagsHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: build tags hook installed xq1.y")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: build tags hook FAILED", t)
+-    }
+-    try {
+-        val policyClass = Class.forName("g39", false, classLoader)
+-        val policy = policyClass.declaredMethods.firstOrNull { it.name == "a" }
+-        if (policy != null) {
+-            policy.isAccessible = true
+-            ModuleMain.module?.hook(policy, KakaoPolicyCoroutineHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: rooting policy hook installed g39.a")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: rooting policy hook FAILED", t)
+-    }
+-    try {
+-        val dialog = Class.forName("f85", false, classLoader)
+-        val show = dialog.declaredMethods.firstOrNull { it.parameterCount >= 3 }
+-        if (show != null) {
+-            show.isAccessible = true
+-            ModuleMain.module?.hook(show, KakaoRootingDialogHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: rooting dialog hook installed f85.${show.name}")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: rooting dialog hook FAILED", t)
+-    }
+-    installKakaoHookSignalDiagnostics(classLoader)
++    KakaoLocalSecurityHooks.install(this, classLoader)
+ }
+ 
+ internal fun ModuleMain.installKakaoReservedExclusiveHooks(classLoader: ClassLoader) {
+@@ -1221,61 +986,6 @@
+ }
+ // END KAKAO_HOOK_SIGNAL_DIAGNOSTICS
+ 
+-// BEGIN KAKAO_HOOK_SIGNAL_OBSERVER
+-@XposedHooker
+-class KakaoHookSignalObserver : XposedInterface.Hooker {
+-    companion object {
+-        @Volatile private var layout: KakaoHookSignalDiagnostics.Layout? = null
+-
+-        internal fun configure(value: KakaoHookSignalDiagnostics.Layout) { layout = value }
+-
+-        private fun log(message: String) { runCatching { ModuleMain.module?.log(message) } }
+-
+-        @JvmStatic @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            try {
+-                val originalError = callback.throwable
+-                if (originalError != null) {
+-                    log("KAKAO_DIAG: ORIGINAL_CHECK_FAILED type=${originalError.javaClass.name} resultChanged=false")
+-                    return
+-                }
+-                val currentLayout = layout
+-                if (currentLayout == null) {
+-                    log("KAKAO_DIAG: READ_UNAVAILABLE reason=NOT_CONFIGURED resultChanged=false")
+-                    return
+-                }
+-                val report = callback.result
+-                log(KakaoHookSignalDiagnostics.format(KakaoHookSignalDiagnostics.snapshot(report, currentLayout)))
+-                for (line in KakaoHookSignalDiagnostics.formatStackDetails(
+-                    KakaoHookSignalDiagnostics.stackDetails(report, currentLayout)
+-                )) log(line)
+-            } catch (error: Throwable) {
+-                log("KAKAO_DIAG: READ_FAILED type=${error.javaClass.name} resultChanged=false")
+-            }
+-        }
+-    }
+-}
+-// END KAKAO_HOOK_SIGNAL_OBSERVER
+-
+-private fun ModuleMain.installKakaoHookSignalDiagnostics(classLoader: ClassLoader) {
+-    val module = ModuleMain.module ?: return
+-    try {
+-        val owner = Class.forName("il4", false, classLoader)
+-        val report = Class.forName("bl4", false, classLoader)
+-        val assessment = Class.forName("zk4", false, classLoader)
+-        val layout = KakaoHookSignalDiagnostics.resolve(report, assessment)
+-        val method = owner.getDeclaredMethod("b").apply {
+-            require(returnType == report && !Modifier.isStatic(modifiers)) { "unexpected hook detector method" }
+-            isAccessible = true
+-        }
+-        KakaoHookSignalObserver.configure(layout)
+-        module.hook(method, KakaoHookSignalObserver::class.java)
+-        runCatching { module.log("KAKAO_DIAG: REGISTERED target=il4.b profile=provided_1101 mode=READ_ONLY liveExecution=UNVERIFIED") }
+-    } catch (error: Throwable) {
+-        runCatching { module.log("KAKAO_DIAG: UNAVAILABLE type=${error.javaClass.name} action=SKIP_NO_FALLBACK") }
+-    }
+-}
+-
+ // BEGIN_KAKAO_SENTRY_TEST_CONFIG
+ /** Use the SDK's supported diagnostic setting; do not manufacture a clean root verdict. */
+ internal object KakaoSentryRootTestConfig {
+@@ -1308,10 +1018,23 @@
+ @XposedHooker
+ class KakaoSentryOptionsHooker : XposedInterface.Hooker {
+     companion object {
+-        @Volatile private var optionMethods: Pair<Method, Method>? = null
+-
+-        fun configure(setter: Method, getter: Method) {
+-            optionMethods = setter to getter
++        private val optionMethods = java.util.concurrent.ConcurrentHashMap<
++                java.lang.reflect.Member, Pair<Method, Method>>()
++
++        fun install(module: ModuleMain, constructor: java.lang.reflect.Constructor<*>,
++                    setter: Method, getter: Method) {
++            synchronized(optionMethods) {
++                if (optionMethods.containsKey(constructor)) return
++                // Each target class loader keeps its own option methods. Roll back
++                // this member only if registration fails; other loaders stay valid.
++                optionMethods[constructor] = setter to getter
++                try {
++                    module.hook(constructor, KakaoSentryOptionsHooker::class.java)
++                } catch (error: Throwable) {
++                    optionMethods.remove(constructor)
++                    throw error
++                }
++            }
+         }
+ 
+         private fun log(message: String) {
+@@ -1321,7 +1044,7 @@
+         @JvmStatic @BeforeInvocation
+         fun before(callback: XposedInterface.BeforeHookCallback) {
+             try {
+-                val methods = optionMethods
++                val methods = optionMethods[callback.member]
+                 val options = callback.args.getOrNull(1)
+                 if (methods == null || options == null) {
+                     log("KAKAO: Sentry root diagnostic test config NOT_APPLIED reason=MISSING_CONFIGURATION")
+@@ -1350,8 +1073,7 @@
+         }
+         val constructor = contextClass.getDeclaredConstructor(Context::class.java, optionsClass)
+         constructor.isAccessible = true
+-        KakaoSentryOptionsHooker.configure(methods.first, methods.second)
+-        module.hook(constructor, KakaoSentryOptionsHooker::class.java)
++        KakaoSentryOptionsHooker.install(module, constructor, methods.first, methods.second)
+         runCatching {
+             module.log("KAKAO: Sentry root diagnostic test config hook installed " +
+                     "option=enableRootCheck target=r0(Context,SentryAndroidOptions) coldStartRequired=true")
+@@ -1407,159 +1129,314 @@
+ }
+ // END KAKAO_ROOT_FILE_HOOK
+ 
+-// Retained unchanged for E03/Tmap; Kakao uses the dedicated profile above.
++// Shared by E03/Tmap; only exact known root paths and successful Boolean results are changed.
+ @XposedHooker
+ class KakaoRootPathHooker : XposedInterface.Hooker {
+     companion object {
+-        private val rootMarkers = arrayOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/data/adb/magisk")
+-        @JvmStatic
+-        @AfterInvocation
++        @JvmStatic @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+-            val path = callback.thisObject?.toString() ?: return
+-            if (rootMarkers.any { path.contains(it) }) {
+-                try { callback.result = false } catch (t: Throwable) {}
+-            }
+-        }
++            try {
++                if (callback.throwable != null) return
++                val file = callback.thisObject as? java.io.File ?: return
++                if (!KakaoRootFileProfile.matches(file.path)) return
++                val original = callback.result as? Boolean ?: return
++                if (original) {
++                    callback.result = false
++                    runCatching { ModuleMain.module?.log("TMAP: root file result changed original=true result=false") }
++                }
++            } catch (error: Throwable) {
++                runCatching { ModuleMain.module?.log("TMAP: root file result UNCONFIRMED type=${error.javaClass.name}") }
++            }
++        }
++    }
++}
++
++/** Exact local layouts from the supplied 3.14.5/1101 sources; no guessed coroutine or request hooks. */
++internal object KakaoLocalSecurityHooks {
++    data class RootLayout(
++        val owner: Class<*>, val modeField: java.lang.reflect.Field,
++        val rootedField: java.lang.reflect.Field
++    )
++
++    data class ReportLayout(
++        val diagnostics: KakaoHookSignalDiagnostics.Layout,
++        val assessmentConstructor: java.lang.reflect.Constructor<*>,
++        val reportConstructor: java.lang.reflect.Constructor<*>,
++        val probesField: java.lang.reflect.Field,
++        val checkedAtField: java.lang.reflect.Field,
++        val durationField: java.lang.reflect.Field
++    )
++
++    data class ReportChange(
++        val result: Any, val before: KakaoHookSignalDiagnostics.Snapshot,
++        val after: KakaoHookSignalDiagnostics.Snapshot
++    )
++
++    data class SdkLayout(
++        val kind: String, val paths: java.lang.reflect.Field? = null,
++        val packages: java.lang.reflect.Field? = null,
++        val runtime: java.lang.reflect.Field? = null
++    )
++
++    private val installed = java.util.concurrent.ConcurrentHashMap.newKeySet<java.lang.reflect.Member>()
++    private val roots = java.util.concurrent.ConcurrentHashMap<java.lang.reflect.Member, RootLayout>()
++    private val reports = java.util.concurrent.ConcurrentHashMap<java.lang.reflect.Member, ReportLayout>()
++    private val sdkMethods = java.util.concurrent.ConcurrentHashMap<java.lang.reflect.Member, SdkLayout>()
++
++    internal fun log(message: String) { runCatching { ModuleMain.module?.log(message) } }
++    internal fun rootLayout(member: java.lang.reflect.Member) = roots[member]
++    internal fun reportLayout(member: java.lang.reflect.Member) = reports[member]
++    internal fun sdkLayout(member: java.lang.reflect.Member) = sdkMethods[member]
++
++    private fun <T> register(member: java.lang.reflect.Member, action: () -> T) {
++        synchronized(installed) {
++            if (member in installed) return
++            action()
++            installed.add(member)
++        }
++    }
++
++    private fun installTarget(label: String, action: () -> Unit) {
++        try { action() }
++        catch (error: Throwable) {
++            log("KAKAO_SECURITY: UNAVAILABLE target=$label type=${error.javaClass.name} action=KEEP_ORIGINAL")
++        }
++    }
++
++    internal fun resolveRoot(owner: Class<*>, mode: Class<*>): RootLayout {
++        require(mode.isEnum) { "root mode is not the expected enum" }
++        val fields = owner.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }
++        require(fields.map { it.name }.toSet() == setOf("a", "b")) { "unexpected root status fields" }
++        val modeField = owner.getDeclaredField("a")
++        val rootedField = owner.getDeclaredField("b")
++        require(modeField.type == mode && rootedField.type == java.lang.Boolean.TYPE) { "root field types differ" }
++        modeField.isAccessible = true
++        rootedField.isAccessible = true
++        return RootLayout(owner, modeField, rootedField)
++    }
++
++    internal fun setRootedFalse(value: Any?, layout: RootLayout): Boolean {
++        require(value != null && layout.owner.isInstance(value)) { "unexpected root status instance" }
++        require(value.toString().startsWith("RootingStatus(")) { "unexpected root status meaning" }
++        require(layout.modeField.get(value) != null) { "missing root check mode" }
++        val original = layout.rootedField.getBoolean(value)
++        if (original) layout.rootedField.setBoolean(value, false)
++        check(!layout.rootedField.getBoolean(value)) { "root flag change was not retained" }
++        return original
++    }
++
++    internal fun resolveReport(report: Class<*>, assessment: Class<*>): ReportLayout {
++        require(report.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }.map { it.name }.toSet() ==
++                setOf("a", "b", "c", "d")) { "unexpected hook report fields" }
++        require(assessment.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }.map { it.name }.toSet() ==
++                setOf("a", "b", "c", "d", "e", "f", "g")) { "unexpected hook assessment fields" }
++        require(java.util.Set::class.java.isAssignableFrom(assessment.getDeclaredField("g").type)) {
++            "unexpected derived signal type"
++        }
++        val diagnostics = KakaoHookSignalDiagnostics.resolve(report, assessment)
++        val assessmentConstructor = assessment.getDeclaredConstructor(*Array(6) { java.util.List::class.java })
++            .apply { isAccessible = true }
++        val reportConstructor = report.getDeclaredConstructor(
++            assessment, java.util.LinkedHashMap::class.java, java.lang.Long.TYPE, java.lang.Long.TYPE
++        ).apply { isAccessible = true }
++        val probes = report.getDeclaredField("b").apply { isAccessible = true }
++        val checkedAt = report.getDeclaredField("c").apply { isAccessible = true }
++        val duration = report.getDeclaredField("d").apply { isAccessible = true }
++        require(checkedAt.type == java.lang.Long.TYPE && duration.type == java.lang.Long.TYPE) { "unexpected time fields" }
++        val empty = emptyList<Any>()
++        val probeAssessment = assessmentConstructor.newInstance(empty, empty, empty, empty, empty, empty)
++        require(probeAssessment.toString().startsWith("HookDetectionAssessment(")) { "unexpected assessment meaning" }
++        val probeReport = reportConstructor.newInstance(probeAssessment, java.util.LinkedHashMap<Any, Any>(), 0L, 0L)
++        require(probeReport.toString().startsWith("HookDetectionReport(")) { "unexpected report meaning" }
++        require(KakaoHookSignalDiagnostics.snapshot(probeReport, diagnostics).status == "not_detected") {
++            "unexpected clean report contract"
++        }
++        return ReportLayout(diagnostics, assessmentConstructor, reportConstructor, probes, checkedAt, duration)
++    }
++
++    internal fun normalizeReport(value: Any?, layout: ReportLayout): ReportChange {
++        require(value != null && layout.diagnostics.reportClass.isInstance(value)) { "unexpected hook report instance" }
++        require(value.toString().startsWith("HookDetectionReport(")) { "unexpected report meaning" }
++        val before = KakaoHookSignalDiagnostics.snapshot(value, layout.diagnostics)
++        require(before.status != "STATUS_UNEXPECTED") { "unexpected hook report status" }
++        val originalAssessment = layout.diagnostics.assessmentField.get(value)
++        require(originalAssessment != null && originalAssessment.toString().startsWith("HookDetectionAssessment(")) {
++            "unexpected assessment meaning"
++        }
++        // The first five lists are hook observations. Genuine missing framework
++        // APIs and probe errors remain visible; the constructor recomputes g.
++        val missing = (layout.diagnostics.signalFields[5].get(originalAssessment) as? List<*>)
++            ?.toList() ?: error("missing framework API list")
++        val originalProbes = layout.probesField.get(value) as? java.util.LinkedHashMap<*, *>
++            ?: error("missing hook probe statuses")
++        val probes = java.util.LinkedHashMap<Any?, Any?>().apply { putAll(originalProbes) }
++        val checkedAt = layout.checkedAtField.getLong(value)
++        val duration = layout.durationField.getLong(value)
++        val empty = emptyList<Any>()
++        val assessment = layout.assessmentConstructor.newInstance(empty, empty, empty, empty, empty, missing)
++        val result = layout.reportConstructor.newInstance(assessment, probes, checkedAt, duration)
++        val after = KakaoHookSignalDiagnostics.snapshot(result, layout.diagnostics)
++        require(after.status != "STATUS_UNEXPECTED" && after.counts.take(5).all { it == 0 } &&
++                after.counts[5] == before.counts[5]) { "hook assessment normalization differs" }
++        require(layout.probesField.get(result) == originalProbes &&
++                layout.checkedAtField.getLong(result) == checkedAt && layout.durationField.getLong(result) == duration) {
++            "hook report metadata changed"
++        }
++        return ReportChange(result, before, after)
++    }
++
++    internal fun sdkMatches(value: Any?, layout: SdkLayout): Boolean {
++        if (layout.kind == "CRASHLYTICS_1101") {
++            // ar1 is an obfuscated utility owner. A prototype alone is not a
++            // semantic contract across updates; limit it to the supplied build.
++            val context = ModuleMain.getApplicationContext() ?: return false
++            if (context.packageName != "com.kakao.wheel.driver") return false
++            return runCatching {
++                context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode == 3145099L
++            }.getOrDefault(false)
++        }
++        if (layout.kind != "SENTRY_ROOTCHECKER" || value == null) return false
++        val paths = layout.paths?.get(value) as? Array<*> ?: return false
++        val packages = layout.packages?.get(value) as? Array<*> ?: return false
++        return layout.runtime?.get(value) is Runtime && paths.any { it == "/system/xbin/su" } &&
++                packages.any { it == "eu.chainfire.supersu" || it == "com.koushikdutta.superuser" }
++    }
++
++    fun install(module: ModuleMain, loader: ClassLoader) {
++        installTarget("qf8(ht7,boolean)") {
++            val owner = Class.forName("qf8", false, loader)
++            val mode = Class.forName("ht7", false, loader)
++            val layout = resolveRoot(owner, mode)
++            val constructor = owner.getDeclaredConstructor(mode, java.lang.Boolean.TYPE).apply { isAccessible = true }
++            register(constructor) {
++                roots[constructor] = layout
++                module.hook(constructor, KakaoRootingStatusHooker::class.java)
++            }
++            log("KAKAO_SECURITY: REGISTERED target=qf8(ht7,boolean) action=ROOTED_FALSE execution=UNVERIFIED")
++        }
++        installTarget("il4.b()bl4") {
++            val owner = Class.forName("il4", false, loader)
++            val report = Class.forName("bl4", false, loader)
++            val assessment = Class.forName("zk4", false, loader)
++            val layout = resolveReport(report, assessment)
++            val method = owner.getDeclaredMethod("b").apply {
++                require(returnType == report && !Modifier.isStatic(modifiers) &&
++                        !Modifier.isAbstract(modifiers) && !Modifier.isNative(modifiers)) { "unexpected detector signature" }
++                isAccessible = true
++            }
++            register(method) {
++                reports[method] = layout
++                module.hook(method, KakaoHookDetectionHooker::class.java)
++            }
++            log("KAKAO_SECURITY: REGISTERED target=il4.b action=NORMALIZE_HOOK_SIGNALS preserved=FRAMEWORK_API_AND_PROBE_ERRORS execution=UNVERIFIED")
++        }
++        installTarget("io.sentry.android.core.internal.util.i.a()boolean") {
++            val owner = Class.forName("io.sentry.android.core.internal.util.i", false, loader)
++            val paths = owner.getDeclaredField("d").apply { isAccessible = true }
++            val packages = owner.getDeclaredField("e").apply { isAccessible = true }
++            val runtime = owner.getDeclaredField("f").apply { isAccessible = true }
++            require(paths.type == Array<String>::class.java && packages.type == Array<String>::class.java &&
++                    runtime.type == Runtime::class.java && listOf(paths, packages, runtime).none { Modifier.isStatic(it.modifiers) }) {
++                "unexpected Sentry root checker fields"
++            }
++            val method = owner.getDeclaredMethod("a").apply {
++                require(returnType == java.lang.Boolean.TYPE && !Modifier.isStatic(modifiers) &&
++                        !Modifier.isAbstract(modifiers) && !Modifier.isNative(modifiers)) { "unexpected Sentry root signature" }
++                isAccessible = true
++            }
++            register(method) {
++                sdkMethods[method] = SdkLayout("SENTRY_ROOTCHECKER", paths, packages, runtime)
++                module.hook(method, KakaoSdkRootBooleanHooker::class.java)
++            }
++            log("KAKAO_SECURITY: REGISTERED target=SENTRY_ROOTCHECKER action=BOOLEAN_FALSE execution=UNVERIFIED")
++        }
++        installTarget("ar1.I()boolean") {
++            val owner = Class.forName("ar1", false, loader)
++            val method = owner.getDeclaredMethod("I").apply {
++                require(returnType == java.lang.Boolean.TYPE && Modifier.isStatic(modifiers) &&
++                        !Modifier.isAbstract(modifiers) && !Modifier.isNative(modifiers)) { "unexpected Crashlytics root signature" }
++                isAccessible = true
++            }
++            register(method) {
++                sdkMethods[method] = SdkLayout("CRASHLYTICS_1101")
++                module.hook(method, KakaoSdkRootBooleanHooker::class.java)
++            }
++            log("KAKAO_SECURITY: REGISTERED target=ar1.I action=BOOLEAN_FALSE targetVersion=3145099 execution=UNVERIFIED")
++        }
++        installTarget("File.exists()boolean") {
++            val method = java.io.File::class.java.getDeclaredMethod("exists").apply {
++                require(returnType == java.lang.Boolean.TYPE && !Modifier.isStatic(modifiers)) { "unexpected File.exists signature" }
++                isAccessible = true
++            }
++            register(method) { module.hook(method, KakaoRootFileHooker::class.java) }
++            log("KAKAO_SECURITY: REGISTERED target=File.exists action=EXACT_ROOT_PATH_FALSE execution=UNVERIFIED")
++        }
++        log("KAKAO_SECURITY: UNCONFIGURED stages=INTEGRITY_TOKEN,HTTP_BODY,WORK_REQUEST,POLICY_DIALOG reason=NO_VERIFIED_LOCAL_CONTRACT action=KEEP_ORIGINAL")
+     }
+ }
+ 
+ @XposedHooker
+ class KakaoRootingStatusHooker : XposedInterface.Hooker {
+     companion object {
+-        @JvmStatic
+-        @AfterInvocation
++        @JvmStatic @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+             try {
+-                val obj = callback.thisObject ?: return
+-                for (f in obj.javaClass.declaredFields) {
+-                    if (f.type == Boolean::class.javaPrimitiveType) {
+-                        f.isAccessible = true
+-                        f.setBoolean(obj, false)
+-                        break
+-                    }
++                if (callback.throwable != null) return
++                val layout = KakaoLocalSecurityHooks.rootLayout(callback.member) ?: return
++                val changed = KakaoLocalSecurityHooks.setRootedFalse(callback.thisObject, layout)
++                KakaoLocalSecurityHooks.log("KAKAO_SECURITY: ROOT_STATUS originalRooted=$changed rooted=false resultChanged=$changed checkType=PRESERVED")
++            } catch (error: Throwable) {
++                KakaoLocalSecurityHooks.log("KAKAO_SECURITY: ROOT_STATUS_UNCONFIRMED type=${error.javaClass.name} action=KEEP_ORIGINAL")
++            }
++        }
++    }
++}
++
++@XposedHooker
++class KakaoSdkRootBooleanHooker : XposedInterface.Hooker {
++    companion object {
++        @JvmStatic @AfterInvocation
++        fun after(callback: XposedInterface.AfterHookCallback) {
++            try {
++                if (callback.throwable != null) return
++                val layout = KakaoLocalSecurityHooks.sdkLayout(callback.member) ?: return
++                val original = callback.result as? Boolean ?: return
++                if (!KakaoLocalSecurityHooks.sdkMatches(callback.thisObject, layout)) {
++                    KakaoLocalSecurityHooks.log("KAKAO_SECURITY: SDK_ROOT_UNCONFIRMED profile=${layout.kind} action=KEEP_ORIGINAL")
++                    return
+                 }
+-            } catch (t: Throwable) {}
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoHookVerdictHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
++                if (original) callback.result = false
++                KakaoLocalSecurityHooks.log("KAKAO_SECURITY: SDK_ROOT profile=${layout.kind} original=$original result=false resultChanged=$original")
++            } catch (error: Throwable) {
++                KakaoLocalSecurityHooks.log("KAKAO_SECURITY: SDK_ROOT_UNCONFIRMED type=${error.javaClass.name} action=KEEP_ORIGINAL")
++            }
++        }
++    }
++}
++
++@XposedHooker
++class KakaoHookDetectionHooker : XposedInterface.Hooker {
++    companion object {
++        @JvmStatic @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+             try {
+-                val result = callback.result ?: return
+-                val cls = result.javaClass
+-                for (f in cls.declaredFields) {
+-                    if (f.type == Boolean::class.java || f.type == java.lang.Boolean::class.java) {
+-                        f.isAccessible = true
+-                        f.set(result, false)
+-                    }
+-                    if (f.type == List::class.java) {
+-                        f.isAccessible = true
+-                        f.set(result, emptyList<Any>())
+-                    }
++                if (callback.throwable != null) {
++                    KakaoLocalSecurityHooks.log("KAKAO_SECURITY: ORIGINAL_CHECK_FAILED type=${callback.throwable?.javaClass?.name} action=KEEP_ORIGINAL")
++                    return
+                 }
+-                ModuleMain.module?.log("KAKAO: hook verdict cleared")
+-            } catch (t: Throwable) {}
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoHookReportMapHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            try { callback.result = emptyMap<String, Any>() } catch (t: Throwable) {}
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoHookScanHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            ModuleMain.module?.log("KAKAO: hook scan called")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoWorkRootStatusHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            try {
+-                val result = callback.result ?: return
+-                val cls = result.javaClass
+-                for (f in cls.declaredFields) {
+-                    if (f.type == Boolean::class.java || f.type == java.lang.Boolean::class.java) {
+-                        f.isAccessible = true
+-                        f.set(result, false)
+-                    }
+-                }
+-                ModuleMain.module?.log("KAKAO: work root status cleared")
+-            } catch (t: Throwable) {}
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoWorkStatusDtoHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            ModuleMain.module?.log("KAKAO: work status dto bypassed")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoAccessibilitySignalHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            ModuleMain.module?.log("KAKAO: accessibility signal called")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoBuildTagsHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            try {
+-                val result = callback.result ?: return
+-                val cls = result.javaClass
+-                for (f in cls.declaredFields) {
+-                    if (f.type == Boolean::class.java || f.type == java.lang.Boolean::class.java) {
+-                        f.isAccessible = true
+-                        f.set(result, false)
+-                    }
+-                    if (f.type == String::class.java) {
+-                        f.isAccessible = true
+-                        val v = f.get(result) as? String
+-                        if (v != null && (v.contains("test-keys") || v.contains("dev-keys"))) {
+-                            f.set(result, "release-keys")
+-                        }
+-                    }
+-                }
+-                ModuleMain.module?.log("KAKAO: build tags cleared")
+-            } catch (t: Throwable) {}
+-        }
+-    }
+-}
++                val layout = KakaoLocalSecurityHooks.reportLayout(callback.member) ?: return
++                val change = KakaoLocalSecurityHooks.normalizeReport(callback.result, layout)
++                callback.result = change.result
++                KakaoLocalSecurityHooks.log("KAKAO_SECURITY: HOOK_ASSESSMENT originalStatus=${change.before.status} resultStatus=${change.after.status} " +
++                        "signalsBefore=${change.before.counts.take(5).joinToString(",")} signalsAfter=${change.after.counts.take(5).joinToString(",")} " +
++                        "missingFrameworkApis=${change.after.counts[5]} probeErrors=PRESERVED resultChanged=true")
++            } catch (error: Throwable) {
++                KakaoLocalSecurityHooks.log("KAKAO_SECURITY: HOOK_RESULT_UNCONFIRMED type=${error.javaClass.name} action=KEEP_ORIGINAL")
++            }
++        }
++    }
++}
++
+ 
+ @XposedHooker
+ class KakaoReservedCallHooker : XposedInterface.Hooker {
+@@ -1574,167 +1451,6 @@
+             } catch (t: Throwable) {
+                 ModuleMain.module?.log("KAKAO: reserved call error", t)
+             }
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoWorkEntryHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @BeforeInvocation
+-        fun before(callback: XposedInterface.BeforeHookCallback) {
+-            ModuleMain.module?.log("KAKAO: work entry bypassed")
+-        }
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            ModuleMain.module?.log("KAKAO: work entry completed")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoIntegrityDtoHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            ModuleMain.module?.log("KAKAO: integrity dto bypassed")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoIntegrityFetchHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            ModuleMain.module?.log("KAKAO: integrity fetch bypassed")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoHookDetectionHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            try {
+-                val result = callback.result ?: return
+-                val cls = result.javaClass
+-                for (f in cls.declaredFields) {
+-                    if (f.type == List::class.java) {
+-                        f.isAccessible = true
+-                        f.set(result, emptyList<Any>())
+-                    }
+-                }
+-                ModuleMain.module?.log("KAKAO: hook detection cleared")
+-            } catch (t: Throwable) {}
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoOkHttpInterceptorHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            try {
+-                val result = callback.result ?: return
+-                val cls = result.javaClass
+-                for (m in cls.methods) {
+-                    if (m.name == "body" || m.name == "getBody") {
+-                        m.isAccessible = true
+-                        val body = m.invoke(result)
+-                        if (body != null) {
+-                            val bodyCls = body.javaClass
+-                            for (f in bodyCls.declaredFields) {
+-                                if (f.type == String::class.java) {
+-                                    f.isAccessible = true
+-                                    val value = f.get(body) as? String ?: continue
+-                                    if (value.contains("rooted") || value.contains("hook") || value.contains("detect")) {
+-                                        val modified = value
+-                                            .replace("\"rooted\":true", "\"rooted\":false")
+-                                            .replace("\"hooked\":true", "\"hooked\":false")
+-                                            .replace("\"detected\":true", "\"detected\":false")
+-                                        f.set(body, modified)
+-                                        ModuleMain.module?.log("KAKAO: modified request body security status")
+-                                    }
+-                                }
+-                            }
+-                        }
+-                    }
+-                }
+-            } catch (t: Throwable) {}
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoIntegrityHeaderHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            ModuleMain.module?.log("KAKAO: integrity header bypassed")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoWorkRequestHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @BeforeInvocation
+-        fun before(callback: XposedInterface.BeforeHookCallback) {
+-            try {
+-                val args = callback.args ?: return
+-                for (arg in args) {
+-                    if (arg == null) continue
+-                    val cls = arg.javaClass
+-                    for (f in cls.declaredFields) {
+-                        if (f.type == Boolean::class.javaPrimitiveType || f.type == Boolean::class.java) {
+-                            f.isAccessible = true
+-                            val name = f.name.lowercase()
+-                            if (name.contains("root") || name.contains("hook") || name.contains("detect")) {
+-                                f.set(arg, false)
+-                                ModuleMain.module?.log("KAKAO: cleared ${f.name} in work request")
+-                            }
+-                        }
+-                    }
+-                }
+-            } catch (t: Throwable) {}
+-        }
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            ModuleMain.module?.log("KAKAO: work request bypassed")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoPolicyCoroutineHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            ModuleMain.module?.log("KAKAO: policy coroutine bypassed")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoRootingDialogHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @BeforeInvocation
+-        fun before(callback: XposedInterface.BeforeHookCallback) {
+-            ModuleMain.module?.log("KAKAO: rooting dialog detected (not skipped)")
+         }
+     }
+ }
+--- a/app/src/main/java/com/example/wheelprobe/E03.kt
++++ b/app/src/main/java/com/example/wheelprobe/E03.kt
+@@ -16,6 +16,62 @@
+ import java.lang.reflect.Proxy
+ import java.util.LinkedHashSet
+ 
++// Security changes are limited to these exact probes in the target app process.
++private object TmapSecurityHooks {
++    val rootPaths = setOf(
++        "/system/bin/su", "/system/xbin/su", "/sbin/su",
++        "/system/app/Superuser.apk", "/data/adb/magisk"
++    )
++    private val installed = HashSet<Method>()
++    private val whichCommand = Regex("""^(\s*)(which|/system/bin/which|/system/xbin/which)(\s+)su(\s*)$""")
++    private val whichExecutables = setOf("which", "/system/bin/which", "/system/xbin/which")
++    private const val absentProbe = "/dev/null/eunora_su_probe"
++
++    fun log(message: String) {
++        try { ModuleMain.module?.log("TMAP: security $message") } catch (_: Throwable) { }
++    }
++
++    @Synchronized fun install(module: ModuleMain, method: Method,
++                              hooker: Class<out XposedInterface.Hooker>, target: String) {
++        if (installed.contains(method)) {
++            log("already installed $target")
++            return
++        }
++        method.isAccessible = true
++        module.hook(method, hooker)
++        installed.add(method)
++        log("installed $target")
++    }
++
++    fun rootBoolean(owner: Class<*>, name: String, vararg parameters: Class<*>): Method {
++        val method = owner.getDeclaredMethod(name, *parameters)
++        require(method.returnType == java.lang.Boolean.TYPE &&
++            !Modifier.isAbstract(method.modifiers) && !Modifier.isNative(method.modifiers)) {
++            "Expected a concrete primitive Boolean method"
++        }
++        return method
++    }
++
++    fun rootPathArguments(args: Array<out Any?>): Boolean {
++        if (args.size != 2) return false
++        val first = args[0] as? String ?: return false
++        val second = args[1] as? String ?: return false
++        // qh.n.a is an existing path/binary probe. Leave every other argument pair alone.
++        return (second == "su" && first.trimEnd('/') + "/su" in rootPaths) ||
++            (first == "su" && second.trimEnd('/') + "/su" in rootPaths)
++    }
++
++    fun rewrittenCommand(command: Any?): Any? = when (command) {
++        is String -> whichCommand.matchEntire(command)?.let { match ->
++            match.groupValues[1] + match.groupValues[2] + match.groupValues[3] +
++                absentProbe + match.groupValues[4]
++        }
++        is Array<*> -> if (command.size == 2 && command[0] in whichExecutables && command[1] == "su")
++            arrayOf(command[0] as String, absentProbe) else null
++        else -> null
++    }
++}
++
+ @XposedHooker
+ class TmapWhichSuHooker : XposedInterface.Hooker {
+     companion object {
+@@ -24,16 +80,9 @@
+         fun before(callback: XposedInterface.BeforeHookCallback) {
+             val args = callback.args
+             if (args.isEmpty()) return
+-            val command = args[0]
+-            if (command is String && command.contains("which") && command.contains("su")) {
+-                args[0] = "/system/bin/which nosuchbin"
+-                return
+-            }
+-            if (command is Array<*> && command.any { it?.toString()?.contains("su") == true } &&
+-                command.any { it?.toString()?.contains("which") == true }
+-            ) {
+-                args[0] = arrayOf("/system/bin/which", "nosuchbin")
+-            }
++            val replacement = TmapSecurityHooks.rewrittenCommand(args[0]) ?: return
++            args[0] = replacement
++            TmapSecurityHooks.log("changed Runtime.exec(which su) argument; other exec arguments preserved")
+         }
+     }
+ }
+@@ -44,7 +93,26 @@
+         @JvmStatic
+         @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
++            if (callback.throwable != null || callback.result !is Boolean || callback.result != true) return
++            if (callback.args.isNotEmpty() && !TmapSecurityHooks.rootPathArguments(callback.args)) return
+             callback.result = false
++            val member = callback.member
++            TmapSecurityHooks.log("changed ${member.declaringClass.name}.${member.name} true->false")
++        }
++    }
++}
++
++@XposedHooker
++class TmapRootPathHooker : XposedInterface.Hooker {
++    companion object {
++        @JvmStatic
++        @AfterInvocation
++        fun after(callback: XposedInterface.AfterHookCallback) {
++            if (callback.throwable != null || callback.result !is Boolean || callback.result != true) return
++            val path = (callback.thisObject as? java.io.File)?.path ?: return
++            if (path !in TmapSecurityHooks.rootPaths) return
++            callback.result = false
++            TmapSecurityHooks.log("changed File.exists($path) true->false")
+         }
+     }
+ }
+@@ -760,58 +828,64 @@
+ }
+ 
+ internal fun ModuleMain.installTmapRootChecks(classLoader: ClassLoader) {
++    val module = ModuleMain.module ?: return
+     try {
+-        val fileClass = Class.forName("java.io.File", false, classLoader)
+-        val exists = fileClass.getDeclaredMethod("exists")
+-        exists.isAccessible = true
+-        ModuleMain.module?.hook(exists, KakaoRootPathHooker::class.java)
+-        ModuleMain.module?.log("TMAP: su path hook installed File.exists")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("TMAP: su path hook FAILED", t)
++        val exists = TmapSecurityHooks.rootBoolean(java.io.File::class.java, "exists")
++        TmapSecurityHooks.install(module, exists, TmapRootPathHooker::class.java, "File.exists exact root paths")
++    } catch (error: Throwable) {
++        TmapSecurityHooks.log("File.exists installation failed type=${error.javaClass.name}")
++    }
++    // Existing obfuscated targets: no Tmap APK was supplied for static verification.
++    // Each exact runtime declaration is checked; missing or changed targets stay unsupported.
++    for (name in listOf("h", "i")) {
++        try {
++            val owner = Class.forName("lb.g", false, classLoader)
++            val method = TmapSecurityHooks.rootBoolean(owner, name)
++            TmapSecurityHooks.install(module, method, TmapRootBooleanHooker::class.java, "lb.g.$name()Z runtime signature checked")
++        } catch (error: Throwable) {
++            TmapSecurityHooks.log("unsupported lb.g.$name()Z type=${error.javaClass.name}")
++        }
+     }
+     try {
+-        val rootClass = Class.forName("lb.g", false, classLoader)
+-        for (name in listOf("h", "i")) {
+-            val method = rootClass.getDeclaredMethod(name)
+-            method.isAccessible = true
+-            ModuleMain.module?.hook(method, TmapRootBooleanHooker::class.java)
+-        }
+-        ModuleMain.module?.log("TMAP: lb.g.h/i hook installed")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("TMAP: lb.g hook FAILED", t)
+-    }
+-    try {
+-        val pathClass = Class.forName("qh.n", false, classLoader)
+-        val check = pathClass.getDeclaredMethod("a", String::class.java, String::class.java)
+-        check.isAccessible = true
+-        ModuleMain.module?.hook(check, TmapRootBooleanHooker::class.java)
+-        ModuleMain.module?.log("TMAP: qh.n.a su-path hook installed")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("TMAP: qh.n.a hook FAILED", t)
++        val owner = Class.forName("qh.n", false, classLoader)
++        val method = TmapSecurityHooks.rootBoolean(owner, "a", String::class.java, String::class.java)
++        TmapSecurityHooks.install(module, method, TmapRootBooleanHooker::class.java,
++            "qh.n.a(String,String)Z runtime signature checked; exact su arguments only")
++    } catch (error: Throwable) {
++        TmapSecurityHooks.log("unsupported qh.n.a(String,String)Z type=${error.javaClass.name}")
+     }
+     try {
+         val tags = android.os.Build::class.java.getDeclaredField("TAGS")
+         tags.isAccessible = true
+         val current = tags.get(null) as? String
+-        if (current?.contains("test-keys") == true) {
+-            tags.set(null, current.replace("test-keys", "release-keys"))
+-            ModuleMain.module?.log("TMAP: Build.TAGS test-keys replaced")
+-        } else {
+-            ModuleMain.module?.log("TMAP: Build.TAGS left original")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("TMAP: Build.TAGS hook FAILED", t)
+-    }
+-    try {
+-        val runtime = Class.forName("java.lang.Runtime", false, classLoader)
+-        for (method in runtime.declaredMethods) {
+-            if (method.name != "exec") continue
+-            method.isAccessible = true
+-            ModuleMain.module?.hook(method, TmapWhichSuHooker::class.java)
+-        }
+-        ModuleMain.module?.log("TMAP: which su Runtime.exec rewrite installed")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("TMAP: which su hook FAILED", t)
++        val updated = current?.replace(Regex("""(?<![\w-])test-keys(?![\w-])"""), "release-keys")
++        if (current != null && updated != current) {
++            tags.set(null, updated)
++            if (tags.get(null) == updated) TmapSecurityHooks.log("changed Build.TAGS test-keys->release-keys; readback verified")
++            else TmapSecurityHooks.log("Build.TAGS write not confirmed by readback")
++        } else TmapSecurityHooks.log("Build.TAGS unchanged")
++    } catch (error: Throwable) {
++        TmapSecurityHooks.log("Build.TAGS write failed type=${error.javaClass.name}")
++    }
++    val stringArray = Array<String>::class.java
++    val signatures = listOf(
++        arrayOf<Class<*>>(String::class.java),
++        arrayOf<Class<*>>(String::class.java, stringArray),
++        arrayOf<Class<*>>(String::class.java, stringArray, java.io.File::class.java),
++        arrayOf<Class<*>>(stringArray),
++        arrayOf<Class<*>>(stringArray, stringArray),
++        arrayOf<Class<*>>(stringArray, stringArray, java.io.File::class.java)
++    )
++    for (parameters in signatures) {
++        val target = "Runtime.exec(" + parameters.joinToString(",") { it.simpleName } + ")"
++        try {
++            val method = Runtime::class.java.getDeclaredMethod("exec", *parameters)
++            require(method.returnType == Process::class.java &&
++                !Modifier.isAbstract(method.modifiers) && !Modifier.isNative(method.modifiers))
++            TmapSecurityHooks.install(module, method, TmapWhichSuHooker::class.java, target)
++        } catch (error: Throwable) {
++            TmapSecurityHooks.log("unsupported $target type=${error.javaClass.name}")
++        }
+     }
+ }
+ 
+--- a/app/src/main/java/com/example/wheelprobe/E04.kt
++++ b/app/src/main/java/com/example/wheelprobe/E04.kt
+@@ -790,31 +790,85 @@
+     }
+ }
+ 
++// Exact Java root probes only; native, Flutter and server checks are separate.
++private object CallmanerSecurityHooks {
++    val rootPaths = setOf(
++        "/system/bin/su", "/system/xbin/su", "/sbin/su",
++        "/system/app/Superuser.apk", "/data/adb/magisk"
++    )
++    private val installed = HashSet<java.lang.reflect.Method>()
++
++    fun log(message: String) {
++        try { ModuleMain.module?.log("CALLMANER: security $message") } catch (_: Throwable) { }
++    }
++
++    @Synchronized fun install(module: ModuleMain, method: java.lang.reflect.Method,
++                              hooker: Class<out XposedInterface.Hooker>, target: String) {
++        if (installed.contains(method)) {
++            log("already installed $target")
++            return
++        }
++        method.isAccessible = true
++        module.hook(method, hooker)
++        installed.add(method)
++        log("installed $target")
++    }
++
++    fun rootBoolean(owner: Class<*>, name: String, vararg parameters: Class<*>): java.lang.reflect.Method {
++        val method = owner.getDeclaredMethod(name, *parameters)
++        require(method.returnType == java.lang.Boolean.TYPE &&
++            !java.lang.reflect.Modifier.isAbstract(method.modifiers) &&
++            !java.lang.reflect.Modifier.isNative(method.modifiers)) {
++            "Expected a concrete primitive Boolean method"
++        }
++        return method
++    }
++}
++
+ @XposedHooker
+ class CallmanerRootPathHooker : XposedInterface.Hooker {
+     companion object {
+-        private val rootMarkers = arrayOf(
+-            "/system/bin/su", "/system/xbin/su", "/sbin/su",
+-            "/system/app/Superuser.apk", "/data/adb/magisk"
+-        )
+-
+         @JvmStatic
+         @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+-            val path = callback.thisObject?.toString() ?: return
+-            if (rootMarkers.any { marker -> path.contains(marker) }) callback.result = false
++            if (callback.throwable != null || callback.result !is Boolean || callback.result != true) return
++            val path = (callback.thisObject as? java.io.File)?.path ?: return
++            if (path !in CallmanerSecurityHooks.rootPaths) return
++            callback.result = false
++            CallmanerSecurityHooks.log("changed File.exists($path) true->false")
++        }
++    }
++}
++
++@XposedHooker
++class CallmanerRootDiagnosticHooker : XposedInterface.Hooker {
++    companion object {
++        @JvmStatic
++        @AfterInvocation
++        fun after(callback: XposedInterface.AfterHookCallback) {
++            if (callback.throwable != null || callback.result !is Boolean || callback.result != true) return
++            callback.result = false
++            CallmanerSecurityHooks.log("changed es.x(Landroid/content/Context;)Z SDK root diagnostic true->false")
+         }
+     }
+ }
+ 
+ internal fun ModuleMain.installCallmanerSecurityBypass(classLoader: ClassLoader) {
++    val module = ModuleMain.module ?: return
+     try {
+-        val fileClass = Class.forName("java.io.File", false, classLoader)
+-        val exists = fileClass.getDeclaredMethod("exists")
+-        exists.isAccessible = true
+-        CallmanerAcceptController.installSharedHook(exists, CallmanerRootPathHooker::class.java)
+-        ModuleMain.module?.log("CALLMANER: root path hook installed File.exists")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("CALLMANER: root path hook FAILED", t)
+-    }
+-}
++        val exists = CallmanerSecurityHooks.rootBoolean(java.io.File::class.java, "exists")
++        CallmanerSecurityHooks.install(module, exists, CallmanerRootPathHooker::class.java, "File.exists exact root paths")
++    } catch (error: Throwable) {
++        CallmanerSecurityHooks.log("File.exists installation failed type=${error.javaClass.name}")
++    }
++    try {
++        // Verified DEX root check in Crashlytics diagnostics; this is not proof of a service-blocking gate.
++        val owner = Class.forName("es", false, classLoader)
++        val method = CallmanerSecurityHooks.rootBoolean(owner, "x", android.content.Context::class.java)
++        require(java.lang.reflect.Modifier.isStatic(method.modifiers)) { "Expected static SDK root diagnostic" }
++        CallmanerSecurityHooks.install(module, method, CallmanerRootDiagnosticHooker::class.java, "es.x(Landroid/content/Context;)Z SDK root diagnostic")
++    } catch (error: Throwable) {
++        CallmanerSecurityHooks.log("unsupported es.x(Landroid/content/Context;)Z SDK root diagnostic type=${error.javaClass.name}")
++    }
++}
++
+--- a/app/src/main/java/com/example/wheelprobe/E05.kt
++++ b/app/src/main/java/com/example/wheelprobe/E05.kt
+@@ -658,61 +658,256 @@
+ 
+ 
+ 
++// BEGIN LOGI_SECURITY_RESULTS
++/** Verified Logi D1/D2 21.53 report contracts. No global class-loader masking. */
++internal object LogiSecurityResults {
++    private const val XPOSED_MAPPING = 1
++    private const val XPOSED_CLASS = 2
++    private const val XPOSED_STACK = 4
++    private const val XPOSED_MODULE = 32
++    private const val XPOSED_MASK = XPOSED_MAPPING or XPOSED_CLASS or XPOSED_STACK or XPOSED_MODULE
++
++    private data class RootLayout(
++        val type: Class<*>, val constructor: java.lang.reflect.Constructor<*>,
++        val detected: java.lang.reflect.Field, val hits: java.lang.reflect.Field,
++        val observed: java.util.concurrent.atomic.AtomicBoolean = java.util.concurrent.atomic.AtomicBoolean(false)
++    )
++    private data class HookLayout(
++        val type: Class<*>, val constructor: java.lang.reflect.Constructor<*>,
++        val flags: java.lang.reflect.Field, val hits: java.lang.reflect.Field,
++        val modules: java.lang.reflect.Field,
++        val observed: java.util.concurrent.atomic.AtomicBoolean = java.util.concurrent.atomic.AtomicBoolean(false)
++    )
++    private val roots = java.util.concurrent.ConcurrentHashMap<Method, RootLayout>()
++    private val reports = java.util.concurrent.ConcurrentHashMap<Method, HookLayout>()
++    private val installed = HashSet<Method>()
++
++    fun diagnostic(message: String, module: ModuleMain? = ModuleMain.module) {
++        try { module?.log(message) } catch (_: Throwable) { /* Diagnostics cannot invalidate a hook. */ }
++    }
++
++    private fun field(owner: Class<*>, name: String, type: Class<*>): java.lang.reflect.Field =
++        owner.getDeclaredField(name).apply {
++            require(this.type == type && !Modifier.isStatic(modifiers)) { "report field mismatch: $name" }
++            isAccessible = true
++        }
++
++    private fun shape(owner: Class<*>, names: Set<String>) {
++        require(owner.declaredFields.filter { !Modifier.isStatic(it.modifiers) }.map { it.name }.toSet() == names) {
++            "unexpected report layout"
++        }
++    }
++
++    private fun endpoint(owner: Class<*>, result: Class<*>, vararg args: Class<*>): Method =
++        owner.getDeclaredMethod("run", *args).apply {
++            require(returnType == result && Modifier.isStatic(modifiers) &&
++                    !Modifier.isNative(modifiers) && !Modifier.isAbstract(modifiers)) { "report endpoint mismatch" }
++            isAccessible = true
++        }
++
++    @Synchronized private fun register(module: ModuleMain, method: Method,
++        hooker: Class<out XposedInterface.Hooker>, kind: String) {
++        if (installed.contains(method)) return
++        method.isAccessible = true
++        module.hook(method, hooker)
++        installed.add(method)
++        diagnostic("LOGI_SECURITY: registered kind=$kind execution=UNVERIFIED", module)
++    }
++
++    fun install(module: ModuleMain, loader: ClassLoader) {
++        if (!LogiPackageRoute.supports(LogiPackageRoute.current().orEmpty())) {
++            diagnostic("LOGI_SECURITY: registration skipped reason=PACKAGE_NOT_ATTACHED", module)
++            return
++        }
++        try {
++            val exists = java.io.File::class.java.getDeclaredMethod("exists")
++            require(exists.returnType == java.lang.Boolean.TYPE && !Modifier.isStatic(exists.modifiers))
++            register(module, exists, LogiRootPathHooker::class.java, "root_file")
++        } catch (error: Throwable) {
++            diagnostic("LOGI_SECURITY: root_file unavailable type=${error.javaClass.name}", module)
++        }
++        try {
++            val owner = Class.forName("com.logisoft.LogiD.Util.t", false, loader)
++            val report = Class.forName("com.logisoft.LogiD.Util.t\$a", false, loader)
++            shape(report, setOf("detected", "hits"))
++            val layout = RootLayout(report, report.getDeclaredConstructor().apply { isAccessible = true },
++                field(report, "detected", java.lang.Boolean.TYPE), field(report, "hits", java.util.List::class.java))
++            val empty = layout.constructor.newInstance()
++            require(!layout.detected.getBoolean(empty) && strings(layout.hits, empty).isEmpty())
++            val method = endpoint(owner, report)
++            synchronized(this) {
++                if (!installed.contains(method)) {
++                    roots[method] = layout
++                    try { register(module, method, LogiRootReportHooker::class.java, "root_report") }
++                    catch (error: Throwable) { roots.remove(method, layout); throw error }
++                }
++            }
++        } catch (error: Throwable) {
++            diagnostic("LOGI_SECURITY: root_report unavailable type=${error.javaClass.name}", module)
++        }
++        try {
++            val owner = Class.forName("com.logisoft.LogiD.Util.u", false, loader)
++            val constants = mapOf("FLAG_XPOSED_INJECTED" to 1, "FLAG_XPOSED_CLASS" to 2,
++                "FLAG_XPOSED_STACK" to 4, "FLAG_FRIDA_PORT" to 8, "FLAG_DEBUGGER_ATTACH" to 16,
++                "FLAG_XPOSED_MODULE" to 32, "FLAG_FRIDA_INJECTED" to 64)
++            for ((name, value) in constants) {
++                val constant = owner.getDeclaredField(name)
++                require(constant.type == java.lang.Integer.TYPE && Modifier.isStatic(constant.modifiers) &&
++                        Modifier.isFinal(constant.modifiers) && constant.getInt(null) == value) { "flag contract mismatch" }
++            }
++            val report = Class.forName("com.logisoft.LogiD.Util.u\$a", false, loader)
++            shape(report, setOf("flags", "hits", "modulePackages"))
++            val layout = HookLayout(report, report.getDeclaredConstructor().apply { isAccessible = true },
++                field(report, "flags", java.lang.Integer.TYPE), field(report, "hits", java.util.List::class.java),
++                field(report, "modulePackages", java.util.List::class.java))
++            val empty = layout.constructor.newInstance()
++            require(layout.flags.getInt(empty) == 0 && strings(layout.hits, empty).isEmpty() &&
++                    strings(layout.modules, empty).isEmpty())
++            val method = endpoint(owner, report, Context::class.java)
++            synchronized(this) {
++                if (!installed.contains(method)) {
++                    reports[method] = layout
++                    try { register(module, method, LogiHookReportHooker::class.java, "hook_report") }
++                    catch (error: Throwable) { reports.remove(method, layout); throw error }
++                }
++            }
++        } catch (error: Throwable) {
++            diagnostic("LOGI_SECURITY: hook_report unavailable type=${error.javaClass.name}", module)
++        }
++    }
++
++    private fun strings(field: java.lang.reflect.Field, receiver: Any): List<String> {
++        val value = field.get(receiver) as? List<*> ?: throw IllegalArgumentException("report list missing")
++        require(value.all { it is String }) { "report list contains unknown values" }
++        return value.map { it as String }
++    }
++
++    @Suppress("UNCHECKED_CAST")
++    private fun fill(field: java.lang.reflect.Field, receiver: Any, values: List<String>) {
++        val target = field.get(receiver) as? MutableList<Any?> ?: throw IllegalArgumentException("report list is not mutable")
++        require(target.isEmpty()) { "report defaults changed" }
++        target.addAll(values)
++        require(strings(field, receiver) == values) { "report list write mismatch" }
++    }
++
++    private fun rootHit(value: String): Boolean = value in setOf(
++        "build:test-keys", "exec:su", "file:Superuser.apk", "mount:system-rw", "write:/data/local/tmp"
++    ) || listOf("su:", "busybox:", "magisk:", "prop:ro.secure=", "prop:ro.debuggable=",
++        "prop:ro.build.type=").any { value.startsWith(it) }
++
++    private fun xposedClass(value: String): Boolean = value.startsWith("de.robv.android.xposed.") ||
++        value.startsWith("org.lsposed.") || value.startsWith("io.github.libxposed.") ||
++        value.contains("LSPosed") || value.contains("EdXposed")
++
++    fun rootAfter(callback: XposedInterface.AfterHookCallback) {
++        if (callback.throwable != null) return
++        val layout = roots[callback.member as? Method ?: return] ?: return
++        val original = callback.result ?: return
++        try {
++            require(original.javaClass == layout.type) { "root report instance mismatch" }
++            val before = layout.detected.getBoolean(original)
++            val hits = strings(layout.hits, original)
++            val kept = hits.filterNot(::rootHit)
++            val removed = hits.size - kept.size
++            if (layout.observed.compareAndSet(false, true)) {
++                diagnostic("LOGI_SECURITY: observed kind=root detected=$before selectedHits=$removed preservedHits=${kept.size}")
++            }
++            // An unknown positive must not be silently reported as clean.
++            val after = before && (kept.isNotEmpty() || removed == 0)
++            if (before == after && removed == 0) {
++                if (before) diagnostic("LOGI_SECURITY: root_report unchanged reason=UNVERIFIED_ROOT_EVIDENCE")
++                return
++            }
++            val replacement = layout.constructor.newInstance()
++            layout.detected.setBoolean(replacement, after)
++            fill(layout.hits, replacement, kept)
++            require(layout.detected.getBoolean(replacement) == after)
++            callback.result = replacement
++            diagnostic("LOGI_SECURITY: root_report changed detected=$before->$after removedHits=$removed preservedHits=${kept.size}")
++        } catch (error: Throwable) {
++            diagnostic("LOGI_SECURITY: root_report unchanged reason=${error.javaClass.name}")
++        }
++    }
++
++    fun hookAfter(callback: XposedInterface.AfterHookCallback) {
++        if (callback.throwable != null) return
++        val layout = reports[callback.member as? Method ?: return] ?: return
++        val original = callback.result ?: return
++        try {
++            require(original.javaClass == layout.type) { "hook report instance mismatch" }
++            val flags = layout.flags.getInt(original)
++            val hits = strings(layout.hits, original)
++            val modules = strings(layout.modules, original)
++            if (layout.observed.compareAndSet(false, true)) {
++                diagnostic("LOGI_SECURITY: observed kind=hook flags=$flags hits=${hits.size} modules=${modules.size}")
++            }
++            val kept = hits.filterNot { hit ->
++                hit == "maps:xposed" ||
++                    hit.startsWith("class:") && xposedClass(hit.removePrefix("class:")) ||
++                    hit.startsWith("stack:") && xposedClass(hit.removePrefix("stack:")) ||
++                    hit.startsWith("module:") && hit.removePrefix("module:") in modules
++            }
++            var clear = XPOSED_MASK
++            // The supplied probe shares stack bit 4 with SMulti/o.* findings.
++            // Preserve that bit and any other unrecognised category evidence.
++            if (kept.any { it.startsWith("stack:") }) clear = clear and XPOSED_STACK.inv()
++            if (kept.any { it.startsWith("class:") }) clear = clear and XPOSED_CLASS.inv()
++            if (kept.any { it.startsWith("module:") }) clear = clear and XPOSED_MODULE.inv()
++            if (kept.any { it.startsWith("maps:") && it != "maps:frida" }) clear = clear and XPOSED_MAPPING.inv()
++            val changedFlags = flags and clear.inv()
++            if (changedFlags == flags && kept == hits && modules.isEmpty()) return
++            val replacement = layout.constructor.newInstance()
++            layout.flags.setInt(replacement, changedFlags)
++            fill(layout.hits, replacement, kept)
++            require(strings(layout.modules, replacement).isEmpty())
++            require(layout.flags.getInt(replacement) == changedFlags)
++            callback.result = replacement
++            diagnostic("LOGI_SECURITY: hook_report changed flags=$flags->$changedFlags removedHits=${hits.size - kept.size} preservedHits=${kept.size} removedModules=${modules.size}")
++        } catch (error: Throwable) {
++            diagnostic("LOGI_SECURITY: hook_report unchanged reason=${error.javaClass.name}")
++        }
++    }
++}
++
+ internal fun ModuleMain.installLogiSecurityBypass(classLoader: ClassLoader) {
+-    try {
+-        val fileClass = Class.forName("java.io.File", false, classLoader)
+-        val exists = fileClass.getDeclaredMethod("exists")
+-        exists.isAccessible = true
+-        ModuleMain.module?.hook(exists, LogiRootPathHooker::class.java)
+-        ModuleMain.module?.log("LOGI: root path hook installed File.exists")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("LOGI: root path hook FAILED", t)
+-    }
+-    // Class.forName hook removed - causes crash with androidx classes
+-}
+-
+-
+-
+-
++    val module = ModuleMain.module ?: return
++    LogiSecurityResults.install(module, classLoader)
++}
+ 
+ @XposedHooker
+ class LogiRootPathHooker : XposedInterface.Hooker {
+     companion object {
+-        private val rootMarkers = arrayOf(
+-            "/system/bin/su", "/system/xbin/su", "/sbin/su",
+-            "/system/app/Superuser.apk", "/data/adb/magisk"
+-        )
+-
+-        @JvmStatic
+-        @AfterInvocation
++        private val rootPaths = setOf("/system/bin/su", "/system/xbin/su", "/sbin/su",
++            "/system/app/Superuser.apk", "/data/adb/magisk")
++        @JvmStatic @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+-            val path = callback.thisObject?.toString() ?: return
+-            if (rootMarkers.any { marker -> path.contains(marker) }) {
+-                callback.result = false
+-            }
++            if (callback.throwable != null || callback.result != true) return
++            val file = callback.thisObject as? java.io.File ?: return
++            if (file.path.trimEnd('/') !in rootPaths) return
++            callback.result = false
++            LogiSecurityResults.diagnostic("LOGI_SECURITY: root_file result changed true->false")
+         }
+     }
+ }
+ 
+ @XposedHooker
+-class LogiXposedClassHooker : XposedInterface.Hooker {
++class LogiRootReportHooker : XposedInterface.Hooker {
+     companion object {
+-        private val xposedMarkers = arrayOf(
+-            "de.robv.android.xposed",
+-            "io.github.libxposed",
+-            "org.lsposed"
+-        )
+-
+-        @JvmStatic
+-        @BeforeInvocation
+-        fun before(callback: XposedInterface.BeforeHookCallback) {
+-            val className = callback.args.getOrNull(0) as? String ?: return
+-            if (xposedMarkers.any { marker -> className.contains(marker) }) {
+-                callback.throwAndSkip(ClassNotFoundException(className))
+-            }
+-        }
+-    }
+-}
++        @JvmStatic @AfterInvocation fun after(callback: XposedInterface.AfterHookCallback) {
++            LogiSecurityResults.rootAfter(callback)
++        }
++    }
++}
++
++@XposedHooker
++class LogiHookReportHooker : XposedInterface.Hooker {
++    companion object {
++        @JvmStatic @AfterInvocation fun after(callback: XposedInterface.AfterHookCallback) {
++            LogiSecurityResults.hookAfter(callback)
++        }
++    }
++}
++// END LOGI_SECURITY_RESULTS
+ 
+ @XposedHooker
+ class LogiOrderHooker : XposedInterface.Hooker {
+@@ -725,4 +920,4 @@
+             if (callback.throwable == null && callback.result != null) LogiAcceptController.scheduleScan()
+         }
+     }
+-}
+\ No newline at end of file
++}
+--- a/app/src/main/java/com/example/wheelprobe/E06.kt
++++ b/app/src/main/java/com/example/wheelprobe/E06.kt
+@@ -465,35 +465,87 @@
+     }
+ }
+ 
++// Exact Java root probes only; native, Flutter and server checks are separate.
++private object IdriveSecurityHooks {
++    val rootPaths = setOf(
++        "/system/bin/su", "/system/xbin/su", "/sbin/su",
++        "/system/app/Superuser.apk", "/data/adb/magisk"
++    )
++    private val installed = HashSet<java.lang.reflect.Method>()
++
++    fun log(message: String) {
++        try { ModuleMain.module?.log("IDRIVE: security $message") } catch (_: Throwable) { }
++    }
++
++    @Synchronized fun install(module: ModuleMain, method: java.lang.reflect.Method,
++                              hooker: Class<out XposedInterface.Hooker>, target: String) {
++        if (installed.contains(method)) {
++            log("already installed $target")
++            return
++        }
++        method.isAccessible = true
++        module.hook(method, hooker)
++        installed.add(method)
++        log("installed $target")
++    }
++
++    fun rootBoolean(owner: Class<*>, name: String, vararg parameters: Class<*>): java.lang.reflect.Method {
++        val method = owner.getDeclaredMethod(name, *parameters)
++        require(method.returnType == java.lang.Boolean.TYPE &&
++            !java.lang.reflect.Modifier.isAbstract(method.modifiers) &&
++            !java.lang.reflect.Modifier.isNative(method.modifiers)) {
++            "Expected a concrete primitive Boolean method"
++        }
++        return method
++    }
++}
++
+ @XposedHooker
+ class IdriveRootPathHooker : XposedInterface.Hooker {
+     companion object {
+-        private val rootMarkers = arrayOf(
+-            "/system/bin/su", "/system/xbin/su", "/sbin/su",
+-            "/system/app/Superuser.apk", "/data/adb/magisk"
+-        )
+-
+         @JvmStatic
+         @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+-            val path = callback.thisObject?.toString() ?: return
+-            if (rootMarkers.any { marker -> path.contains(marker) }) callback.result = false
++            if (callback.throwable != null || callback.result !is Boolean || callback.result != true) return
++            val path = (callback.thisObject as? java.io.File)?.path ?: return
++            if (path !in IdriveSecurityHooks.rootPaths) return
++            callback.result = false
++            IdriveSecurityHooks.log("changed File.exists($path) true->false")
++        }
++    }
++}
++
++@XposedHooker
++class IdriveRootDiagnosticHooker : XposedInterface.Hooker {
++    companion object {
++        @JvmStatic
++        @AfterInvocation
++        fun after(callback: XposedInterface.AfterHookCallback) {
++            if (callback.throwable != null || callback.result !is Boolean || callback.result != true) return
++            callback.result = false
++            IdriveSecurityHooks.log("changed K1.g.g()Z SDK root diagnostic true->false")
+         }
+     }
+ }
+ 
+ internal fun ModuleMain.installIdriveSecurityBypass(classLoader: ClassLoader) {
++    val module = ModuleMain.module ?: return
+     try {
+-        val fileClass = Class.forName("java.io.File", false, classLoader)
+-        val exists = fileClass.getDeclaredMethod("exists")
+-        exists.isAccessible = true
+-        ModuleMain.module?.hook(exists, IdriveRootPathHooker::class.java)
+-        ModuleMain.module?.log("IDRIVE: root path hook installed File.exists")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("IDRIVE: root path hook FAILED", t)
+-    }
+-}
+-
++        val exists = IdriveSecurityHooks.rootBoolean(java.io.File::class.java, "exists")
++        IdriveSecurityHooks.install(module, exists, IdriveRootPathHooker::class.java, "File.exists exact root paths")
++    } catch (error: Throwable) {
++        IdriveSecurityHooks.log("File.exists installation failed type=${error.javaClass.name}")
++    }
++    try {
++        // Verified DEX root check in Crashlytics diagnostics; this is not proof of a service-blocking gate.
++        val owner = Class.forName("K1.g", false, classLoader)
++        val method = IdriveSecurityHooks.rootBoolean(owner, "g")
++        require(java.lang.reflect.Modifier.isStatic(method.modifiers)) { "Expected static SDK root diagnostic" }
++        IdriveSecurityHooks.install(module, method, IdriveRootDiagnosticHooker::class.java, "K1.g.g()Z SDK root diagnostic")
++    } catch (error: Throwable) {
++        IdriveSecurityHooks.log("unsupported K1.g.g()Z SDK root diagnostic type=${error.javaClass.name}")
++    }
++}
+ 
+ @XposedHooker
+ class IdriveFlutterMessageHooker : XposedInterface.Hooker {

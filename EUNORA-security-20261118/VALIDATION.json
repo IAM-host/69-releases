@@ -1,0 +1,123 @@
+{
+  "date_kst": "2026-11-18",
+  "created_at_utc": "2026-11-18T11:51:21.893772+00:00",
+  "source_archive": "WheelProbe.zip",
+  "source_archive_sha256": "84c59ba2a6123d1e546499f707c059c83932bb426a09768efe17784077b62af4",
+  "scope": {
+    "changed_files": [
+      "E02.kt",
+      "E03.kt",
+      "E04.kt",
+      "E05.kt",
+      "E06.kt"
+    ],
+    "unchanged_original_files": 69,
+    "protected_declarations_byte_exact": 106,
+    "module_main_unchanged": true,
+    "call_accept_gps_unchanged": true,
+    "new_android_source_files": [],
+    "build_type_execution_gate_added": false,
+    "L_modified": false
+  },
+  "files": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E02.kt",
+      "txt_path": "txt/E02.txt",
+      "bytes": 74741,
+      "original_sha256": "26799b720e2c45c94fa32522144fb72cc1f8ea08eeb5e916b091bb4f61fb23dd",
+      "sha256": "d912d61f79beb6ec549a376835b9e87efb961025d0c4eecd24e84c264304d3bc",
+      "txt_is_byte_identical": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E03.kt",
+      "txt_path": "txt/E03.txt",
+      "bytes": 42217,
+      "original_sha256": "c66abaa4df9b0d9e8166a976eede43a83dcd482a1b556da305ee28fc52f9698b",
+      "sha256": "1bfc751d55fa4dc0d327d1be0d307424d19cc3d32d4b5132d7211757d057cb8b",
+      "txt_is_byte_identical": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E04.kt",
+      "txt_path": "txt/E04.txt",
+      "bytes": 47371,
+      "original_sha256": "5794fb0ea09a552f500ad2e322e7def8c629f9169cd1e6c18b24cb7557bb6159",
+      "sha256": "8523e61a8c99a8877b2a4aeab95d861c67e7fdad9785fd1eaf27471de99458b9",
+      "txt_is_byte_identical": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E05.kt",
+      "txt_path": "txt/E05.txt",
+      "bytes": 48692,
+      "original_sha256": "364e4a26a5a835c2dc8bb16348a3a385eb6e16293146cbcedf07bf1abc4c66fb",
+      "sha256": "7262ccf6263ea866ab95ae19705ce2af6e0c786f960d27a5c9a9a1746ed0b2dd",
+      "txt_is_byte_identical": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E06.kt",
+      "txt_path": "txt/E06.txt",
+      "bytes": 27953,
+      "original_sha256": "f873b26280cac10326f46d21aa34964869177f180c9557aa4525ef6bbc0edf1c",
+      "sha256": "3821f016552ae296d75548822b085b5073222a8eca18b13f6e9097ef73cf5f41",
+      "txt_is_byte_identical": true
+    }
+  ],
+  "android_compile": {
+    "tasks": [
+      ":app:compileDebugKotlin",
+      ":app:compileReleaseKotlin"
+    ],
+    "exit_code": 0,
+    "result": "BUILD SUCCESSFUL in 32s; 12 actionable tasks: 12 executed",
+    "jdk": "21.0.8+9",
+    "gradle": "9.5.0",
+    "agp": "9.3.1",
+    "offline_cached_dependencies": true,
+    "apk_assembled_or_signed": false,
+    "validation_environment": "Linux cloud SDK; environment-only Gradle init script and SDK/aapt2 overrides",
+    "new_compile_warnings": [],
+    "preexisting_warnings": [
+      "Deprecated AccessibilityNodeInfo APIs in AutoClickService.kt",
+      "Nullable receiver warning in unchanged E02 call logic (baseline line 1761, current line 1477)"
+    ],
+    "environment_warnings": [
+      "Windows local.properties SDK path unavailable; cloud ANDROID_HOME supplied",
+      "Cloud platform-tools absent",
+      "aapt2FromMavenOverride experimental"
+    ]
+  },
+  "jvm_validation": {
+    "real_libxposed_api": 100,
+    "total_assertions_passed": 830,
+    "kakao": {
+      "cases": 73,
+      "assertions_passed": 99,
+      "source_sha256": "d912d61f79beb6ec549a376835b9e87efb961025d0c4eecd24e84c264304d3bc"
+    },
+    "logi": {
+      "assertions_passed": 564,
+      "source_sha256": "7262ccf6263ea866ab95ae19705ce2af6e0c786f960d27a5c9a9a1746ed0b2dd",
+      "race_negative_control_reproduced": true
+    },
+    "tmap_callmaner_idrive": {
+      "assertions_passed": 167,
+      "source_sha256": {
+        "E03.kt": "1bfc751d55fa4dc0d327d1be0d307424d19cc3d32d4b5132d7211757d057cb8b",
+        "E04.kt": "8523e61a8c99a8877b2a4aeab95d861c67e7fdad9785fd1eaf27471de99458b9",
+        "E06.kt": "3821f016552ae296d75548822b085b5073222a8eca18b13f6e9097ef73cf5f41"
+      }
+    },
+    "fixture_limits": "External contracts and callback fixtures; not Android device or service acceptance tests"
+  },
+  "target_evidence": {
+    "kakao": "Provided decompiled sources; no raw APK re-verification",
+    "logi_d1_d2": "Raw APK DEX contracts for both variants",
+    "callmaner1": "Provided decompiled Java; no available raw APK re-verification",
+    "callmaner2": "Raw APK DEX root diagnostic contract",
+    "idrive": "Raw APK DEX root diagnostic contract",
+    "tmap": "No APK available; existing targets guarded by runtime prototype and arguments"
+  },
+  "device_runtime_verified": false,
+  "service_acceptance_verified": false,
+  "native_flutter_security_verified": false,
+  "play_integrity_or_server_verdict_modified": false
+}

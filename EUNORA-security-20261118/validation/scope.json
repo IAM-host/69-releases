@@ -1,0 +1,795 @@
+{
+  "passed": true,
+  "project": "/workspace/projects/WheelProbe-current-20261118",
+  "zip_sha256": "84c59ba2a6123d1e546499f707c059c83932bb426a09768efe17784077b62af4",
+  "original_files": 74,
+  "unchanged_files": 69,
+  "changed_security_files": [
+    "app/src/main/java/com/example/wheelprobe/E02.kt",
+    "app/src/main/java/com/example/wheelprobe/E06.kt",
+    "app/src/main/java/com/example/wheelprobe/E04.kt",
+    "app/src/main/java/com/example/wheelprobe/E05.kt",
+    "app/src/main/java/com/example/wheelprobe/E03.kt"
+  ],
+  "protected_declarations": 106,
+  "protected_declarations_byte_exact": 106,
+  "protected_declarations_tokens_exact": 106,
+  "new_declarations": {
+    "E02.kt": [
+      "KakaoLocalSecurityHooks",
+      "KakaoSdkRootBooleanHooker"
+    ],
+    "E06.kt": [
+      "IdriveSecurityHooks",
+      "IdriveRootDiagnosticHooker"
+    ],
+    "E04.kt": [
+      "CallmanerSecurityHooks",
+      "CallmanerRootDiagnosticHooker"
+    ],
+    "E05.kt": [
+      "LogiSecurityResults",
+      "LogiRootReportHooker",
+      "LogiHookReportHooker"
+    ],
+    "E03.kt": [
+      "TmapSecurityHooks",
+      "TmapRootPathHooker"
+    ]
+  },
+  "errors": [],
+  "details": {
+    "E02.kt": [
+      {
+        "name": "DirectAcceptController",
+        "baseline_line": 68,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 36
+      },
+      {
+        "name": "KakaoNativeDispatchHooker",
+        "baseline_line": 209,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 177
+      },
+      {
+        "name": "DirectAcceptSource",
+        "baseline_line": 220,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 188
+      },
+      {
+        "name": "DirectAcceptOutcome",
+        "baseline_line": 226,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 194
+      },
+      {
+        "name": "KakaoAcceptPhase",
+        "baseline_line": 232,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 200
+      },
+      {
+        "name": "KakaoAcceptResult",
+        "baseline_line": 233,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 201
+      },
+      {
+        "name": "KakaoAcceptFinish",
+        "baseline_line": 234,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 202
+      },
+      {
+        "name": "KakaoAcceptAttempt",
+        "baseline_line": 236,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 204
+      },
+      {
+        "name": "KakaoAcceptLedger",
+        "baseline_line": 244,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 212
+      },
+      {
+        "name": "KakaoNativeAcceptEvent",
+        "baseline_line": 322,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 290
+      },
+      {
+        "name": "KakaoNativeAcceptBridge",
+        "baseline_line": 329,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 297
+      },
+      {
+        "name": "PlaceInfo",
+        "baseline_line": 445,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 413
+      },
+      {
+        "name": "installKakaoAcceptTrace",
+        "baseline_line": 450,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 418
+      },
+      {
+        "name": "installKakaoListConvertHook",
+        "baseline_line": 463,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 431
+      },
+      {
+        "name": "installKakaoSocketLog",
+        "baseline_line": 466,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 434
+      },
+      {
+        "name": "installKakaoArrivalTrace",
+        "baseline_line": 469,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 437
+      },
+      {
+        "name": "installKakaoAcceptLogHooks",
+        "baseline_line": 472,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 440
+      },
+      {
+        "name": "installViewModelHooks",
+        "baseline_line": 476,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 444
+      },
+      {
+        "name": "installNetworkResponseHook",
+        "baseline_line": 514,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 482
+      },
+      {
+        "name": "installPopupResponseHook",
+        "baseline_line": 524,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 492
+      },
+      {
+        "name": "installKakaoCallRequestHooks",
+        "baseline_line": 534,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 502
+      },
+      {
+        "name": "installKakaoWaybackHooks",
+        "baseline_line": 561,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 529
+      },
+      {
+        "name": "installKakaoCardPathHooks",
+        "baseline_line": 586,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 554
+      },
+      {
+        "name": "installKakaoGpsSpoof",
+        "baseline_line": 608,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 576
+      },
+      {
+        "name": "installKakaoReservedExclusiveHooks",
+        "baseline_line": 832,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 597
+      },
+      {
+        "name": "processCallItem",
+        "baseline_line": 852,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 617
+      },
+      {
+        "name": "processJv0",
+        "baseline_line": 883,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 648
+      },
+      {
+        "name": "NetworkResponseHooker",
+        "baseline_line": 893,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 658
+      },
+      {
+        "name": "PopupResponseHooker",
+        "baseline_line": 922,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 687
+      },
+      {
+        "name": "KakaoAcceptCallHooker",
+        "baseline_line": 948,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 713
+      },
+      {
+        "name": "AcceptMethodHooker",
+        "baseline_line": 974,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 739
+      },
+      {
+        "name": "ViewModelConstructorHooker",
+        "baseline_line": 986,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 751
+      },
+      {
+        "name": "KakaoNewCallRequestHooker",
+        "baseline_line": 997,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 762
+      },
+      {
+        "name": "KakaoWaybackCardHooker",
+        "baseline_line": 1021,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 786
+      },
+      {
+        "name": "KakaoGpsLatitudeHooker",
+        "baseline_line": 1045,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 810
+      },
+      {
+        "name": "KakaoGpsLongitudeHooker",
+        "baseline_line": 1059,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 824
+      },
+      {
+        "name": "KakaoLocationJsonHooker",
+        "baseline_line": 1073,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 838
+      },
+      {
+        "name": "KakaoReservedCallHooker",
+        "baseline_line": 1564,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 1441
+      },
+      {
+        "name": "ClickLogHooker",
+        "baseline_line": 1742,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 1458
+      },
+      {
+        "name": "KakaoOkHttpStackHooker",
+        "baseline_line": 1753,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 1469
+      },
+      {
+        "name": "KakaoOy0AcceptHooker",
+        "baseline_line": 1777,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 1493
+      },
+      {
+        "name": "installKakaoOy0AcceptHook",
+        "baseline_line": 1799,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 1515
+      }
+    ],
+    "E06.kt": [
+      {
+        "name": "IdriveLlToTmHooker",
+        "baseline_line": 19,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 19
+      },
+      {
+        "name": "IdriveStaticObjSpoofer",
+        "baseline_line": 47,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 47
+      },
+      {
+        "name": "IdriveActivityCaptureHooker",
+        "baseline_line": 83,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 83
+      },
+      {
+        "name": "IdriveGetOrdersCaptureHooker",
+        "baseline_line": 97,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 97
+      },
+      {
+        "name": "IdriveString2OrderHooker",
+        "baseline_line": 151,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 151
+      },
+      {
+        "name": "IdriveOrderDataHooker",
+        "baseline_line": 172,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 172
+      },
+      {
+        "name": "IdriveAcceptController",
+        "baseline_line": 207,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 207
+      },
+      {
+        "name": "installIdriveGpsSpoof",
+        "baseline_line": 240,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 240
+      },
+      {
+        "name": "IdriveOverlayData",
+        "baseline_line": 253,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 253
+      },
+      {
+        "name": "installIdriveOrderListHook",
+        "baseline_line": 315,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 315
+      },
+      {
+        "name": "IdriveOverlayHooker",
+        "baseline_line": 340,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 340
+      },
+      {
+        "name": "IdriveOverlayDiagnostics",
+        "baseline_line": 386,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 386
+      },
+      {
+        "name": "IdriveFlutterMessageHooker",
+        "baseline_line": 498,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 550
+      },
+      {
+        "name": "installIdriveFlutterHook",
+        "baseline_line": 523,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 575
+      }
+    ],
+    "E04.kt": [
+      {
+        "name": "CallmanerPackageRoute",
+        "baseline_line": 14,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 14
+      },
+      {
+        "name": "CallmanerHookRegistry",
+        "baseline_line": 21,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 21
+      },
+      {
+        "name": "CallmanerLatLngHooker",
+        "baseline_line": 43,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 43
+      },
+      {
+        "name": "CallmanerData",
+        "baseline_line": 60,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 60
+      },
+      {
+        "name": "CallmanerAcceptPhase",
+        "baseline_line": 132,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 132
+      },
+      {
+        "name": "CallmanerAcceptResult",
+        "baseline_line": 133,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 133
+      },
+      {
+        "name": "CallmanerAcceptFinish",
+        "baseline_line": 134,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 134
+      },
+      {
+        "name": "CallmanerAcceptAttempt",
+        "baseline_line": 135,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 135
+      },
+      {
+        "name": "CallmanerAcceptLedger",
+        "baseline_line": 143,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 143
+      },
+      {
+        "name": "CallmanerCallbackAdapter",
+        "baseline_line": 229,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 229
+      },
+      {
+        "name": "CallmanerNativeBridge",
+        "baseline_line": 277,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 277
+      },
+      {
+        "name": "CallmanerDispatch",
+        "baseline_line": 443,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 443
+      },
+      {
+        "name": "CallmanerNativeEvent",
+        "baseline_line": 446,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 446
+      },
+      {
+        "name": "CallmanerAcceptController",
+        "baseline_line": 450,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 450
+      },
+      {
+        "name": "CallmanerSessionController",
+        "baseline_line": 498,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 498
+      },
+      {
+        "name": "CallmanerDataHooker",
+        "baseline_line": 726,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 726
+      },
+      {
+        "name": "CallmanerListPublishHooker",
+        "baseline_line": 734,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 734
+      },
+      {
+        "name": "CallmanerHostHooker",
+        "baseline_line": 742,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 742
+      },
+      {
+        "name": "CallmanerNativeSendHooker",
+        "baseline_line": 750,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 750
+      },
+      {
+        "name": "installCallmanerAutoCardHook",
+        "baseline_line": 759,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 759
+      },
+      {
+        "name": "installCallmanerCallListHook",
+        "baseline_line": 760,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 760
+      },
+      {
+        "name": "installCallmanerAcceptResponseHook",
+        "baseline_line": 761,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 761
+      },
+      {
+        "name": "installCallmanerGpsSpoof",
+        "baseline_line": 768,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 768
+      }
+    ],
+    "E05.kt": [
+      {
+        "name": "LogiPackageRoute",
+        "baseline_line": 21,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 21
+      },
+      {
+        "name": "LogiOrderData",
+        "baseline_line": 39,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 39
+      },
+      {
+        "name": "LogiAcceptPhase",
+        "baseline_line": 79,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 79
+      },
+      {
+        "name": "LogiAcceptResult",
+        "baseline_line": 80,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 80
+      },
+      {
+        "name": "LogiAcceptFinish",
+        "baseline_line": 81,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 81
+      },
+      {
+        "name": "LogiAcceptAttempt",
+        "baseline_line": 82,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 82
+      },
+      {
+        "name": "LogiAcceptLedger",
+        "baseline_line": 87,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 87
+      },
+      {
+        "name": "LogiAcceptController",
+        "baseline_line": 173,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 173
+      },
+      {
+        "name": "LogiActivityHooker",
+        "baseline_line": 553,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 553
+      },
+      {
+        "name": "LogiWorkerConstructorHooker",
+        "baseline_line": 565,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 565
+      },
+      {
+        "name": "LogiWorkerHooker",
+        "baseline_line": 574,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 574
+      },
+      {
+        "name": "LogiServiceHooker",
+        "baseline_line": 584,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 584
+      },
+      {
+        "name": "LogiDetailHooker",
+        "baseline_line": 600,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 600
+      },
+      {
+        "name": "LogiRejectionHooker",
+        "baseline_line": 609,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 609
+      },
+      {
+        "name": "installLogiGpsSpoof",
+        "baseline_line": 619,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 619
+      },
+      {
+        "name": "installLogiOrderHook",
+        "baseline_line": 646,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 646
+      },
+      {
+        "name": "LogiOrderHooker",
+        "baseline_line": 717,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 912
+      }
+    ],
+    "E03.kt": [
+      {
+        "name": "TmapVsmLocationDataCtorHooker",
+        "baseline_line": 52,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 120
+      },
+      {
+        "name": "TmapLocationSetLatitudeHooker",
+        "baseline_line": 69,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 137
+      },
+      {
+        "name": "TmapLocationSetLongitudeHooker",
+        "baseline_line": 81,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 149
+      },
+      {
+        "name": "TmapSimpleLocationProviderHooker",
+        "baseline_line": 93,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 161
+      },
+      {
+        "name": "TmapRepoConstructorHooker",
+        "baseline_line": 129,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 197
+      },
+      {
+        "name": "K0ConstructorHooker",
+        "baseline_line": 143,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 211
+      },
+      {
+        "name": "TmapCallListHooker",
+        "baseline_line": 153,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 221
+      },
+      {
+        "name": "TmapAcceptController",
+        "baseline_line": 214,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 282
+      },
+      {
+        "name": "installTmapGpsSpoof",
+        "baseline_line": 692,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 760
+      },
+      {
+        "name": "installTmapCallListHook",
+        "baseline_line": 818,
+        "byte_exact": true,
+        "tokens_exact": true,
+        "current_line": 892
+      }
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+*.kt -text
+txt/*.txt -text
+*.zip -text
