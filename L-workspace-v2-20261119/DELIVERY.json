@@ -1,0 +1,8 @@
+{
+  "date_kst": "2026-11-19",
+  "artifact_zip_sha256": "aae455fca73f18b1b966b0e7d49d7f5d18e50408e01c5715a44ac762075b42b7",
+  "archive_unchanged_from_validated_local_artifact": true,
+  "tests_passed": 455,
+  "subtests_passed": 7,
+  "note": "VALIDATION.json records the local validation stage before this GitHub delivery. Source ZIP bytes are unchanged."
+}
