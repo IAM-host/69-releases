@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "runtime": "PowerShell 7.5.4 on Linux; WindowsPowerShell 5.1 compatible syntax, not run on actual Windows",
+  "checks": [
+    "replace 5, remove 4, exact backups, protected files unchanged; Korean/spaces/long paths",
+    "second application has zero writes",
+    "unknown source rejected before any writes",
+    "unknown obsolete file rejected before any writes",
+    "already missing obsolete files accepted",
+    "modified update source rejected before writes",
+    "unexpected/path-escaping deletion rejected before writes",
+    "duplicate entries rejected before writes",
+    "symlinked project source rejected"
+  ]
+}

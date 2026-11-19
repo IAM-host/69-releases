@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-19",
+  "replacements": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E02.kt",
+      "source": "E02.kt",
+      "sha256": "4e4da388b9881658b13e99230db053a9a2c9156e33afcc80bde1ff5f00c774d1",
+      "allowed_sha256": [
+        "26799b720e2c45c94fa32522144fb72cc1f8ea08eeb5e916b091bb4f61fb23dd",
+        "4e4da388b9881658b13e99230db053a9a2c9156e33afcc80bde1ff5f00c774d1",
+        "d912d61f79beb6ec549a376835b9e87efb961025d0c4eecd24e84c264304d3bc"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E03.kt",
+      "source": "E03.kt",
+      "sha256": "fadb2178ba08c5d53fa6cce35f2df65a51af4c746d12ab276ae861e9977c64e3",
+      "allowed_sha256": [
+        "0bafe085479e2211552638d5ca8f74af5734e46c47fa331e2cf7880c1a01aa08",
+        "c66abaa4df9b0d9e8166a976eede43a83dcd482a1b556da305ee28fc52f9698b",
+        "fadb2178ba08c5d53fa6cce35f2df65a51af4c746d12ab276ae861e9977c64e3"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E04.kt",
+      "source": "E04.kt",
+      "sha256": "81638c32e7bd431377d375c844a691907a0a26e317d3fbd70b76caaf10908b50",
+      "allowed_sha256": [
+        "5794fb0ea09a552f500ad2e322e7def8c629f9169cd1e6c18b24cb7557bb6159",
+        "81638c32e7bd431377d375c844a691907a0a26e317d3fbd70b76caaf10908b50",
+        "8523e61a8c99a8877b2a4aeab95d861c67e7fdad9785fd1eaf27471de99458b9"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E05.kt",
+      "source": "E05.kt",
+      "sha256": "7262ccf6263ea866ab95ae19705ce2af6e0c786f960d27a5c9a9a1746ed0b2dd",
+      "allowed_sha256": [
+        "364e4a26a5a835c2dc8bb16348a3a385eb6e16293146cbcedf07bf1abc4c66fb",
+        "7262ccf6263ea866ab95ae19705ce2af6e0c786f960d27a5c9a9a1746ed0b2dd"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E06.kt",
+      "source": "E06.kt",
+      "sha256": "d72c6165dd87479c9d218f56347c67dd29005c569908946abc8dad978db67e4e",
+      "allowed_sha256": [
+        "3821f016552ae296d75548822b085b5073222a8eca18b13f6e9097ef73cf5f41",
+        "d72c6165dd87479c9d218f56347c67dd29005c569908946abc8dad978db67e4e",
+        "f873b26280cac10326f46d21aa34964869177f180c9557aa4525ef6bbc0edf1c"
+      ]
+    }
+  ],
+  "deletions": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/AutoClickService.kt",
+      "allowed_sha256": [
+        "f378feeb62c7da5d0b8e2c84ace885dd1664b06eb33ac93a67bad6a96a7fddc0"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/ExecutionClient.kt",
+      "allowed_sha256": [
+        "22afb2f6af7c1a6439b479b07c6c70b90b10bf1376cfd5de23a6b1a4e9abc98d"
+      ]
+    },
+    {
+      "path": "app/src/main/res/xml/eunora_accessibility_service.xml",
+      "allowed_sha256": [
+        "65766b3d470baa9636e4ef549be2f8bbb5b6a8374f1f923990d055f02d849589"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/package com/example/wheelprobe  import android/content/BroadcastReceiver import android/content/Context import android/content/Intent import android/util/ErrorReporter.kt",
+      "allowed_sha256": [
+        "1f83207af960da45daa4fa2fca0bfca04a9b6f69b142383389f3d856dcf637e7"
+      ]
+    }
+  ]
+}

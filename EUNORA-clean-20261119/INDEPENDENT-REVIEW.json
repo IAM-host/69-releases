@@ -1,0 +1,52 @@
+{
+  "passed": true,
+  "review_mode": "independent read-only comparison",
+  "changed_files": [
+    "app/src/main/java/com/example/wheelprobe/E02.kt",
+    "app/src/main/java/com/example/wheelprobe/E03.kt",
+    "app/src/main/java/com/example/wheelprobe/E04.kt",
+    "app/src/main/java/com/example/wheelprobe/E06.kt"
+  ],
+  "deleted_files": [
+    "app/src/main/java/com/example/wheelprobe/AutoClickService.kt",
+    "app/src/main/java/com/example/wheelprobe/ExecutionClient.kt",
+    "app/src/main/java/com/example/wheelprobe/package com/example/wheelprobe  import android/content/BroadcastReceiver import android/content/Context import android/content/Intent import android/util/ErrorReporter.kt",
+    "app/src/main/res/xml/eunora_accessibility_service.xml"
+  ],
+  "other_files_byte_exact": 66,
+  "all_retained_edits_deletion_only": true,
+  "hooker_class_literal_registration_counter_unchanged": true,
+  "distinct_registered_hooker_classes": 51,
+  "hooker_class_literal_occurrences": 66,
+  "removed_symbol_references_remaining": [],
+  "E02_report_layout_snapshot_core_byte_exact": true,
+  "E02_root_file_profile_and_hook_byte_exact": true,
+  "E02_active_security_report_callbacks_suffix_byte_exact": true,
+  "E06_active_GPS_overlay_root_Flutter_suffix_byte_exact": true,
+  "manifest_scope_conditions_ModuleMain_E05_byte_exact": [
+    "app/src/main/AndroidManifest.xml",
+    "app/src/main/resources/META-INF/xposed/java_init.list",
+    "app/src/main/resources/META-INF/xposed/scope.list",
+    "app/src/main/resources/META-INF/xposed/module.prop",
+    "app/src/main/java/com/example/wheelprobe/ModuleMain.kt",
+    "app/src/main/java/com/example/wheelprobe/E05.kt",
+    "app/src/main/java/com/example/wheelprobe/ConditionClient.kt",
+    "app/src/main/java/com/example/wheelprobe/ConditionProvider.kt",
+    "app/src/main/java/com/example/wheelprobe/ConditionBridgeReceiver.kt",
+    "app/src/main/java/com/example/wheelprobe/CallMatcher.kt",
+    "app/src/main/java/com/example/wheelprobe/E01.kt",
+    "app/src/main/java/com/example/wheelprobe/MainActivity.kt"
+  ],
+  "orphan_accessibility_service_registered_before_cleanup": false,
+  "source_sha256_after": {
+    "app/src/main/java/com/example/wheelprobe/E02.kt": "4e4da388b9881658b13e99230db053a9a2c9156e33afcc80bde1ff5f00c774d1",
+    "app/src/main/java/com/example/wheelprobe/E03.kt": "fadb2178ba08c5d53fa6cce35f2df65a51af4c746d12ab276ae861e9977c64e3",
+    "app/src/main/java/com/example/wheelprobe/E04.kt": "81638c32e7bd431377d375c844a691907a0a26e317d3fbd70b76caaf10908b50",
+    "app/src/main/java/com/example/wheelprobe/E06.kt": "d72c6165dd87479c9d218f56347c67dd29005c569908946abc8dad978db67e4e"
+  },
+  "blockers": [],
+  "limits": [
+    "Static source and registration review; Android compilation tracked separately by parent",
+    "No phone runtime or service acceptance validation"
+  ]
+}

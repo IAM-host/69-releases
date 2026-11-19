@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-19",
+  "baseline": "latest delivered E02-E06 including finalized Tmap E03",
+  "kotlin_tasks": [
+    ":app:compileDebugKotlin",
+    ":app:compileReleaseKotlin"
+  ],
+  "build_status": "BUILD SUCCESSFUL",
+  "build_duration_seconds": 32,
+  "unchanged_files": 66,
+  "edited_files": [
+    "app/src/main/java/com/example/wheelprobe/E02.kt",
+    "app/src/main/java/com/example/wheelprobe/E03.kt",
+    "app/src/main/java/com/example/wheelprobe/E04.kt",
+    "app/src/main/java/com/example/wheelprobe/E06.kt"
+  ],
+  "removed_lines_in_edited_files": 384,
+  "deleted_files": [
+    "app/src/main/java/com/example/wheelprobe/AutoClickService.kt",
+    "app/src/main/java/com/example/wheelprobe/ExecutionClient.kt",
+    "app/src/main/res/xml/eunora_accessibility_service.xml",
+    "app/src/main/java/com/example/wheelprobe/package com/example/wheelprobe  import android/content/BroadcastReceiver import android/content/Context import android/content/Intent import android/util/ErrorReporter.kt"
+  ],
+  "remaining_bytes_in_modified_files": "unchanged; deletion-only diff",
+  "actual_hook_registration_targets": "unchanged",
+  "E05_ModuleMain_E01_conditions_manifest_scope_build_config": "unchanged",
+  "existing_warning": "E02 KakaoOkHttpStackHooker nullable receiver warning remains; no new warning introduced",
+  "device_runtime": "not tested",
+  "contents": "Full existing E02-E06 sources and identical TXT; no APK, license/updater source, or private full project.",
+  "apply_helper": {
+    "fixture_scenarios_passed": 9,
+    "runtime": "PowerShell 7.5.4 Linux; actual Windows not tested",
+    "real_source_integration": [
+      "latest delivered sources -> compiled cleanup project byte exact",
+      "original uploaded project -> compiled cleanup project byte exact",
+      "exact backup and idempotence verified for both"
+    ]
+  }
+}

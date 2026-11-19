@@ -1,0 +1,6 @@
+﻿이번 정리에서 삭제한 미사용 파일 4개입니다. Apply-EUNORA.cmd가 기존 파일 확인과 백업 후 삭제합니다.
+
+app/src/main/java/com/example/wheelprobe/AutoClickService.kt
+app/src/main/java/com/example/wheelprobe/ExecutionClient.kt
+app/src/main/res/xml/eunora_accessibility_service.xml
+app/src/main/java/com/example/wheelprobe/package com/example/wheelprobe  import android/content/BroadcastReceiver import android/content/Context import android/content/Intent import android/util/ErrorReporter.kt

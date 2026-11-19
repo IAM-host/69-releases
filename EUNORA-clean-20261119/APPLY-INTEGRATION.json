@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "runtime": "PowerShell 7.5.4 Linux; native Windows not tested",
+  "cases": [
+    {
+      "case": "latest-delivered",
+      "status": "passed",
+      "result": "all 70 files byte-exact to compiled cleanup project; four obsolete files absent; backup exact; second apply no writes",
+      "backed_up_files": 8
+    },
+    {
+      "case": "original-upload",
+      "status": "passed",
+      "result": "all 70 files byte-exact to compiled cleanup project; four obsolete files absent; backup exact; second apply no writes",
+      "backed_up_files": 9
+    }
+  ]
+}
