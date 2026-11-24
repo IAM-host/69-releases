@@ -1,0 +1,24 @@
+[
+  {
+    "class": "OrderFormView2_1D",
+    "verified_methods": [
+      "onResume",
+      "onDestroy",
+      "onPause"
+    ]
+  },
+  {
+    "class": "NormalAllocateDlg",
+    "verified_methods": [
+      "onResume",
+      "onDestroy"
+    ]
+  },
+  {
+    "class": "AllocateDlg",
+    "verified_methods": [
+      "onResume",
+      "onDestroy"
+    ]
+  }
+]

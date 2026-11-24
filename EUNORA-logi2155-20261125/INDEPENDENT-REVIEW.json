@@ -1,0 +1,58 @@
+{
+  "status": "passed",
+  "blockers": [],
+  "reviewer_source_or_apk_mutation": false,
+  "source_sha256": "fc345bf080e62f62bab7c1d821f7c9f25675cded1f93e09c73b0a4816d19355f",
+  "changed_files": [
+    "app/src/main/java/com/example/wheelprobe/E05.kt"
+  ],
+  "other_69_files_byte_exact": true,
+  "no_new_production_source_files": true,
+  "package_GPS_data_and_ledger_blocks_byte_exact": true,
+  "raw_original_APK_contract_assertions_passed": 40,
+  "call_harness": {
+    "status": "passed",
+    "assertions": 130,
+    "production_source_sha256": "fc345bf080e62f62bab7c1d821f7c9f25675cded1f93e09c73b0a4816d19355f",
+    "runtime": "JVM reflection/Android stubs; original app/backend not executed",
+    "coverage": [
+      "exact extracted production binding/controller/ledger",
+      "legacy and verified modern member binding",
+      "no native decoder initialization at registration",
+      "D1 code632/name21.55 gate and unverified D2 denial",
+      "auto-order native guard preservation",
+      "synthetic branch/order/owner identity",
+      "nested/manual worker isolation",
+      "raw dialog/intent/payload confirmation and one click",
+      "ledger duplicate/stale/uncertain/rejected outcomes",
+      "bad result shape fails before hooks"
+    ]
+  },
+  "security_harness": {
+    "status": "passed",
+    "assertions": 170,
+    "scenarios": 12,
+    "fragment_sha256": "479e56ca8e091d45ced875f49cecb143dafa6031b4c7a3c87e854a6f429da36f",
+    "compiled_source": "actual security fragment with pure JVM Android/Xposed stubs and Java reflection fixtures matching raw DEX",
+    "limits": "No Android device/server/native testing; target library callback executed only in JVM fixtures"
+  },
+  "reviewed_runtime_behavior": [
+    "new D1 21.55/code632 guard before original dispatch; unsupported modern D2 denied",
+    "legacy original listener/worker/field bindings retained",
+    "no native decoder factory invocation during registration before Application",
+    "host B(order,false) preserves state-derived prompt behavior and safe-plan false",
+    "host x3 branch0/order/host ownership and Normal c5.e22 + i3 branch0/dialog ownership",
+    "nested/unowned merged run isolates and restores outer worker ownership",
+    "final dialog requires matching Intent ID, raw r ID, confirmed body, m=false,s=false; one click",
+    "server success requires same request/detail IDs and decoded marker plus exact body; unknown reserved",
+    "exact modern root/hook endpoints only; merged noarg DTO variants validated; originals/unknown evidence/throwables preserved",
+    "version check does not cache missing context; no activation of DETECT_ENABLED",
+    "installed app query/EUNORA hiding/native auth and native SDK initialization not changed"
+  ],
+  "limits": [
+    "No Android device or service-server execution; callback harnesses use Android/Xposed stubs",
+    "Prior 21.53 APK unavailable: retained legacy contract tested with reflection fixtures, not old APK runtime",
+    "Native root reporting remains outside these Java report hooks; no claim all security bypassed",
+    "Final Android Debug/Release/R8 checks are performed by parent separately"
+  ]
+}

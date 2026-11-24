@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-25",
+  "source_file": "app/src/main/java/com/example/wheelprobe/E05.kt",
+  "source_sha256": "fc345bf080e62f62bab7c1d821f7c9f25675cded1f93e09c73b0a4816d19355f",
+  "verified_target": {
+    "package": "com.logisoft.Logi4",
+    "version_name": "21.55",
+    "version_code": 632,
+    "APK_sha256": "f499048003d97075eef65c732566e68659c6d3e55fc0df473bcc23594a860f5b"
+  },
+  "build": {
+    "status": "BUILD SUCCESSFUL",
+    "tasks": [
+      ":app:compileDebugKotlin",
+      ":app:compileReleaseKotlin",
+      ":app:lintVitalRelease",
+      ":app:minifyReleaseWithR8",
+      ":app:assembleRelease"
+    ],
+    "final_run_seconds": 42,
+    "release_unsigned_apk_zip_integrity": "passed",
+    "packaged_DEX_equals_verified_R8_DEX": true,
+    "release_Hooker_retention": 12,
+    "validation_environment": "provided proxy/system+environment CA for official dependencies, temporary local repository for two exact official JARs; project settings unchanged"
+  },
+  "regression": {
+    "call_assertions": 130,
+    "security_assertions": 170,
+    "independent_original_DEX_contract_checks": 40,
+    "call_original_DEX_contract_checks": 53,
+    "legacy_absent_member_checks": 4,
+    "independent_review": "passed"
+  },
+  "preservation": {
+    "other_files_byte_exact": 69,
+    "GPS_package_and_data_ledger_blocks": "byte-exact",
+    "new_production_source_files": 0
+  },
+  "remaining_scope": [
+    "installed-app query/EUNORA hiding unchanged as requested",
+    "native TMap rooting probe and native authentication/server verdict unchanged",
+    "SET6 UI work paused; not merged",
+    "new D2 21.55 not supplied; legacy D1/D2 bindings retained but no live device test"
+  ],
+  "device_runtime": "not tested",
+  "delivered_contents": "source only, full E05.kt and identical TXT; no APK/signing material or full private project"
+}

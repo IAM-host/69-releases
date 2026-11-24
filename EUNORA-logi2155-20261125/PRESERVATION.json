@@ -1,0 +1,22 @@
+{
+  "modified_files": [
+    "app/src/main/java/com/example/wheelprobe/E05.kt"
+  ],
+  "unchanged_files": 69,
+  "GPS_and_package_route": [
+    {
+      "section": "// BEGIN LOGI_PACKAGE_ROUTE",
+      "sha256": "375df86755835b5ab48713feed995564a1f1f1f2b4792414ac2158ada3482207"
+    },
+    {
+      "section": "// BEGIN LOGI_DATA_AND_STATE",
+      "sha256": "69e83c675db07f27fb028f566fa4a3379485c0e78be893f80bc28354a1764dc1"
+    },
+    {
+      "section": "// BEGIN LOGI_GPS_INSTALLER",
+      "sha256": "78317f21440cb8018e83f5feec93b54066dfcc7cdad5e3655b80402d765e0273"
+    }
+  ],
+  "CRLF_and_full_Kotlin_file": "passed",
+  "new_production_files": []
+}

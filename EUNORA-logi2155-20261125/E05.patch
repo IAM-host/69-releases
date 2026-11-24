@@ -1,0 +1,653 @@
+--- a/app/src/main/java/com/example/wheelprobe/E05.kt
++++ b/app/src/main/java/com/example/wheelprobe/E05.kt
+@@ -170,22 +170,162 @@
+ }
+ // END LOGI_DATA_AND_STATE
+ 
++// BEGIN LOGI_ACCEPT_BINDINGS
++/** Explicit layouts for the original 21.53 flow and the supplied D1 21.55/code632 DEX. */
++internal class LogiAcceptBinding private constructor(
++    val modern: Boolean,
++    val resource: Class<*>, val host: Class<*>, val normal: Class<*>, val allocated: Class<*>,
++    val service: Method, val update: Method, val reject: Method,
++    val entry: Method, private val listener: java.lang.reflect.Field?,
++    val foreground: Method, val floating: Method,
++    private val decoderFactory: Method, private val decoder: Method,
++    private val encodedSuccess: String, val okButtonId: Int,
++    private val hostReady: java.lang.reflect.Field,
++    private val autoAllowed: java.lang.reflect.Field,
++    private val autoPanel: java.lang.reflect.Field, private val autoButton: java.lang.reflect.Field,
++    private val normalProgress: java.lang.reflect.Field, private val normalId: java.lang.reflect.Field,
++    private val confirmationId: java.lang.reflect.Field,
++    private val confirmationCancelled: java.lang.reflect.Field, private val confirmationBusy: java.lang.reflect.Field,
++    private val detailId: java.lang.reflect.Field, private val detailBody: java.lang.reflect.Field,
++    val workerTypes: List<Class<*>>,
++    private val directBranch: java.lang.reflect.Field?, private val directOrder: java.lang.reflect.Field?,
++    private val directHost: java.lang.reflect.Field?, private val normalBranch: java.lang.reflect.Field?,
++    private val normalClick: java.lang.reflect.Field?, private val clickBranch: java.lang.reflect.Field?,
++    private val clickHost: java.lang.reflect.Field?
++) {
++    fun runtimeMatches(context: Context): Boolean {
++        if (!modern) return LogiPackageRoute.supports(context.packageName)
++        if (LogiPackageRoute.current() != "com.logisoft.Logi4" || context.packageName != "com.logisoft.Logi4") return false
++        return try {
++            val info = context.packageManager.getPackageInfo(context.packageName, 0)
++            info.longVersionCode == 632L && info.versionName == "21.55"
++        } catch (_: Throwable) { false }
++    }
++
++    fun hostIsReady(activity: Any): Boolean = host.isInstance(activity) && hostReady.get(activity) != null
++    fun entryTarget(activity: Any): Any? = listener?.get(activity) ?: if (modern) activity else null
++    fun autoOrderAllows(activity: Any, settings: Any, order: Any): Boolean {
++        if (autoAllowed.getBoolean(settings)) return true
++        val panel = autoPanel.get(activity) as? android.view.View ?: return false
++        val button = autoButton.get(activity) as? android.view.View ?: return false
++        return panel.visibility != android.view.View.VISIBLE || button.tag == null || button.tag === order
++    }
++    fun normalMatches(activity: Any, id: Int): Boolean = normal.isInstance(activity) && normalId.getInt(activity) == id
++    fun normalIsBusy(activity: Any): Boolean = (normalProgress.get(activity) as? android.app.Dialog)?.isShowing == true
++    fun confirmationMatches(activity: Any, id: Int): Boolean = allocated.isInstance(activity) &&
++            confirmationId.getInt(activity) == id && !confirmationCancelled.getBoolean(activity) &&
++            !confirmationBusy.getBoolean(activity)
++    fun responseId(value: Any): Int = detailId.getInt(value)
++    fun responseBody(value: Any): String? = detailBody.get(value) as? String
++    fun successMarker(): String? = decoder.invoke(decoderFactory.invoke(null), encodedSuccess) as? String
++
++    fun ownsWorker(worker: Any, id: Int, context: Any?): Boolean {
++        if (!modern) return workerTypes.any { it == worker.javaClass }
++        if (context == null) return false
++        return when (worker.javaClass) {
++            workerTypes[0] -> {
++                val order = directOrder!!.get(worker) ?: return false
++                directBranch!!.getInt(worker) == 0 && directHost!!.get(worker) === context &&
++                        ((ModuleMain.readField(order, "nTNo") as? Number)?.toInt() == id)
++            }
++            workerTypes[1] -> {
++                if (normalBranch!!.getInt(worker) != 22) false
++                else normalClick!!.get(worker)?.let { click ->
++                    clickHost!!.declaringClass.isInstance(click) && clickBranch!!.getInt(click) == 0 &&
++                            clickHost.get(click) === context && normalMatches(context, id)
++                } == true
++            }
++            else -> false
++        }
++    }
++
++    companion object {
++        private val intType = java.lang.Integer.TYPE
++        private val boolType = java.lang.Boolean.TYPE
++        private fun field(owner: Class<*>, name: String, type: Class<*>? = null): java.lang.reflect.Field =
++            owner.getDeclaredField(name).apply {
++                require(!Modifier.isStatic(modifiers) && (type == null || this.type == type)) { "LOGI field contract: $name" }
++                isAccessible = true
++            }
++        private fun method(owner: Class<*>, name: String, result: Class<*>, static: Boolean, vararg args: Class<*>): Method =
++            owner.getDeclaredMethod(name, *args).apply {
++                require(returnType == result && Modifier.isStatic(modifiers) == static) {
++                    "LOGI method contract: $name"
++                }
++                isAccessible = true
++            }
++        private fun viewField(owner: Class<*>, name: String): java.lang.reflect.Field = field(owner, name).apply {
++            require(android.view.View::class.java.isAssignableFrom(type)) { "LOGI view contract: $name" }
++        }
++
++        fun load(loader: ClassLoader): LogiAcceptBinding {
++            fun cls(name: String) = Class.forName(name, false, loader)
++            val res = cls("com.logisoft.LogiD.Util.Resource")
++            val order = cls("com.logisoft.LogiD.Info.ORDER")
++            val host = cls("com.logisoft.LogiD.OrderFormView2_1D")
++            val normal = cls("com.logisoft.LogiD.NormalAllocateDlg")
++            val allocated = cls("com.logisoft.LogiD.AllocateDlg")
++            val base = cls("com.logisoft.LogiD.BaseActivity")
++            val modern = host.declaredFields.none { it.name == "a2" }
++            if (modern) require(LogiPackageRoute.current() == "com.logisoft.Logi4") { "unverified Logi package layout" }
++            val listener = if (modern) null else field(host, "a2")
++            val detail = cls(if (modern) "y4.a" else "m6.a")
++            val packet = cls(if (modern) "com.logisoft.LogiD.Util.t0" else "com.logisoft.LogiD.Util.l0")
++            val decode = cls("com.skt.tmap.util.TMapUtil")
++            val settings = res.getDeclaredField("m_si").also { require(Modifier.isStatic(it.modifiers)) }.type
++            val entry = if (modern) method(host, "B", Void.TYPE, false, order, boolType)
++                else method(listener!!.type, "confirmAllocOrder", Void.TYPE, false, order, boolType)
++            val encrypted = if (modern) "cFfOXdghmfDC/XLPQduNTw=="
++                else cls("m6.e").getDeclaredField("ORDER_SUCCESS").get(null) as String
++            val ids = cls(if (modern) "com.logisoft.LogiD.q4" else "com.logisoft.LogiD.s1")
++            val button = ids.getDeclaredField("btnOk").apply {
++                require(type == intType && Modifier.isStatic(modifiers)); isAccessible = true
++            }.getInt(null)
++            require(button != 0)
++            val ready = field(host, if (modern) "y1" else "R1").apply { require(!type.isPrimitive) }
++            val progress = field(normal, if (modern) "o" else "p").apply {
++                require(android.app.Dialog::class.java.isAssignableFrom(type))
++            }
++            val workers = if (modern) listOf(cls("com.logisoft.LogiD.x3"), cls("c5.e"))
++                else listOf(cls("com.logisoft.LogiD.OrderFormView2_1D\$g0"), cls("com.logisoft.LogiD.NormalAllocateDlg\$b\$a"))
++            workers.forEach { require(Runnable::class.java.isAssignableFrom(it)); method(it, "run", Void.TYPE, false) }
++            val click = if (modern) cls("com.logisoft.LogiD.i3") else null
++            return LogiAcceptBinding(modern, res, host, normal, allocated,
++                method(res, "serviceAllocateDaeri", String::class.java, true, intType, Context::class.java),
++                method(res, "UpdateDetailInfo", Void.TYPE, true, detail),
++                method(res, "getErrorMsgFromPacket", String::class.java, true, packet), entry, listener,
++                method(base, if (modern) "f" else "m", boolType, false),
++                method(res, "isFloatingView", boolType, true),
++                method(decode, if (modern) "a" else "I", decode, true),
++                method(decode, if (modern) "decodeAndDecrypt" else "getDecode", String::class.java, false, String::class.java),
++                encrypted, button, ready,
++                field(settings, if (modern) "F" else "bAbleAllocateWhileAuto", boolType),
++                viewField(host, if (modern) "Y" else "m0"), viewField(host, if (modern) "b0" else "p0"), progress,
++                field(normal, "k", intType), field(allocated, if (modern) "r" else "w", intType),
++                field(allocated, if (modern) "m" else "r", boolType), field(allocated, if (modern) "s" else "x", boolType),
++                field(detail, if (modern) "a" else "nTNo", intType), field(detail, if (modern) "r" else "szNonHtml", String::class.java),
++                workers, if (modern) field(workers[0], "a", intType) else null,
++                if (modern) field(workers[0], "b", order) else null, if (modern) field(workers[0], "c", host) else null,
++                if (modern) field(workers[1], "a", intType) else null,
++                if (modern) field(workers[1], "b", Any::class.java) else null,
++                if (modern) field(click!!, "a", intType) else null,
++                if (modern) field(click!!, "b", normal) else null)
++        }
++    }
++}
++// END LOGI_ACCEPT_BINDINGS
++
+ internal object LogiAcceptController {
+     private val handler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+     private val ledger = LogiAcceptLedger()
+     private val scanQueued = java.util.concurrent.atomic.AtomicBoolean(false)
+     private val constructing = ThreadLocal<LogiAcceptAttempt>()
+     private val workerAttempt = ThreadLocal<LogiAcceptAttempt>()
++    private val workerStack = ThreadLocal<MutableList<LogiAcceptAttempt?>>()
+     private val workers = java.util.WeakHashMap<Any, LogiAcceptAttempt>()
+     private val serviceFrame = ThreadLocal<ServiceFrame>()
+     private var resource: Class<*>? = null
+-    private var foregroundMethod: Method? = null
+-    private var confirmMethod: Method? = null
+-    private var floatingMethod: Method? = null
+-    private var markerDecoder: Method? = null
+-    private var decoderInstance: Any? = null
+-    private var encodedSuccess = ""
+-    private var okButtonId = 0
++    @Volatile private var binding: LogiAcceptBinding? = null
+     @Volatile private var ready = false
+     private var mainActivity = java.lang.ref.WeakReference<Activity>(null)
+     private var resumed = false
+@@ -205,51 +345,32 @@
+     fun init(classLoader: ClassLoader) {
+         try {
+             val module = ModuleMain.module ?: return
+-            val res = Class.forName("com.logisoft.LogiD.Util.Resource", false, classLoader)
+-            val order = Class.forName("com.logisoft.LogiD.Info.ORDER", false, classLoader)
+-            val host = Class.forName("com.logisoft.LogiD.OrderFormView2_1D", false, classLoader)
+-            val normal = Class.forName("com.logisoft.LogiD.NormalAllocateDlg", false, classLoader)
+-            val allocated = Class.forName("com.logisoft.LogiD.AllocateDlg", false, classLoader)
+-            val base = Class.forName("com.logisoft.LogiD.BaseActivity", false, classLoader)
+-            val listener = host.getDeclaredField("a2").type
+-            val service = res.getDeclaredMethod("serviceAllocateDaeri", Int::class.javaPrimitiveType, Context::class.java)
+-            check(Modifier.isStatic(service.modifiers) && service.returnType == String::class.java)
+-            val detail = Class.forName("m6.a", false, classLoader)
+-            val update = res.getDeclaredMethod("UpdateDetailInfo", detail)
+-            val reject = res.getDeclaredMethod("getErrorMsgFromPacket", Class.forName("com.logisoft.LogiD.Util.l0", false, classLoader))
+-            check(Modifier.isStatic(reject.modifiers) && reject.returnType == String::class.java)
+-            val decodeClass = Class.forName("com.skt.tmap.util.TMapUtil", false, classLoader)
+-            decoderInstance = decodeClass.getDeclaredMethod("I").invoke(null)
+-            markerDecoder = decodeClass.getDeclaredMethod("getDecode", String::class.java)
+-            encodedSuccess = Class.forName("m6.e", false, classLoader).getDeclaredField("ORDER_SUCCESS").get(null) as String
+-            okButtonId = Class.forName("com.logisoft.LogiD.s1", false, classLoader).getDeclaredField("btnOk").getInt(null)
+-            foregroundMethod = base.getDeclaredMethod("m").apply { isAccessible = true }
+-            confirmMethod = listener.getDeclaredMethod("confirmAllocOrder", order, Boolean::class.javaPrimitiveType).apply { isAccessible = true }
+-            floatingMethod = res.getDeclaredMethod("isFloatingView").apply { isAccessible = true }
+-            resource = res
++            val layout = LogiAcceptBinding.load(classLoader)
+             for (name in listOf("onResume", "onPause", "onDestroy")) {
+-                module.hook(host.getDeclaredMethod(name), LogiActivityHooker::class.java)
+-            }
+-            for (screen in listOf(normal, allocated)) {
++                module.hook(layout.host.getDeclaredMethod(name), LogiActivityHooker::class.java)
++            }
++            for (screen in listOf(layout.normal, layout.allocated)) {
+                 module.hook(screen.getDeclaredMethod("onResume"), LogiActivityHooker::class.java)
+                 module.hook(screen.getDeclaredMethod("onDestroy"), LogiActivityHooker::class.java)
+             }
+-            // Capture only workers constructed by this module's native entry/button.
+-            // Their thread identity, not a matching ID alone, owns a service result.
+-            for (name in listOf("com.logisoft.LogiD.OrderFormView2_1D\$g0", "com.logisoft.LogiD.NormalAllocateDlg\$b\$a")) {
+-                val worker = Class.forName(name, false, classLoader)
++            // Constructors run within our original entry/OK click; synthetic
++            // workers are additionally checked for branch, order and owner.
++            for (worker in layout.workerTypes) {
+                 for (constructor in worker.declaredConstructors) {
+                     module.hook(constructor, LogiWorkerConstructorHooker::class.java)
+                 }
+                 module.hook(worker.getDeclaredMethod("run"), LogiWorkerHooker::class.java)
+             }
+-            module.hook(service, LogiServiceHooker::class.java)
+-            module.hook(update, LogiDetailHooker::class.java)
+-            module.hook(reject, LogiRejectionHooker::class.java)
++            module.hook(layout.service, LogiServiceHooker::class.java)
++            module.hook(layout.update, LogiDetailHooker::class.java)
++            module.hook(layout.reject, LogiRejectionHooker::class.java)
++            resource = layout.resource
++            binding = layout
+             ready = true
+-            ModuleMain.module?.log("LOGI: exact native entry, worker and server-result hooks installed")
++            ModuleMain.module?.log("LOGI: exact acceptance hooks installed profile=" + if (layout.modern) "D1_21.55_632" else "LEGACY_21.53")
+         } catch (error: Throwable) {
+             ready = false
++            binding = null
+             ModuleMain.module?.log("LOGI: native accept hooks unavailable; no guessed fallback", error)
+         }
+     }
+@@ -305,7 +426,7 @@
+     private fun field(value: Any, name: String): Any? = ModuleMain.readField(value, name)
+     private fun bool(name: String) = staticField(name) as? Boolean ?: error("LOGI missing boolean $name")
+     private fun alive(activity: Activity) = !activity.isFinishing && !activity.isDestroyed
+-    private fun foreground(activity: Activity) = alive(activity) && foregroundMethod?.invoke(activity) == true
++    private fun foreground(activity: Activity) = alive(activity) && binding?.foreground?.invoke(activity) == true
+ 
+     private fun candidates(): List<Candidate> {
+         val orders = staticField("m_orders") as? List<*> ?: return emptyList()
+@@ -338,8 +459,14 @@
+         val candidate = candidates().firstOrNull {
+             ledger.canBegin(it.call.callId.removePrefix("LOGI:").toInt()) && ModuleMain.matchAndAccept(it.call)
+         } ?: return
++        val layout = binding ?: return
+         val activity = mainActivity.get()
+-        if (activity == null || !resumed || !foreground(activity) || floatingMethod?.invoke(null) == true) {
++        // Do not invoke app-owned methods on an unverified modern runtime.
++        if (activity != null && !layout.runtimeMatches(activity)) {
++            ModuleMain.module?.log("LOGI: acceptance skipped - unverified runtime package/version")
++            return
++        }
++        if (activity == null || !resumed || !foreground(activity) || layout.floating.invoke(null) == true) {
+             val now = android.os.SystemClock.elapsedRealtime()
+             if (now - lastFrontRequest > 3000L) {
+                 lastFrontRequest = now
+@@ -348,19 +475,15 @@
+             }
+             return
+         }
+-        if (field(activity, "R1") == null) return
+-        val listener = field(activity, "a2") ?: return
++        if (!layout.hostIsReady(activity)) return
++        val entryTarget = layout.entryTarget(activity) ?: return
+         // Match again against a fresh row immediately before dispatch. Never hold
+         // m_orders/m_autoOrders locks while running the native acceptance flow.
+         val fresh = candidates().firstOrNull { it.call.callId == candidate.call.callId } ?: return
+         if (!ModuleMain.matchAndAccept(fresh.call)) return
+         if (bool("m_bAllocProcess") || bool("bOrderListLock")) return
+         val settings = staticField("m_si") ?: return
+-        if (field(settings, "bAbleAllocateWhileAuto") != true) {
+-            val panel = field(activity, "m0") as? android.view.View ?: return
+-            val button = field(activity, "p0") as? android.view.View ?: return
+-            if (panel.visibility == android.view.View.VISIBLE && button.tag != null && button.tag !== fresh.order) return
+-        }
++        if (!layout.autoOrderAllows(activity, settings, fresh.order)) return
+         refreshSession()
+         val id = fresh.call.callId.removePrefix("LOGI:").toIntOrNull() ?: return
+         val attempt = ledger.begin(id) ?: return
+@@ -369,8 +492,7 @@
+         requestContext = java.lang.ref.WeakReference(activity)
+         constructing.set(attempt)
+         try {
+-            val entry = confirmMethod ?: error("Native confirm entry unavailable")
+-            entry.invoke(listener, fresh.order, false)
++            layout.entry.invoke(entryTarget, fresh.order, false)
+             if (!bool("m_bAllocProcess") && ledger.phase(attempt.token) == LogiAcceptPhase.PREPARING) {
+                 ledger.abortUnsent(attempt.token)
+                 active = null
+@@ -399,7 +521,7 @@
+                 if (event == "onResume") {
+                     val attempt = active
+                     if (attempt != null && ledger.phase(attempt.token) == LogiAcceptPhase.PREPARING &&
+-                        activity.intent?.getIntExtra("nTNo", -1) == attempt.id && field(activity, "k") == attempt.id) {
++                        activity.intent?.getIntExtra("nTNo", -1) == attempt.id && binding?.normalMatches(activity, attempt.id) == true) {
+                         requestContext = java.lang.ref.WeakReference(activity)
+                         handler.post { clickPreparation(activity) }
+                     }
+@@ -416,7 +538,7 @@
+ 
+     private fun nativeButton(activity: Activity): android.view.View? {
+         if (!foreground(activity) || !activity.hasWindowFocus()) return null
+-        return activity.findViewById<android.view.View>(okButtonId)?.takeIf {
++        return activity.findViewById<android.view.View>(binding?.okButtonId ?: return null)?.takeIf {
+             it.isAttachedToWindow && it.isShown && it.isEnabled && it.hasOnClickListeners()
+         }
+     }
+@@ -427,8 +549,9 @@
+             refreshSession()
+             if (clickedToken == attempt.token || !alive(activity)) return
+             if (!ledger.canSend(attempt.token)) { abandonPreparation(activity, attempt, "session_changed"); return }
+-            if (activity.intent?.getIntExtra("nTNo", -1) != attempt.id || field(activity, "k") != attempt.id) return
+-            if ((field(activity, "p") as? android.app.Dialog)?.isShowing == true) return
++            val layout = binding ?: return
++            if (!layout.runtimeMatches(activity) || activity.intent?.getIntExtra("nTNo", -1) != attempt.id || !layout.normalMatches(activity, attempt.id)) return
++            if (layout.normalIsBusy(activity)) return
+             val button = nativeButton(activity)
+             if (button == null) {
+                 if (retry < 20) handler.postDelayed({ clickPreparation(activity, retry + 1) }, 100L)
+@@ -459,9 +582,10 @@
+         val confirmation = completed ?: return
+         try {
+             if (confirmation.clicked || android.os.SystemClock.elapsedRealtime() > confirmation.expires || !alive(activity)) return
+-            if (activity.intent?.getIntExtra("nTNo", -1) != confirmation.id || field(activity, "w") != confirmation.id ||
+-                activity.intent?.getStringExtra("strDataSet") != confirmation.result) return
+-            if (field(activity, "r") != false || field(activity, "x") != false) return
++            val layout = binding ?: return
++            if (!layout.runtimeMatches(activity) || activity.intent?.getIntExtra("nTNo", -1) != confirmation.id ||
++                activity.intent?.getStringExtra("strDataSet") != confirmation.result ||
++                !layout.confirmationMatches(activity, confirmation.id)) return
+             val button = nativeButton(activity)
+             if (button == null) { if (retry < 20) handler.postDelayed({ clickConfirmation(activity, retry + 1) }, 100L); return }
+             confirmation.clicked = true
+@@ -472,15 +596,22 @@
+ 
+     fun workerCreated(worker: Any) {
+         val attempt = constructing.get() ?: return
++        if (runCatching { binding?.ownsWorker(worker, attempt.id, requestContext.get()) }.getOrDefault(false) != true) return
+         synchronized(workers) { workers[worker] = attempt }
+     }
+     fun workerStarted(worker: Any) {
+         val attempt = synchronized(workers) { workers.remove(worker) }
+-        if (attempt != null) workerAttempt.set(attempt)
++        val stack = workerStack.get() ?: mutableListOf<LogiAcceptAttempt?>().also { workerStack.set(it) }
++        stack.add(workerAttempt.get())
++        if (attempt == null) workerAttempt.remove() else workerAttempt.set(attempt)
+     }
+     fun workerFinished() {
++        val stack = workerStack.get() ?: return
++        if (stack.isEmpty()) { workerStack.remove(); return }
+         val attempt = workerAttempt.get()
+-        workerAttempt.remove()
++        val previous = stack.removeAt(stack.lastIndex)
++        if (previous == null) workerAttempt.remove() else workerAttempt.set(previous)
++        if (stack.isEmpty()) workerStack.remove()
+         if (attempt != null) handler.post {
+             if (ledger.abortUnsent(attempt.token) && active === attempt) {
+                 active = null
+@@ -493,7 +624,8 @@
+         serviceFrame.remove()
+         val attempt = workerAttempt.get() ?: return true // Preserve manual/native requests.
+         refreshSession()
+-        if (id != attempt.id || requestContext.get() !== context || !ledger.sent(attempt.token)) {
++        if (id != attempt.id || requestContext.get() !== context || context !is Context ||
++            binding?.runtimeMatches(context) != true || !ledger.sent(attempt.token)) {
+             handler.post {
+                 if (ledger.abortUnsent(attempt.token) && active === attempt) active = null
+                 ModuleMain.module?.log("LOGI: stale or mismatched unsent request blocked id=$id")
+@@ -505,8 +637,9 @@
+     }
+     fun detailReceived(detail: Any) {
+         val frame = serviceFrame.get() ?: return
+-        frame.detailId = (field(detail, "nTNo") as? Number)?.toInt()
+-        frame.body = field(detail, "szNonHtml") as? String
++        val layout = binding ?: return
++        frame.detailId = layout.responseId(detail)
++        frame.body = layout.responseBody(detail)
+     }
+     fun rejectionReceived(packet: Any?, result: String?) {
+         val frame = serviceFrame.get() ?: return
+@@ -516,7 +649,7 @@
+     fun serviceFinished(result: String?, error: Throwable?) {
+         val frame = serviceFrame.get() ?: return
+         serviceFrame.remove()
+-        val marker = runCatching { markerDecoder?.invoke(decoderInstance, encodedSuccess) as? String }.getOrNull()
++        val marker = runCatching { binding?.successMarker() }.getOrNull()
+         val verified = error == null && LogiOrderData.isVerifiedSuccess(frame.id, frame.detailId, marker, frame.body, result)
+         // A failure/timeout may follow a server-side allocation. Keep ambiguous
+         // attempts reserved and never infer success from a non-null return.
+@@ -659,7 +792,7 @@
+ 
+ 
+ // BEGIN LOGI_SECURITY_RESULTS
+-/** Verified Logi D1/D2 21.53 report contracts. No global class-loader masking. */
++/** Exact Java report profiles only. Native SDK checks and installed-app queries are separate paths. */
+ internal object LogiSecurityResults {
+     private const val XPOSED_MAPPING = 1
+     private const val XPOSED_CLASS = 2
+@@ -667,15 +800,18 @@
+     private const val XPOSED_MODULE = 32
+     private const val XPOSED_MASK = XPOSED_MAPPING or XPOSED_CLASS or XPOSED_STACK or XPOSED_MODULE
+ 
++    private enum class Profile { LEGACY_2153, D1_2155 }
+     private data class RootLayout(
+         val type: Class<*>, val constructor: java.lang.reflect.Constructor<*>,
+         val detected: java.lang.reflect.Field, val hits: java.lang.reflect.Field,
++        val profile: Profile, val packageName: String,
+         val observed: java.util.concurrent.atomic.AtomicBoolean = java.util.concurrent.atomic.AtomicBoolean(false)
+     )
+     private data class HookLayout(
+         val type: Class<*>, val constructor: java.lang.reflect.Constructor<*>,
+         val flags: java.lang.reflect.Field, val hits: java.lang.reflect.Field,
+-        val modules: java.lang.reflect.Field,
++        val modules: java.lang.reflect.Field, val discriminator: java.lang.reflect.Field?,
++        val profile: Profile, val packageName: String,
+         val observed: java.util.concurrent.atomic.AtomicBoolean = java.util.concurrent.atomic.AtomicBoolean(false)
+     )
+     private val roots = java.util.concurrent.ConcurrentHashMap<Method, RootLayout>()
+@@ -683,7 +819,7 @@
+     private val installed = HashSet<Method>()
+ 
+     fun diagnostic(message: String, module: ModuleMain? = ModuleMain.module) {
+-        try { module?.log(message) } catch (_: Throwable) { /* Diagnostics cannot invalidate a hook. */ }
++        try { module?.log(message) } catch (_: Throwable) { /* Diagnostics must preserve the original call. */ }
+     }
+ 
+     private fun field(owner: Class<*>, name: String, type: Class<*>): java.lang.reflect.Field =
+@@ -698,12 +834,30 @@
+         }
+     }
+ 
+-    private fun endpoint(owner: Class<*>, result: Class<*>, vararg args: Class<*>): Method =
+-        owner.getDeclaredMethod("run", *args).apply {
++    private fun endpoint(owner: Class<*>, name: String, result: Class<*>, vararg args: Class<*>): Method =
++        owner.getDeclaredMethod(name, *args).apply {
+             require(returnType == result && Modifier.isStatic(modifiers) &&
+                     !Modifier.isNative(modifiers) && !Modifier.isAbstract(modifiers)) { "report endpoint mismatch" }
+             isAccessible = true
+         }
++
++    // Registration may happen before Application exists. Check again on every invocation;
++    // never cache a missing context or an unsupported package/version as a positive result.
++    private fun allows(profile: Profile, packageName: String): Boolean = try {
++        if (LogiPackageRoute.current() != packageName) false
++        else {
++            val context = ModuleMain.getApplicationContext()
++            if (context == null || context.packageName != packageName) false
++            else {
++                val info = context.packageManager.getPackageInfo(packageName, 0)
++                when (profile) {
++                    Profile.LEGACY_2153 -> LogiPackageRoute.supports(packageName) && info.versionName == "21.53"
++                    Profile.D1_2155 -> packageName == "com.logisoft.Logi4" &&
++                            info.versionName == "21.55" && info.longVersionCode == 632L
++                }
++            }
++        }
++    } catch (_: Throwable) { false }
+ 
+     @Synchronized private fun register(module: ModuleMain, method: Method,
+         hooker: Class<out XposedInterface.Hooker>, kind: String) {
+@@ -714,39 +868,33 @@
+         diagnostic("LOGI_SECURITY: registered kind=$kind execution=UNVERIFIED", module)
+     }
+ 
+-    fun install(module: ModuleMain, loader: ClassLoader) {
+-        if (!LogiPackageRoute.supports(LogiPackageRoute.current().orEmpty())) {
+-            diagnostic("LOGI_SECURITY: registration skipped reason=PACKAGE_NOT_ATTACHED", module)
+-            return
+-        }
+-        try {
+-            val exists = java.io.File::class.java.getDeclaredMethod("exists")
+-            require(exists.returnType == java.lang.Boolean.TYPE && !Modifier.isStatic(exists.modifiers))
+-            register(module, exists, LogiRootPathHooker::class.java, "root_file")
+-        } catch (error: Throwable) {
+-            diagnostic("LOGI_SECURITY: root_file unavailable type=${error.javaClass.name}", module)
+-        }
+-        try {
+-            val owner = Class.forName("com.logisoft.LogiD.Util.t", false, loader)
+-            val report = Class.forName("com.logisoft.LogiD.Util.t\$a", false, loader)
+-            shape(report, setOf("detected", "hits"))
+-            val layout = RootLayout(report, report.getDeclaredConstructor().apply { isAccessible = true },
+-                field(report, "detected", java.lang.Boolean.TYPE), field(report, "hits", java.util.List::class.java))
+-            val empty = layout.constructor.newInstance()
+-            require(!layout.detected.getBoolean(empty) && strings(layout.hits, empty).isEmpty())
+-            val method = endpoint(owner, report)
+-            synchronized(this) {
+-                if (!installed.contains(method)) {
+-                    roots[method] = layout
+-                    try { register(module, method, LogiRootReportHooker::class.java, "root_report") }
+-                    catch (error: Throwable) { roots.remove(method, layout); throw error }
+-                }
+-            }
+-        } catch (error: Throwable) {
+-            diagnostic("LOGI_SECURITY: root_report unavailable type=${error.javaClass.name}", module)
+-        }
+-        try {
+-            val owner = Class.forName("com.logisoft.LogiD.Util.u", false, loader)
++    private fun installRoot(module: ModuleMain, loader: ClassLoader, packageName: String, profile: Profile) {
++        val modern = profile == Profile.D1_2155
++        val owner = Class.forName(if (modern) "com.logisoft.LogiD.Util.a" else "com.logisoft.LogiD.Util.t", false, loader)
++        val report = Class.forName(if (modern) "com.google.android.gms.common.internal.f0"
++            else "com.logisoft.LogiD.Util.t\$a", false, loader)
++        shape(report, if (modern) setOf("a", "b") else setOf("detected", "hits"))
++        val detected = field(report, if (modern) "a" else "detected", java.lang.Boolean.TYPE)
++        val hits = field(report, if (modern) "b" else "hits", if (modern) Any::class.java else java.util.List::class.java)
++        if (modern) require(Modifier.isFinal(hits.modifiers)) { "unexpected merged root slot" }
++        val layout = RootLayout(report, report.getDeclaredConstructor().apply { isAccessible = true },
++            detected, hits, profile, packageName)
++        val empty = layout.constructor.newInstance()
++        require(!layout.detected.getBoolean(empty) && strings(layout.hits, empty).isEmpty())
++        val method = endpoint(owner, if (modern) "o" else "run", report)
++        synchronized(this) {
++            if (!installed.contains(method)) {
++                roots[method] = layout
++                try { register(module, method, LogiRootReportHooker::class.java, "root_report_$profile") }
++                catch (error: Throwable) { roots.remove(method, layout); throw error }
++            }
++        }
++    }
++
++    private fun installReport(module: ModuleMain, loader: ClassLoader, packageName: String, profile: Profile) {
++        val modern = profile == Profile.D1_2155
++        val owner = Class.forName(if (modern) "com.logisoft.LogiD.Util.a" else "com.logisoft.LogiD.Util.u", false, loader)
++        if (!modern) {
+             val constants = mapOf("FLAG_XPOSED_INJECTED" to 1, "FLAG_XPOSED_CLASS" to 2,
+                 "FLAG_XPOSED_STACK" to 4, "FLAG_FRIDA_PORT" to 8, "FLAG_DEBUGGER_ATTACH" to 16,
+                 "FLAG_XPOSED_MODULE" to 32, "FLAG_FRIDA_INJECTED" to 64)
+@@ -755,24 +903,53 @@
+                 require(constant.type == java.lang.Integer.TYPE && Modifier.isStatic(constant.modifiers) &&
+                         Modifier.isFinal(constant.modifiers) && constant.getInt(null) == value) { "flag contract mismatch" }
+             }
+-            val report = Class.forName("com.logisoft.LogiD.Util.u\$a", false, loader)
+-            shape(report, setOf("flags", "hits", "modulePackages"))
+-            val layout = HookLayout(report, report.getDeclaredConstructor().apply { isAccessible = true },
+-                field(report, "flags", java.lang.Integer.TYPE), field(report, "hits", java.util.List::class.java),
+-                field(report, "modulePackages", java.util.List::class.java))
+-            val empty = layout.constructor.newInstance()
+-            require(layout.flags.getInt(empty) == 0 && strings(layout.hits, empty).isEmpty() &&
+-                    strings(layout.modules, empty).isEmpty())
+-            val method = endpoint(owner, report, Context::class.java)
+-            synchronized(this) {
+-                if (!installed.contains(method)) {
+-                    reports[method] = layout
+-                    try { register(module, method, LogiHookReportHooker::class.java, "hook_report") }
+-                    catch (error: Throwable) { reports.remove(method, layout); throw error }
+-                }
+-            }
++        }
++        val report = Class.forName(if (modern) "com.logisoft.LogiD.Util.y"
++            else "com.logisoft.LogiD.Util.u\$a", false, loader)
++        shape(report, if (modern) setOf("a", "b", "c", "d") else setOf("flags", "hits", "modulePackages"))
++        val discriminator = if (modern) field(report, "a", java.lang.Integer.TYPE).also {
++            require(Modifier.isFinal(it.modifiers) && it.isSynthetic) { "unexpected merged report discriminator" }
++        } else null
++        val layout = HookLayout(report, report.getDeclaredConstructor().apply { isAccessible = true },
++            field(report, if (modern) "b" else "flags", java.lang.Integer.TYPE),
++            field(report, if (modern) "c" else "hits", if (modern) Any::class.java else java.util.List::class.java),
++            field(report, if (modern) "d" else "modulePackages", if (modern) Any::class.java else java.util.List::class.java),
++            discriminator, profile, packageName)
++        // The verified no-arg constructor creates the report variant (a=0), unlike
++        // y(int), whose Object slots may belong to unrelated merged SDK classes.
++        val empty = layout.constructor.newInstance()
++        require((discriminator == null || discriminator.getInt(empty) == 0) && layout.flags.getInt(empty) == 0 &&
++                strings(layout.hits, empty).isEmpty() && strings(layout.modules, empty).isEmpty())
++        val method = endpoint(owner, if (modern) "p" else "run", report, Context::class.java)
++        synchronized(this) {
++            if (!installed.contains(method)) {
++                reports[method] = layout
++                try { register(module, method, LogiHookReportHooker::class.java, "hook_report_$profile") }
++                catch (error: Throwable) { reports.remove(method, layout); throw error }
++            }
++        }
++    }
++
++    fun install(module: ModuleMain, loader: ClassLoader) {
++        val packageName = LogiPackageRoute.current().orEmpty()
++        if (!LogiPackageRoute.supports(packageName)) {
++            diagnostic("LOGI_SECURITY: registration skipped reason=PACKAGE_NOT_ATTACHED", module)
++            return
++        }
++        try {
++            val exists = java.io.File::class.java.getDeclaredMethod("exists")
++            require(exists.returnType == java.lang.Boolean.TYPE && !Modifier.isStatic(exists.modifiers))
++            register(module, exists, LogiRootPathHooker::class.java, "root_file")
+         } catch (error: Throwable) {
+-            diagnostic("LOGI_SECURITY: hook_report unavailable type=${error.javaClass.name}", module)
++            diagnostic("LOGI_SECURITY: root_file unavailable type=${error.javaClass.name}", module)
++        }
++        val profiles = if (packageName == "com.logisoft.Logi4") listOf(Profile.LEGACY_2153, Profile.D1_2155)
++            else listOf(Profile.LEGACY_2153)
++        for (profile in profiles) {
++            try { installRoot(module, loader, packageName, profile) }
++            catch (error: Throwable) { diagnostic("LOGI_SECURITY: root_report_$profile unavailable type=${error.javaClass.name}", module) }
++            try { installReport(module, loader, packageName, profile) }
++            catch (error: Throwable) { diagnostic("LOGI_SECURITY: hook_report_$profile unavailable type=${error.javaClass.name}", module) }
+         }
+     }
+ 
+@@ -802,6 +979,7 @@
+     fun rootAfter(callback: XposedInterface.AfterHookCallback) {
+         if (callback.throwable != null) return
+         val layout = roots[callback.member as? Method ?: return] ?: return
++        if (!allows(layout.profile, layout.packageName)) return
+         val original = callback.result ?: return
+         try {
+             require(original.javaClass == layout.type) { "root report instance mismatch" }
+@@ -812,7 +990,7 @@
+             if (layout.observed.compareAndSet(false, true)) {
+                 diagnostic("LOGI_SECURITY: observed kind=root detected=$before selectedHits=$removed preservedHits=${kept.size}")
+             }
+-            // An unknown positive must not be silently reported as clean.
++            // Preserve an unknown positive instead of manufacturing an all-clean report.
+             val after = before && (kept.isNotEmpty() || removed == 0)
+             if (before == after && removed == 0) {
+                 if (before) diagnostic("LOGI_SECURITY: root_report unchanged reason=UNVERIFIED_ROOT_EVIDENCE")
+@@ -832,9 +1010,11 @@
+     fun hookAfter(callback: XposedInterface.AfterHookCallback) {
+         if (callback.throwable != null) return
+         val layout = reports[callback.member as? Method ?: return] ?: return
++        if (!allows(layout.profile, layout.packageName)) return
+         val original = callback.result ?: return
+         try {
+             require(original.javaClass == layout.type) { "hook report instance mismatch" }
++            require(layout.discriminator == null || layout.discriminator.getInt(original) == 0) { "unrelated merged result variant" }
+             val flags = layout.flags.getInt(original)
+             val hits = strings(layout.hits, original)
+             val modules = strings(layout.modules, original)
+@@ -848,8 +1028,8 @@
+                     hit.startsWith("module:") && hit.removePrefix("module:") in modules
+             }
+             var clear = XPOSED_MASK
+-            // The supplied probe shares stack bit 4 with SMulti/o.* findings.
+-            // Preserve that bit and any other unrecognised category evidence.
++            // Stack bit 4 is also shared with SMulti/o.* findings. Preserve any
++            // category whose remaining evidence is not part of the known profile.
+             if (kept.any { it.startsWith("stack:") }) clear = clear and XPOSED_STACK.inv()
+             if (kept.any { it.startsWith("class:") }) clear = clear and XPOSED_CLASS.inv()
+             if (kept.any { it.startsWith("module:") }) clear = clear and XPOSED_MODULE.inv()
+@@ -857,6 +1037,7 @@
+             val changedFlags = flags and clear.inv()
+             if (changedFlags == flags && kept == hits && modules.isEmpty()) return
+             val replacement = layout.constructor.newInstance()
++            require(layout.discriminator == null || layout.discriminator.getInt(replacement) == 0) { "report constructor changed" }
+             layout.flags.setInt(replacement, changedFlags)
+             fill(layout.hits, replacement, kept)
+             require(strings(layout.modules, replacement).isEmpty())

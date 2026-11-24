@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "assertions": 170,
+  "scenarios": 12,
+  "fragment_sha256": "479e56ca8e091d45ced875f49cecb143dafa6031b4c7a3c87e854a6f429da36f",
+  "compiled_source": "actual security fragment with pure JVM Android/Xposed stubs and Java reflection fixtures matching raw DEX",
+  "limits": "No Android device/server/native testing; target library callback executed only in JVM fixtures"
+}

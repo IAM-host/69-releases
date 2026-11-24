@@ -1,0 +1,92 @@
+{
+  "status": "passed",
+  "R8_hooker_classes": 12,
+  "checks": [
+    {
+      "hooker": "GpsLatitudeHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after"
+      ]
+    },
+    {
+      "hooker": "GpsLongitudeHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after"
+      ]
+    },
+    {
+      "hooker": "LogiActivityHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after"
+      ]
+    },
+    {
+      "hooker": "LogiDetailHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "before"
+      ]
+    },
+    {
+      "hooker": "LogiHookReportHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after"
+      ]
+    },
+    {
+      "hooker": "LogiOrderHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after"
+      ]
+    },
+    {
+      "hooker": "LogiRejectionHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after"
+      ]
+    },
+    {
+      "hooker": "LogiRootPathHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after"
+      ]
+    },
+    {
+      "hooker": "LogiRootReportHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after"
+      ]
+    },
+    {
+      "hooker": "LogiServiceHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after",
+        "before"
+      ]
+    },
+    {
+      "hooker": "LogiWorkerConstructorHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after"
+      ]
+    },
+    {
+      "hooker": "LogiWorkerHooker",
+      "unobfuscated_class_present": true,
+      "public_static_callbacks": [
+        "after",
+        "before"
+      ]
+    }
+  ]
+}

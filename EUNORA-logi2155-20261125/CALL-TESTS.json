@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "assertions": 130,
+  "production_source_sha256": "fc345bf080e62f62bab7c1d821f7c9f25675cded1f93e09c73b0a4816d19355f",
+  "runtime": "JVM reflection/Android stubs; original app/backend not executed",
+  "coverage": [
+    "exact extracted production binding/controller/ledger",
+    "legacy and verified modern member binding",
+    "no native decoder initialization at registration",
+    "D1 code632/name21.55 gate and unverified D2 denial",
+    "auto-order native guard preservation",
+    "synthetic branch/order/owner identity",
+    "nested/manual worker isolation",
+    "raw dialog/intent/payload confirmation and one click",
+    "ledger duplicate/stale/uncertain/rejected outcomes",
+    "bad result shape fails before hooks"
+  ]
+}
