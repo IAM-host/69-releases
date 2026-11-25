@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "review_mode": "independent read-only payload, README and helper static review",
+  "payload_files_byte_exact_to_compiled_project": 15,
+  "TXT_files_byte_exact_to_Kotlin": 6,
+  "obsolete_files_absent_in_compiled_project": 4,
+  "cleanup_files_preserved": [
+    "E02.kt",
+    "E03.kt",
+    "E04.kt",
+    "E06.kt"
+  ],
+  "latest_E05_native_preserved": true,
+  "README_usage_and_scoped_native_description_accurate": true,
+  "privacy_check": "No private license/updater files, signing material, APK or target SDK library in prepared folder; only intended own helper .so files",
+  "helper_static_review": {
+    "sha256": "9091827643df3ac304c838b78452e95b553fa5dcbd96bd48100fc7720439bf50",
+    "fixed_file_and_deletion_allowlists": true,
+    "full_validation_before_source_write": true,
+    "ancestor_symlink_junction_and_path_traversal_guards": true,
+    "verified_backups_for_changed_and_deleted_existing": true,
+    "rollback_restores_deleted_and_changed_existing": true,
+    "rollback_removes_only_files_created_by_run": true,
+    "blocking_findings": []
+  },
+  "runtime_limits": [
+    "Windows PowerShell execution not independently tested",
+    "No Android phone or server runtime verification"
+  ],
+  "blockers": []
+}

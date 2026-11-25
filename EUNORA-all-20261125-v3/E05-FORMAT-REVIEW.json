@@ -1,0 +1,18 @@
+{
+  "uploaded_E05_SHA256": "8aee17893fad3d228d4246c002479b2050d484e8961ec1744239f65a130ea2f8",
+  "equivalent_known_E05_SHA256": "7262ccf6263ea866ab95ae19705ce2af6e0c786f960d27a5c9a9a1746ed0b2dd",
+  "lines": 923,
+  "changed_lines": [
+    709,
+    799,
+    800,
+    846,
+    847,
+    848
+  ],
+  "change_kind": "Only leading indentation on six reviewed code lines; no comments, strings or behavior changed",
+  "manifest_change": "Only one exact reviewed E05 hash added to accepted previous versions",
+  "application_payload_unchanged": true,
+  "apply_helper_unchanged": true,
+  "general_whitespace_matching_or_force_overwrite_added": false
+}

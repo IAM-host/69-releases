@@ -1,0 +1,83 @@
+{
+  "status": "passed",
+  "runtime": "PowerShell 7.5.4 Linux; actual Windows not tested",
+  "cases": [
+    {
+      "baseline": "original-upload",
+      "status": "passed",
+      "all78_compiled_project_files_byte_exact": true,
+      "four_unused_files_absent": true,
+      "backup_exact": true,
+      "second_run_no_changes": true,
+      "backup_file_count": 11
+    },
+    {
+      "baseline": "latest-before-cleanup",
+      "status": "passed",
+      "all78_compiled_project_files_byte_exact": true,
+      "four_unused_files_absent": true,
+      "backup_exact": true,
+      "second_run_no_changes": true,
+      "backup_file_count": 11
+    },
+    {
+      "baseline": "cleanup-already-applied",
+      "status": "passed",
+      "all78_compiled_project_files_byte_exact": true,
+      "four_unused_files_absent": true,
+      "backup_exact": true,
+      "second_run_no_changes": true,
+      "backup_file_count": 3
+    },
+    {
+      "baseline": "previous-Java-fix",
+      "status": "passed",
+      "all78_compiled_project_files_byte_exact": true,
+      "four_unused_files_absent": true,
+      "backup_exact": true,
+      "second_run_no_changes": true,
+      "backup_file_count": 3
+    },
+    {
+      "baseline": "native-without-cleanup",
+      "status": "passed",
+      "all78_compiled_project_files_byte_exact": true,
+      "four_unused_files_absent": true,
+      "backup_exact": true,
+      "second_run_no_changes": true,
+      "backup_file_count": 8
+    },
+    {
+      "baseline": "current-native",
+      "status": "passed",
+      "all78_compiled_project_files_byte_exact": true,
+      "four_unused_files_absent": true,
+      "backup_exact": true,
+      "second_run_no_changes": true,
+      "backup_file_count": 0
+    },
+    {
+      "baseline": "original-upload-with-current-user-E05",
+      "status": "passed",
+      "uploaded_E05_accepted_and_backed_up_byte_exact": true,
+      "all78_compiled_project_files_byte_exact": true,
+      "four_unused_files_absent": true,
+      "backup_exact": true,
+      "second_run_no_changes": true,
+      "backup_file_count": 11,
+      "runtime": "PowerShell 7.5.4 Linux; actual Windows not tested"
+    },
+    {
+      "baseline": "original-upload-with-all-seven-current-user-files",
+      "status": "passed",
+      "all_seven_uploaded_files_accepted_and_backed_up_byte_exact": true,
+      "all78_compiled_project_files_byte_exact": true,
+      "E01_unchanged": true,
+      "four_unused_files_absent": true,
+      "backup_exact": true,
+      "second_run_no_changes": true,
+      "backup_file_count": 11,
+      "runtime": "PowerShell 7.5.4 Linux; actual Windows not tested"
+    }
+  ]
+}

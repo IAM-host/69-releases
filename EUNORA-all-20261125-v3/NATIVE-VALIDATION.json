@@ -1,0 +1,49 @@
+{
+  "date": "2026-11-25",
+  "target": {
+    "package": "com.logisoft.Logi4",
+    "version_name": "21.55",
+    "version_code": 632,
+    "base_SHA256": "f499048003d97075eef65c732566e68659c6d3e55fc0df473bcc23594a860f5b",
+    "ARM64_target_library_SHA256": "49be73b2b264f56e823c1a786468e26f9174493fee68b25d947b38f7af2f5d85"
+  },
+  "source": {
+    "E05_SHA256": "323519395979e91284a63d6d1dc9b905f4dbfe0fdf96533cff29a95db3e5c345",
+    "C_SHA256": "80d850da062e93024097811ab4c92527b8f941616ce180e9404963689000f678",
+    "existing_files_modified": 3,
+    "existing_files_unchanged": 67,
+    "new_files": 8,
+    "old_E05_prefix_byte_exact": true
+  },
+  "checks": {
+    "native_host_cases": 39,
+    "ASan_UBSan": "passed; LSan unavailable under ptrace",
+    "actual_ARM64_ELF_used_as_data": "independent validation passed; target code never executed",
+    "Java_bridge_cases": 35,
+    "apply_helper_cases": 19,
+    "apply_integration": "passed on previous Java-fix and previous cleanup projects; exact backups and idempotence",
+    "Debug_Release_compile": "passed",
+    "Release_lint_R8_and_packaging": "passed",
+    "final_build_seconds": 66,
+    "packaged_ABIs": 4,
+    "STORED_16K_alignment_JNI_metadata": "passed",
+    "previous_Hooker_retention": 12,
+    "JNI_Class": "com.example.wheelprobe.LogiNativeBridge",
+    "JNI_method": "public static native int status()"
+  },
+  "runtime_boundary": {
+    "Android_device_tested": false,
+    "app_server_requests_performed": false,
+    "Windows_helper_execution_tested": false,
+    "native_API": "documented LSPosed native entry v1/v2; modern META-INF registration",
+    "native_probe_scope": "verified bool(void) leaf only, original function executes; initializer/authentication not skipped",
+    "limitations": [
+      "activation depends on actual framework native API and load timing",
+      "already-loaded target or unsupported identity fails closed",
+      "callbacks occur after ELF constructors",
+      "no claim all security checks bypassed",
+      "installed-app query/EUNORA hiding, SDK authentication and SET6 UI unchanged"
+    ]
+  },
+  "delivery": "full existing Kotlin files and native payload with source/rebuild tool; no APK, private keys or target SDK binary"
+}

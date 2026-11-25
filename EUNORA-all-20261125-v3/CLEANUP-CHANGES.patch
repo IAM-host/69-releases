@@ -1,0 +1,455 @@
+--- a/app/src/main/java/com/example/wheelprobe/E02.kt
++++ b/app/src/main/java/com/example/wheelprobe/E02.kt
+@@ -428,19 +428,6 @@
+ }
+ 
+ 
+-internal fun ModuleMain.installKakaoListConvertHook(classLoader: ClassLoader) {
+-    ModuleMain.module?.log("EUNORA: installKakaoListConvertHook stub")
+-}
+-internal fun ModuleMain.installKakaoSocketLog(classLoader: ClassLoader) {
+-    ModuleMain.module?.log("EUNORA: installKakaoSocketLog stub")
+-}
+-internal fun ModuleMain.installKakaoArrivalTrace(classLoader: ClassLoader) {
+-    ModuleMain.module?.log("EUNORA: installKakaoArrivalTrace stub")
+-}
+-internal fun ModuleMain.installKakaoAcceptLogHooks(classLoader: ClassLoader) {
+-    ModuleMain.module?.log("EUNORA: installKakaoAcceptLogHooks stub")
+-}
+-
+ internal fun ModuleMain.installViewModelHooks(classLoader: ClassLoader) {
+     try {
+         val nativeBridge = KakaoNativeAcceptBridge.load(classLoader)
+@@ -685,32 +672,6 @@
+ }
+ 
+ @XposedHooker
+-class PopupResponseHooker : XposedInterface.Hooker {
+-    companion object {
+-        @Volatile private var popupDtoClass: Class<*>? = null
+-
+-        fun configure(cls: Class<*>) {
+-            popupDtoClass = cls
+-        }
+-
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            val result = callback.result ?: return
+-            try {
+-                val dto = if (result.javaClass.name.contains("Result")) {
+-                    ModuleMain.readField(result, "value") ?: return
+-                } else result
+-                ModuleMain.module?.log("KAKAO: popup response dto=${dto.javaClass.name}")
+-                ModuleMain.processPopupDto(dto)
+-            } catch (t: Throwable) {
+-                ModuleMain.module?.log("KAKAO: popup response error", t)
+-            }
+-        }
+-    }
+-}
+-
+-@XposedHooker
+ class KakaoAcceptCallHooker : XposedInterface.Hooker {
+     companion object {
+         @JvmStatic
+@@ -737,18 +698,6 @@
+ }
+ 
+ @XposedHooker
+-class AcceptMethodHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @BeforeInvocation
+-        fun before(callback: XposedInterface.BeforeHookCallback) {
+-            val callId = callback.args.getOrNull(0) as? String
+-            ModuleMain.module?.log("KAKAO: accept method called callId=$callId")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+ class ViewModelConstructorHooker : XposedInterface.Hooker {
+     companion object {
+         @JvmStatic
+@@ -831,18 +780,6 @@
+             try {
+                 callback.result = pair.second
+             } catch (t: Throwable) {}
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class KakaoLocationJsonHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @BeforeInvocation
+-        fun before(callback: XposedInterface.BeforeHookCallback) {
+-            val pair = GpsSpoofState.activeLatLng() ?: return
+-            ModuleMain.module?.log("KAKAO: location json hook lat=${pair.first}")
+         }
+     }
+ }
+@@ -919,70 +856,6 @@
+         return Snapshot(status, lists.map { it.size }, hints, lists.any { it.size > 64 })
+     }
+ 
+-    data class StackDetails(
+-        val total: Int, val classes: List<String>, val redacted: Int, val truncated: Boolean
+-    )
+-
+-    fun safeStackClass(value: Any?): String? {
+-        val name = value as? String ?: return null
+-        if (name.isEmpty() || name.length > 256) return null
+-        fun startsIdentifier(c: Char) = c in 'A'..'Z' || c in 'a'..'z' || c == '_' || c == '$'
+-        if (!name.split('.').all { part ->
+-                part.isNotEmpty() && startsIdentifier(part[0]) &&
+-                        part.all { startsIdentifier(it) || it in '0'..'9' }
+-            }) return null
+-        val knownPackage = listOf(
+-            "org.lsposed.", "de.robv.android.xposed.", "com.elderdrivers.riru.",
+-            "me.weishu.epic.", "com.example.wheelprobe."
+-        ).any { name.startsWith(it) }
+-        val generatedClass = '.' !in name &&
+-                name.substringBefore('$') in setOf("LSPHooker_", "LSPosedBridge", "HookBridge")
+-        return name.takeIf { knownPackage || generatedClass }
+-    }
+-
+-    fun stackDetails(report: Any?, layout: Layout): StackDetails {
+-        require(report != null && layout.reportClass.isInstance(report)) { "unexpected hook report instance" }
+-        val assessment = layout.assessmentField.get(report)
+-        require(assessment != null && layout.assessmentClass.isInstance(assessment)) { "missing hook assessment" }
+-        val entries = layout.signalFields[0].get(assessment) as? List<*>
+-            ?: error("missing hook stack list")
+-        val classes = mutableListOf<String>()
+-        var redacted = 0
+-        for (index in 0 until minOf(entries.size, 16)) {
+-            val name = safeStackClass(entries[index])
+-            if (name == null) redacted++ else classes.add(name)
+-        }
+-        return StackDetails(entries.size, classes, redacted, entries.size > 16)
+-    }
+-
+-    fun formatStackDetails(details: StackDetails): List<String> {
+-        require(details.total >= 0 && details.redacted >= 0 &&
+-                details.total.toLong() >= details.classes.size.toLong() + details.redacted) {
+-            "unexpected stack detail counts"
+-        }
+-        val sample = details.classes.take(16)
+-        val safe = sample.mapNotNull { safeStackClass(it) }
+-        val redacted = details.redacted + sample.size - safe.size
+-        val truncated = details.truncated || details.classes.size > 16
+-        return safe.mapIndexed { index, name ->
+-            "KAKAO_DIAG: STACK_CLASS index=${index + 1} className=$name resultChanged=false"
+-        } + ("KAKAO_DIAG: STACK_CLASSES total=${details.total} logged=${safe.size} " +
+-                "redacted=$redacted sampleTruncated=$truncated resultChanged=false")
+-    }
+-
+-    fun format(snapshot: Snapshot): String {
+-        val counts = snapshot.counts
+-        require(counts.size == 6 && counts.all { it >= 0 }) { "unexpected hook signal count" }
+-        val status = snapshot.status.takeIf { it in setOf("detected", "not_detected", "unknown", "STATUS_UNEXPECTED") }
+-            ?: "STATUS_UNEXPECTED"
+-        val hints = markers.map { it.first }.filter { it in snapshot.markerHints }
+-        return "KAKAO_DIAG: SIGNALS status=$status " +
+-                "hook(stack=${counts[0]},classes=${counts[4]}) " +
+-                "memory(artifacts=${counts[2]},foreign=${counts[3]}) " +
+-                "api(native=${counts[1]},missing=${counts[5]}) " +
+-                "markerHints=${hints.joinToString("|").ifEmpty { "NONE_IN_SAMPLE" }} " +
+-                "sampleTruncated=${snapshot.sampleTruncated} resultChanged=false serverVerdict=UNVERIFIED"
+-    }
+ }
+ // END KAKAO_HOOK_SIGNAL_DIAGNOSTICS
+ 
+@@ -1128,28 +1001,6 @@
+     }
+ }
+ // END KAKAO_ROOT_FILE_HOOK
+-
+-// Shared by E03/Tmap; only exact known root paths and successful Boolean results are changed.
+-@XposedHooker
+-class KakaoRootPathHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            try {
+-                if (callback.throwable != null) return
+-                val file = callback.thisObject as? java.io.File ?: return
+-                if (!KakaoRootFileProfile.matches(file.path)) return
+-                val original = callback.result as? Boolean ?: return
+-                if (original) {
+-                    callback.result = false
+-                    runCatching { ModuleMain.module?.log("TMAP: root file result changed original=true result=false") }
+-                }
+-            } catch (error: Throwable) {
+-                runCatching { ModuleMain.module?.log("TMAP: root file result UNCONFIRMED type=${error.javaClass.name}") }
+-            }
+-        }
+-    }
+-}
+ 
+ /** Exact local layouts from the supplied 3.14.5/1101 sources; no guessed coroutine or request hooks. */
+ internal object KakaoLocalSecurityHooks {
+--- a/app/src/main/java/com/example/wheelprobe/E03.kt
++++ b/app/src/main/java/com/example/wheelprobe/E03.kt
+@@ -302,17 +302,6 @@
+                 TmapAcceptController.repoInstance = callback.thisObject
+                 ModuleMain.module?.log("TMAP: repo instance captured class=${callback.thisObject!!.javaClass.name}")
+             }
+-        }
+-    }
+-}
+-
+-/** 구버전 호환 이름 */
+-@XposedHooker
+-class K0ConstructorHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            TmapRepoConstructorHooker.after(callback)
+         }
+     }
+ }
+--- a/app/src/main/java/com/example/wheelprobe/E04.kt
++++ b/app/src/main/java/com/example/wheelprobe/E04.kt
+@@ -756,9 +756,6 @@
+     }
+ }
+ 
+-internal fun ModuleMain.installCallmanerAutoCardHook(classLoader: ClassLoader) { CallmanerAcceptController.init(classLoader) }
+-internal fun ModuleMain.installCallmanerCallListHook(classLoader: ClassLoader) { CallmanerAcceptController.init(classLoader) }
+-internal fun ModuleMain.installCallmanerAcceptResponseHook(classLoader: ClassLoader) { CallmanerAcceptController.init(classLoader) }
+ 
+ /**
+  * 콜마너:
+--- a/app/src/main/java/com/example/wheelprobe/E06.kt
++++ b/app/src/main/java/com/example/wheelprobe/E06.kt
+@@ -15,227 +15,6 @@
+ import java.lang.reflect.Proxy
+ import java.util.LinkedHashSet
+ import java.util.Map
+-
+-@XposedHooker
+-class IdriveLlToTmHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic
+-        @BeforeInvocation
+-        fun before(callback: XposedInterface.BeforeHookCallback) {
+-            val pair = GpsSpoofState.activeLatLng() ?: return
+-            val args = callback.args
+-            if (args.size >= 2) {
+-                args[0] = pair.first
+-                args[1] = pair.second
+-            }
+-        }
+-
+-        @JvmStatic
+-        @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            val pair = GpsSpoofState.activeLatLng() ?: return
+-            val tm = callback.result as? DoubleArray
+-            IdriveStaticObjSpoofer.apply(pair.first, pair.second, tm)
+-        }
+-    }
+-}
+-
+-/**
+- * 아이드라이브 StaticObj 직접 기록 (서버 전송 키 strTmX/strTmY).
+- * LLToTM 호출 때마다 재적용되어 앱이 덮어써도 다시 맞춤.
+- */
+-object IdriveStaticObjSpoofer {
+-    @Volatile private var ready = false
+-    @Volatile private var dLatField: java.lang.reflect.Field? = null
+-    @Volatile private var dLonField: java.lang.reflect.Field? = null
+-    @Volatile private var strTmXField: java.lang.reflect.Field? = null
+-    @Volatile private var strTmYField: java.lang.reflect.Field? = null
+-
+-    fun init(classLoader: ClassLoader) {
+-        try {
+-            val c = Class.forName("com.idriver.StaticObj", false, classLoader)
+-            dLatField = c.getDeclaredField("dLat").apply { isAccessible = true }
+-            dLonField = c.getDeclaredField("dLon").apply { isAccessible = true }
+-            strTmXField = c.getDeclaredField("strTmX").apply { isAccessible = true }
+-            strTmYField = c.getDeclaredField("strTmY").apply { isAccessible = true }
+-            ready = true
+-        } catch (t: Throwable) {
+-            ready = false
+-            android.util.Log.w("EUNORA", "IDRIVE StaticObj field init failed: ${t.message}")
+-        }
+-    }
+-
+-    fun apply(lat: Double, lng: Double, tm: DoubleArray?) {
+-        if (!ready) return
+-        try {
+-            dLatField?.setDouble(null, lat)
+-            dLonField?.setDouble(null, lng)
+-            if (tm != null && tm.size >= 2) {
+-                strTmXField?.set(null, tm[0].toInt().toString())
+-                strTmYField?.set(null, tm[1].toInt().toString())
+-            }
+-        } catch (t: Throwable) {
+-            android.util.Log.w("EUNORA", "IDRIVE StaticObj apply failed: ${t.message}")
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class IdriveActivityCaptureHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            if (IdriveAcceptController.orderListActInstance == null && callback.thisObject != null) {
+-                IdriveAcceptController.orderListActInstance = callback.thisObject
+-                ModuleMain.module?.log("IDRIVE: OrderListAct instance captured via constructor")
+-            }
+-        }
+-    }
+-}
+-
+-// 아이드라이브 Activity 캡처 훅 (GetOrders 전용)
+-@XposedHooker
+-class IdriveGetOrdersCaptureHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic @BeforeInvocation
+-        fun before(callback: XposedInterface.BeforeHookCallback) {
+-            if (IdriveAcceptController.orderListActInstance == null && callback.thisObject != null) {
+-                IdriveAcceptController.orderListActInstance = callback.thisObject
+-                ModuleMain.module?.log("IDRIVE: OrderListAct instance captured via GetOrders")
+-            }
+-        }
+-
+-        @JvmStatic @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            try {
+-                ModuleMain.module?.log(
+-                    "IDRIVE: GetOrders after a0=${callback.args.getOrNull(0)} a1=${callback.args.getOrNull(1)}"
+-                )
+-                dumpOrderFields(callback.thisObject, "OrderListAct")
+-                val staticObj = Class.forName("com.idriver.StaticObj")
+-                dumpOrderFields(null, "StaticObj", staticObj)
+-            } catch (t: Throwable) {
+-                ModuleMain.module?.log("IDRIVE: GetOrders after error", t)
+-            }
+-        }
+-
+-        private fun dumpOrderFields(instance: Any?, label: String, cls: Class<*>? = instance?.javaClass) {
+-            val target = cls ?: return
+-            for (f in target.declaredFields) {
+-                try {
+-                    f.isAccessible = true
+-                    val v = f.get(instance) ?: continue
+-                    when (v) {
+-                        is List<*> -> ModuleMain.module?.log(
+-                            "IDRIVE: $label field=${f.name} listSize=${v.size} first=${v.firstOrNull()?.javaClass?.name}"
+-                        )
+-                        is Array<*> -> ModuleMain.module?.log(
+-                            "IDRIVE: $label field=${f.name} arraySize=${v.size} first=${v.firstOrNull()?.javaClass?.name}"
+-                        )
+-                        else -> {
+-                            val tname = v.javaClass.name
+-                            if (tname.contains("Order", ignoreCase = true) ||
+-                                f.name.contains("order", ignoreCase = true)
+-                            ) {
+-                                ModuleMain.module?.log("IDRIVE: $label field=${f.name} type=$tname")
+-                            }
+-                        }
+-                    }
+-                } catch (_: Throwable) {
+-                }
+-            }
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class IdriveString2OrderHooker : XposedInterface.Hooker {
+-    companion object {
+-        @JvmStatic @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            val methodName = try {
+-                callback.member.name
+-            } catch (_: Throwable) {
+-                "?"
+-            }
+-            if (IdriveAcceptController.orderListActInstance == null && callback.thisObject != null) {
+-                IdriveAcceptController.orderListActInstance = callback.thisObject
+-            }
+-            val candidate = callback.result ?: callback.args.getOrNull(0) ?: return
+-            if (candidate.javaClass.name != "com.idriver.OrderData") return
+-            ModuleMain.module?.log("IDRIVE: $methodName returned OrderData")
+-            IdriveOrderDataHooker.tryMatch(candidate)
+-        }
+-    }
+-}
+-
+-@XposedHooker
+-class IdriveOrderDataHooker : XposedInterface.Hooker {
+-    companion object {
+-        @Volatile var orderDataClass: Class<*>? = null
+-
+-        @JvmStatic @AfterInvocation
+-        fun after(callback: XposedInterface.AfterHookCallback) {
+-            val order = callback.thisObject ?: return
+-            tryMatch(order)
+-        }
+-
+-        fun tryMatch(order: Any) {
+-            try {
+-                val num = ModuleMain.readField(order, "num")?.toString()?.trim().orEmpty()
+-                val start = ModuleMain.readField(order, "start") as? String ?: ""
+-                val arrive = ModuleMain.readField(order, "arrive") as? String ?: ""
+-                val fee = ModuleMain.readField(order, "fee") as? String ?: ""
+-                val disView = ModuleMain.readField(order, "DisView") as? String ?: ""
+-                ModuleMain.module?.log("IDRIVE: filled num=$num start=$start arrive=$arrive fee=$fee DisView=$disView")
+-                if (num.isBlank() || num == "0000") return
+-                if (arrive.isBlank() && start.isBlank()) return
+-                val fare = ModuleMain.parseIdriveFee(fee)
+-                val distanceKm = ModuleMain.parseDistanceKm(disView)
+-                val callData = CallData("IDRIVE:$num", start, arrive, fare, distanceKm)
+-                if (ModuleMain.matchAndAccept(callData)) {
+-                    IdriveAcceptController.accept(order)
+-                }
+-            } catch (t: Throwable) {
+-                ModuleMain.module?.log("IDRIVE: order processing error", t)
+-            }
+-        }
+-    }
+-}
+-
+-
+-internal object IdriveAcceptController {
+-    @Volatile var getOrdersMethod: Method? = null
+-    @Volatile var tmpOrderField: java.lang.reflect.Field? = null
+-    @Volatile var orderListActInstance: Any? = null
+-
+-    fun init(classLoader: ClassLoader) {
+-        try {
+-            val orderListActClass = Class.forName("com.idriver.Order.OrderListAct", false, classLoader)
+-            getOrdersMethod = orderListActClass.getDeclaredMethod("GetOrders", Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType)
+-            getOrdersMethod?.isAccessible = true
+-
+-            val staticObjClass = Class.forName("com.idriver.StaticObj", false, classLoader)
+-            tmpOrderField = staticObjClass.getDeclaredField("tmpOrder").apply { isAccessible = true }
+-
+-            ModuleMain.module?.log("IDRIVE: AcceptController initialized")
+-        } catch (t: Throwable) { ModuleMain.module?.log("IDRIVE: AcceptController init FAILED", t) }
+-    }
+-
+-    fun accept(order: Any) {
+-        val method = getOrdersMethod ?: return
+-        val activity = orderListActInstance ?: run { ModuleMain.module?.log("IDRIVE: OrderListAct instance not available"); return }
+-        try {
+-            tmpOrderField?.set(null, order)
+-            method.invoke(activity, false, true)
+-            ModuleMain.module?.log("IDRIVE: Accepted via GetOrders(false, true)")
+-            try { ConditionClient.stopDetecting("idrive_accept") } catch (e: Throwable) {
+-                ModuleMain.module?.log("IDRIVE: stopDetecting failed: ${e.message}")
+-            }
+-        } catch (t: Throwable) { ModuleMain.module?.log("IDRIVE: Accept failed", t) }
+-    }
+-}
+-
+ 
+ internal fun ModuleMain.installIdriveGpsSpoof(classLoader: ClassLoader) {
+     try {

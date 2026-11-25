@@ -1,0 +1,99 @@
+{
+  "status": "passed",
+  "files": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E02.kt",
+      "uploaded_sha256": "d912d61f79beb6ec549a376835b9e87efb961025d0c4eecd24e84c264304d3bc",
+      "supported_baseline_sha256": "d912d61f79beb6ec549a376835b9e87efb961025d0c4eecd24e84c264304d3bc",
+      "reviewed_changed_lines": [],
+      "difference": "byte-identical",
+      "functional_local_changes": false
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E03.kt",
+      "uploaded_sha256": "d4b54086706563e8cc485e550ed7bebc140bc0380197be4686f7ba9fb5d19c3c",
+      "supported_baseline_sha256": "0bafe085479e2211552638d5ca8f74af5734e46c47fa331e2cf7880c1a01aa08",
+      "reviewed_changed_lines": [
+        53,
+        80,
+        84,
+        89,
+        116,
+        159,
+        978
+      ],
+      "difference": "leading indentation only",
+      "functional_local_changes": false
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E04.kt",
+      "uploaded_sha256": "8506fc814ca7dfab28ab94d27d5c05ba87599b7f83a01d57294ddc307cd50da9",
+      "supported_baseline_sha256": "8523e61a8c99a8877b2a4aeab95d861c67e7fdad9785fd1eaf27471de99458b9",
+      "reviewed_changed_lines": [
+        820,
+        821
+      ],
+      "difference": "leading indentation only",
+      "functional_local_changes": false
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E05.kt",
+      "uploaded_sha256": "8aee17893fad3d228d4246c002479b2050d484e8961ec1744239f65a130ea2f8",
+      "supported_baseline_sha256": "7262ccf6263ea866ab95ae19705ce2af6e0c786f960d27a5c9a9a1746ed0b2dd",
+      "reviewed_changed_lines": [
+        709,
+        799,
+        800,
+        846,
+        847,
+        848
+      ],
+      "difference": "leading indentation only",
+      "functional_local_changes": false
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E06.kt",
+      "uploaded_sha256": "6a7f9497792678a2416901fff632d35f6e4cddeb1db8b9a2662ac88bb78668fe",
+      "supported_baseline_sha256": "3821f016552ae296d75548822b085b5073222a8eca18b13f6e9097ef73cf5f41",
+      "reviewed_changed_lines": [
+        495,
+        496
+      ],
+      "difference": "leading indentation only",
+      "functional_local_changes": false
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/ModuleMain.kt",
+      "uploaded_sha256": "115304885213890c2e997ff8cab2e3ee7e4860687ac33feb11af6fcada268138",
+      "supported_baseline_sha256": "115304885213890c2e997ff8cab2e3ee7e4860687ac33feb11af6fcada268138",
+      "reviewed_changed_lines": [],
+      "difference": "byte-identical",
+      "functional_local_changes": false
+    },
+    {
+      "path": "app/proguard-rules.pro",
+      "uploaded_sha256": "6109ac13aa0680213f8751da0c3477f51a27ff75e481f6924948b93910b9cdca",
+      "supported_baseline_sha256": "6109ac13aa0680213f8751da0c3477f51a27ff75e481f6924948b93910b9cdca",
+      "reviewed_changed_lines": [],
+      "difference": "byte-identical",
+      "functional_local_changes": false
+    }
+  ],
+  "extra_exact_hashes_added_since_v2": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E03.kt",
+      "sha256": "d4b54086706563e8cc485e550ed7bebc140bc0380197be4686f7ba9fb5d19c3c"
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E04.kt",
+      "sha256": "8506fc814ca7dfab28ab94d27d5c05ba87599b7f83a01d57294ddc307cd50da9"
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E06.kt",
+      "sha256": "6a7f9497792678a2416901fff632d35f6e4cddeb1db8b9a2662ac88bb78668fe"
+    }
+  ],
+  "all15_app_payload_files_unchanged": true,
+  "helper_executable_bytes_unchanged": true,
+  "generic_whitespace_matching_or_force_overwrite_added": false
+}
