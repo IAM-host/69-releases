@@ -1,0 +1,46 @@
+{
+  "date": "2026-11-26",
+  "target": {
+    "package": "com.kakao.wheel.driver",
+    "version_name": "3.15.0",
+    "version_code": 3150099,
+    "exact_APK_SHA256": "cf38573177afbbb4ac0ed94165e225b6743c40087d70e76e440f30927df98b89"
+  },
+  "application_source_changes_since_v3": [
+    "app/src/main/java/com/example/wheelprobe/E02.kt",
+    "app/src/main/java/com/example/wheelprobe/ModuleMain.kt"
+  ],
+  "source_SHA256": {
+    "E02.kt": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f",
+    "ModuleMain.kt": "2d0468c1b60553d50011e05475605a32b4279d8fe53aa97c90791d67013c80ca"
+  },
+  "other_baseline_files_unchanged": 76,
+  "other_payload_files_and_apply_helpers_unchanged": true,
+  "build": "Debug/Release Kotlin, Release lintVital, R8, assembleRelease passed in1m43s",
+  "packaging": "CRC, all51 annotatedHookers, unchangedXposedmetadata, fourunchangedLogiSO, staticnativeJNIstatus,16KB alignment passed",
+  "tests": {
+    "accept_core_cases": 41,
+    "accept_controller_scenarios": 5,
+    "detection_fixture_cases": 27,
+    "java_security_assertions": 57,
+    "java_security_scenarios": 14,
+    "APK_identity_cases": 7,
+    "connected_route_condition_cases": 36,
+    "apply_actual_project_baselines": 3,
+    "unknown_local_edit_guards": 4
+  },
+  "test_provenance": "Core/controller/connected fixtures use final merged sources; detection/security fixtures use byte-identical merged production regions. Android/condition/client/Xposed/backend boundaries are documented stubs; target APK code was not executed.",
+  "delivery": {
+    "cumulative_payload_files": 15,
+    "guarded_deletions": 4,
+    "full_code_TXT_files": 6,
+    "no_installable_APK_signing_keys_private_license_updater_or_target_SDK_binary": true
+  },
+  "runtime_limits": {
+    "actual_Android_or_Xposed_or_backend_tested": false,
+    "actual_Windows_PowerShell_tested": false,
+    "native_JavaProxy_checked_Throwable_boundary": "RuntimeException/Error identity and original return are preserved; undeclared checked Throwable follows JavaProxy wrapping rules, as in baseline",
+    "unknown_acceptance": "Uncertain outcomes retain reservation and do not switch detection off; later matching success can confirm. No automatic retries after uncertain server outcome.",
+    "security_scope": "Existing verified Java profile only; unknown evidence preserved. No comprehensive native, PlayIntegrity or server policy changes."
+  }
+}

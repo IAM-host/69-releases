@@ -1,0 +1,7 @@
+{
+  "passed": 7,
+  "total": 7,
+  "actual_supplied_APK_used": true,
+  "Android_framework_calls_stubbed_only": true,
+  "limits": "No Android runtime/framework test"
+}

@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "JVM_fixture_cases": 27,
+  "production_field_contracts_checked_against_actual_DEX": 29,
+  "production_method_contracts_checked_against_actual_DEX": 5,
+  "actual_i71_resume_reentry_verified": true,
+  "JVM_scope": "Production detection/parser/observer code compiled verbatim with fake Android-independent DTOs and recording sink; no target code or server executed",
+  "source_SHA256": {
+    "E02.kt": "aa314253e53adddcb3c959ae30aa693605dfd83ebbad893132737df16d805219",
+    "ModuleMain.kt": "0f56578bac79011e4e4a3462e70dd9e6eaa9d3129db85db5f686eb1b90945494"
+  }
+}

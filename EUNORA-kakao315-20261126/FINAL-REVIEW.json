@@ -1,0 +1,103 @@
+{
+  "verdict": "NO_MATERIAL_BLOCKERS_FOUND",
+  "reviewed_at_utc": "2026-11-25T21:05:57.245750+00:00",
+  "mode": "Independent read-only final source/evidence review; only review artifacts written; no code changes, builds, tests, network, Android/Xposed or server execution in this review.",
+  "project": "/workspace/projects/WheelProbe-kakao315-20261125",
+  "source_sha256": {
+    "E02.kt": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f",
+    "ModuleMain.kt": "2d0468c1b60553d50011e05475605a32b4279d8fe53aa97c90791d67013c80ca"
+  },
+  "blocking_findings": [],
+  "confirmed_boundaries": [
+    {
+      "boundary": "install scope",
+      "result": "confirmed",
+      "evidence": "ModuleMain.kt:86-111: package/isFirstPackage and exact supplied APK size/SHA-256 verification precede every Kakao-specific installer; common init hooks and other-app branches are preserved."
+    },
+    {
+      "boundary": "manual/native dispatch isolation",
+      "result": "confirmed",
+      "evidence": "E02.kt:160-172,364-399: only a ThreadLocal managed launch with matching fl variant 3, host identity, raw call ID and native source receives a wrapped callback. Linked dispatches and unrelated/manual calls pass through. Actual r41.e synchronously calls qm1.D."
+    },
+    {
+      "boundary": "original callback and success identity",
+      "result": "confirmed",
+      "evidence": "E02.kt:369-429: original callback invoked exactly once; result returned; RuntimeException/Error cause retained; observer errors isolated in finally. Success requires d0a.c -> kd7.a -> rt0.a, nonblank ID, and ledger equality to attempted ID. Actual rt0.toString identifies a as Call(id=...)."
+    },
+    {
+      "boundary": "session, duplicate and uncertain results",
+      "result": "confirmed",
+      "evidence": "E02.kt:232-307: changed/off sessions discard QUEUED only; dispatched/unknown requests remain reserved; wrong ID cannot turn detection OFF; stale success cannot stop a later session. Timeout remains UNKNOWN."
+    },
+    {
+      "boundary": "verified server rejection parsing",
+      "result": "confirmed",
+      "evidence": "E02.kt:403-417,492-504 follows actual jw1 -> hp3.H(Throwable) -> xgb.a and selected 12 rejection branches in u21-simple.java. A verified rejection releases pending, keeps detection active and suppresses same-ID resubmission for that generation; all other/undecodable failures stay UNKNOWN."
+    },
+    {
+      "boundary": "Wayback and cached async list data",
+      "result": "confirmed",
+      "evidence": "E02.kt:701-780,881-902: incoming Wayback must satisfy original g81.d guard and be actually published; g81.f queue publication observed separately. Immediate/resumed exact y41 lists accepted; cached identities can be reconsidered after conditions change."
+    },
+    {
+      "boundary": "source and event flags",
+      "result": "confirmed",
+      "evidence": "ModuleMain.kt:434-442 and E02.kt:347-352 preserve LIST mini, CARD direct popup, WAY_BACK priority and VIP flag; f01 constructor receives premium then mini, matching actual f01.toString field meanings."
+    },
+    {
+      "boundary": "security result preservation",
+      "result": "confirmed",
+      "evidence": "E02.kt:1336-1426 verifies exact report and named category contracts, removes only known marker entries from first five lists, retains unknown findings/framework API list/probe map/timestamps, and retains original result on contract/normalization failure."
+    }
+  ],
+  "independent_preservation": {
+    "baseline_files": 78,
+    "byte_identical_files": 76,
+    "changed_files": [
+      "app/src/main/java/com/example/wheelprobe/E02.kt",
+      "app/src/main/java/com/example/wheelprobe/ModuleMain.kt"
+    ],
+    "missing_baseline_files": [],
+    "non_kakao_package_branch_bytes_identical": true,
+    "non_kakao_branch_bytes": 3500,
+    "CRLF_preserved": true
+  },
+  "fixture_region_linkage": {
+    "detection_data_and_hooks_exactly_present_in_reviewed_fixture": true,
+    "security_region_exactly_present_in_reviewed_fixture": true,
+    "detection_fragment_sha256_utf8_universal_newline": "88f9ee693a135f5367c2844f82030174bec377a4a59933bf73bb996df00bee4e",
+    "security_fragment_sha256_utf8_universal_newline": "06c38ee886fe3d3431033a3808608e6bb4260a0141b94e7fb5844daa64372f36"
+  },
+  "existing_validation_reviewed": {
+    "accept_core_cases": 41,
+    "accept_bad_contract_mutations": 18,
+    "controller_scenarios": 5,
+    "detection_cases": 27,
+    "security_assertions": 57,
+    "security_scenarios": 14,
+    "actual_supplied_apk_identity_cases": 7,
+    "cross_component_route_condition_cases": 36,
+    "debug_and_release_compilation": "passed per existing build log",
+    "release_lint_R8_assemble": "passed; BUILD SUCCESSFUL in 1m 43s",
+    "packaging_report": "release-packaging.json: ZIP CRC and 16 KB zipalign pass, 51 annotated Hooker classes retained, Logi JNI and four native libraries retained"
+  },
+  "limitations": [
+    "No actual phone, Android framework/Xposed installation, target APK/backend execution or live acceptance is established by the JVM fixtures or this review.",
+    "Kakao hook installation deliberately supports only the exact supplied 3.15.0/3150099 APK hash; repackaged/different builds are rejected.",
+    "UNKNOWN/network/unrecognized outcomes retain the in-flight reservation across OFF/ON; process restart may be needed when no terminal callback arrives.",
+    "Java Proxy may wrap a checked Throwable from original callback in UndeclaredThrowableException because the callback interface declares no checked exception; RuntimeException/Error identity is retained. This is the existing recorded technical limitation."
+  ],
+  "supersedes_early_note": "The early-review all-qv3-UNKNOWN gap is resolved for the 12 verified terminal business-rejection codes; unverified failures intentionally remain UNKNOWN.",
+  "primary_evidence": [
+    "/workspace/analysis/kakao315-fix-20261125/rt0.java",
+    "/workspace/analysis/kakao315-fix-20261125/hp3.java",
+    "/workspace/analysis/kakao315-fix-20261125/jw1.java",
+    "/workspace/analysis/kakao315-fix-20261125/xgb.java",
+    "/workspace/analysis/kakao315-fix-20261125/u21-simple.java",
+    "/workspace/analysis/kakao315-fix-20261125/build.log",
+    "/workspace/analysis/kakao315-fix-20261125/release-packaging.json",
+    "/workspace/analysis/kakao315-fix-20261125/accept/tests/report.json",
+    "/workspace/analysis/kakao315-fix-20261125/accept/controller-tests/report.json",
+    "/workspace/analysis/kakao315-fix-20261125/end-to-end/report.json"
+  ]
+}

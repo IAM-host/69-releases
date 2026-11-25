@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "assertions": 57,
+  "scenarios": 14,
+  "source_sha256": "9a627aba1e2245c60b9afaede8b7fca8d0b2cbe80ccccb1d1031795a453691b1",
+  "exact_production_region_extracted": true,
+  "scope": "JVM Android/Xposed stubs and Java DTO fixtures matching verified DEX; no device/server/native test"
+}

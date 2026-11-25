@@ -1,0 +1,112 @@
+{
+  "status": "passed",
+  "bundle": "/workspace/artifacts/EUNORA-kakao315-20261126",
+  "final_project": "/workspace/projects/WheelProbe-kakao315-20261125",
+  "payload_file_count": 15,
+  "guarded_deletion_count": 4,
+  "source_changes_since_previous_cumulative": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E02.kt",
+      "previous_v3_target_sha256": "4e4da388b9881658b13e99230db053a9a2c9156e33afcc80bde1ff5f00c774d1",
+      "new_target_sha256": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f"
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/ModuleMain.kt",
+      "previous_v3_target_sha256": "1b560c055be5c4fa86666a2d0e16b9e5efad372c6751dd31f3e67f2f76dcb412",
+      "new_target_sha256": "2d0468c1b60553d50011e05475605a32b4279d8fe53aa97c90791d67013c80ca"
+    }
+  ],
+  "other_76_baseline_files_unchanged": true,
+  "other_13_payload_files_unchanged": true,
+  "helper_ps1_cmd_bytes_unchanged": true,
+  "deletion_rules_and_list_unchanged": true,
+  "all_prior_reviewed_uploaded_variants_preserved": true,
+  "only_previous_v3_target_hashes_added_to_allowed_old": true,
+  "powershell_version": "7.5.4",
+  "runtime": "Linux PowerShell; actual Windows/Android/server runtime not tested",
+  "cases": [
+    {
+      "baseline": "previous-v3",
+      "status": "passed",
+      "actual_unchanged_powershell_helper": true,
+      "all_78_final_project_files_byte_exact": true,
+      "four_guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 2,
+      "second_run_no_file_or_backup_changes": true,
+      "all_seven_actual_uploads_together": false,
+      "already_current_first_run_no_file_or_backup_changes": false
+    },
+    {
+      "baseline": "original-seven-uploaded",
+      "status": "passed",
+      "actual_unchanged_powershell_helper": true,
+      "all_78_final_project_files_byte_exact": true,
+      "four_guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 11,
+      "second_run_no_file_or_backup_changes": true,
+      "all_seven_actual_uploads_together": true,
+      "already_current_first_run_no_file_or_backup_changes": false
+    },
+    {
+      "baseline": "already-current",
+      "status": "passed",
+      "actual_unchanged_powershell_helper": true,
+      "all_78_final_project_files_byte_exact": true,
+      "four_guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 0,
+      "second_run_no_file_or_backup_changes": true,
+      "all_seven_actual_uploads_together": false,
+      "already_current_first_run_no_file_or_backup_changes": true
+    }
+  ],
+  "local_change_guards": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E02.kt",
+      "status": "passed",
+      "unknown_local_bytes_rejected_before_any_write": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/ModuleMain.kt",
+      "status": "passed",
+      "unknown_local_bytes_rejected_before_any_write": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E06.kt",
+      "status": "passed",
+      "unknown_local_bytes_rejected_before_any_write": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/package com/example/wheelprobe  import android/content/BroadcastReceiver import android/content/Context import android/content/Intent import android/util/ErrorReporter.kt",
+      "status": "passed",
+      "unknown_local_bytes_rejected_before_any_write": true
+    }
+  ],
+  "removed_stale_previous_validation_files": [
+    "BUILD.log",
+    "VALIDATION.json",
+    "APPLY-INTEGRATION.json",
+    "APPLY-HELPER-TESTS.json",
+    "CLEANUP-VALIDATION.json",
+    "CURRENT-FILES-REVIEW.json",
+    "E05-FORMAT-REVIEW.json",
+    "MERGE-REVIEW.json",
+    "NATIVE-VALIDATION.json",
+    "RELEASE-PACKAGING.json",
+    "SHA256SUMS.txt"
+  ],
+  "privacy": {
+    "no_full_private_project_license_updater_keys_or_apk": true,
+    "no_target_sdk_libraries": true,
+    "native_files_only_unchanged_own_helper": [
+      "app/src/main/jniLibs/x86/libeunora_logi_native.so",
+      "app/src/main/jniLibs/arm64-v8a/libeunora_logi_native.so",
+      "app/src/main/jniLibs/x86_64/libeunora_logi_native.so",
+      "app/src/main/jniLibs/armeabi-v7a/libeunora_logi_native.so"
+    ],
+    "private_files_found": []
+  },
+  "finalization": "draft folder only; no ZIP/checksums/publish/git/push; parent supplies final reports"
+}
