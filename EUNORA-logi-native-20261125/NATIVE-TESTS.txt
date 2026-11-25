@@ -1,0 +1,4 @@
+PASS: 39 native host cases (ASan/UBSan; leak sanitizer unavailable under ptrace).
+Source SHA256: 80d850da062e93024097811ab4c92527b8f941616ce180e9404963689000f678
+Original ELF/DWARF contract and independent ELF-as-data validation passed.
+Actual Android/LSPosed execution remains unverified.

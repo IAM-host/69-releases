@@ -1,0 +1,12 @@
+{
+  "production_e05_sha256": "323519395979e91284a63d6d1dc9b905f4dbfe0fdf96533cff29a95db3e5c345",
+  "bridge_original_sha256": "4033c8be681c024c09d05bcc3806180c68346137b8f6e3811c05870a82b2eae4",
+  "fixture_boundary_substitutions": [
+    "status JNI declaration replaced by fixture state",
+    "System.load(path) replaced by recording fixture loader"
+  ],
+  "android_execution": false,
+  "native_library_load_execution": false,
+  "fixture_exit_code": 0,
+  "passed_case_count": 35
+}

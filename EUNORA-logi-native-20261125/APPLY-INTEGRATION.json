@@ -1,0 +1,21 @@
+{
+  "runtime": "PowerShell7.5.4 Linux; actualWindows not tested",
+  "cases": [
+    {
+      "baseline": "previous-Java-fix",
+      "status": "passed",
+      "compiled_project_baseline_files_byte_exact": 70,
+      "all11payloadfiles_hash_match": true,
+      "backup_exact": true,
+      "second_run_no_changes": true
+    },
+    {
+      "baseline": "previous-cleanup",
+      "status": "passed",
+      "compiled_project_baseline_files_byte_exact": 70,
+      "all11payloadfiles_hash_match": true,
+      "backup_exact": true,
+      "second_run_no_changes": true
+    }
+  ]
+}

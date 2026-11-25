@@ -1,0 +1,21 @@
+{
+  "modified_existing": [
+    "app/proguard-rules.pro",
+    "app/src/main/java/com/example/wheelprobe/E05.kt",
+    "app/src/main/java/com/example/wheelprobe/ModuleMain.kt"
+  ],
+  "unchanged_existing_files": 67,
+  "new_files": [
+    "app/src/main/resources/META-INF/xposed/native_init.list",
+    "app/src/main/cpp/eunora_logi_native.c",
+    "app/src/main/cpp/eunora_logi_native.h",
+    "app/src/main/jniLibs/arm64-v8a/libeunora_logi_native.so",
+    "app/src/main/jniLibs/armeabi-v7a/libeunora_logi_native.so",
+    "app/src/main/jniLibs/x86/libeunora_logi_native.so",
+    "app/src/main/jniLibs/x86_64/libeunora_logi_native.so",
+    "tools/build_logi_native.py"
+  ],
+  "E05_original_prefix_exact": true,
+  "proguard_original_prefix_exact": true,
+  "ModuleMain_only_saved_process_and_call_with_spacing": true
+}

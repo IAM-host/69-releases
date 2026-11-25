@@ -1,0 +1,84 @@
+{
+  "runtime": "PowerShell 7.5.4 on Linux",
+  "windows_tested": false,
+  "tests": [
+    {
+      "test": "copy all 11; back up exact 3; second run writes nothing; Korean/spaces path",
+      "passed": true
+    },
+    {
+      "test": "mixed desired/old files; back up only changed existing file",
+      "passed": true
+    },
+    {
+      "test": "host long path beyond 260 characters with Korean and spaces",
+      "passed": true
+    },
+    {
+      "test": "unknown local source: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "tampered payload: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "path traversal: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "duplicate manifest path: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "missing manifest entry: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "missing required project source: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "missing required project marker: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "new-file local collision: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "allow_missing false for new file: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "source property outside payload: reject strict manifest",
+      "passed": true
+    },
+    {
+      "test": "outer JSON array: reject strict top-level manifest shape",
+      "passed": true
+    },
+    {
+      "test": "destination symlink: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "broken destination symlink: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "payload symlink: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "simulated mid-apply fault restores originals and removes created files",
+      "passed": true
+    },
+    {
+      "test": "Windows PS1 UTF-8 BOM and PS1/CMD CRLF",
+      "passed": true
+    }
+  ],
+  "passed": 19,
+  "total": 19
+}
