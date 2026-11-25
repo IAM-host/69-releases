@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-25",
+  "contents": "Prior unused-code cleanup plus latest Logi D1 Java and native updates",
+  "replacement_or_added_files": 15,
+  "guarded_unused_file_deletions": 4,
+  "whole_code_TXT_files": 6,
+  "source_verification": {
+    "all_payload_bytes_equal_previously_built_final_project": true,
+    "cleanup_files_E02_E03_E04_E06_preserved": true,
+    "native_E05_not_downgraded": true,
+    "E05_SHA256": "323519395979e91284a63d6d1dc9b905f4dbfe0fdf96533cff29a95db3e5c345",
+    "retained_project_files_byte_exact_after_integration": 78,
+    "existing_successful_build": "Debug and Release Kotlin; Release lint, R8, assembleRelease and final APK packaging checks",
+    "new_Android_source_changes_in_this_combination": false
+  },
+  "apply_checks": {
+    "actual_project_baselines": [
+      "original-upload",
+      "latest-before-cleanup",
+      "cleanup-already-applied",
+      "previous-Java-fix",
+      "native-without-cleanup",
+      "current-native",
+      "original-upload-with-current-user-E05"
+    ],
+    "all_passed": true,
+    "exact_backups": true,
+    "idempotence": true,
+    "fixture_results": "APPLY-HELPER-TESTS.json",
+    "fixture_cases_passed": 34,
+    "runtime": "PowerShell 7.5.4 Linux; actual Windows not tested"
+  },
+  "limits": {
+    "actual_Windows_execution_tested": false,
+    "actual_Android_runtime_or_server_tested": false,
+    "native_scope": "Exact supplied Logi D1 21.55/versionCode632 main-process ARM64 identity and verified native root leaf",
+    "installed_app_query_or_EUNORA_hiding_added": false,
+    "six_SET_UI_included": false,
+    "installable_APK_or_signing_key_included": false
+  },
+  "installer_update_v2": {
+    "cause": "Reviewed uploaded E05 differs only in six leading-indent lines from supported previous version",
+    "accepted_exact_uploaded_SHA256": "8aee17893fad3d228d4246c002479b2050d484e8961ec1744239f65a130ea2f8",
+    "only_one_old_hash_added_to_manifest": true,
+    "all15_app_payload_files_and_apply_helper_unchanged": true,
+    "additional_actual_uploaded_E05_integration": "passed; exact backup, final78files identical, repeat no changes",
+    "historical_helper_fixture_results": "34 passed against previous manifest; helper executable bytes unchanged",
+    "new_Android_build_required_for_this_metadata_change": false
+  }
+}

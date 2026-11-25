@@ -1,0 +1,141 @@
+{
+  "files": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E05.kt",
+      "sha256": "323519395979e91284a63d6d1dc9b905f4dbfe0fdf96533cff29a95db3e5c345",
+      "allowed_old_sha256": [
+        "364e4a26a5a835c2dc8bb16348a3a385eb6e16293146cbcedf07bf1abc4c66fb",
+        "7262ccf6263ea866ab95ae19705ce2af6e0c786f960d27a5c9a9a1746ed0b2dd",
+        "fc345bf080e62f62bab7c1d821f7c9f25675cded1f93e09c73b0a4816d19355f",
+        "8aee17893fad3d228d4246c002479b2050d484e8961ec1744239f65a130ea2f8"
+      ],
+      "allow_missing": false
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/ModuleMain.kt",
+      "sha256": "1b560c055be5c4fa86666a2d0e16b9e5efad372c6751dd31f3e67f2f76dcb412",
+      "allowed_old_sha256": [
+        "115304885213890c2e997ff8cab2e3ee7e4860687ac33feb11af6fcada268138"
+      ],
+      "allow_missing": false
+    },
+    {
+      "path": "app/proguard-rules.pro",
+      "sha256": "38fd53491eec68aff0f4e67f361ae19be95647f3c631f9c39507fa66553f0502",
+      "allowed_old_sha256": [
+        "6109ac13aa0680213f8751da0c3477f51a27ff75e481f6924948b93910b9cdca"
+      ],
+      "allow_missing": false
+    },
+    {
+      "path": "app/src/main/resources/META-INF/xposed/native_init.list",
+      "sha256": "4ea33bdd15e33533b37ada7882d44b3ac301cb5f9bb2a5bf24265b444d01d3dc",
+      "allowed_old_sha256": [],
+      "allow_missing": true
+    },
+    {
+      "path": "app/src/main/cpp/eunora_logi_native.c",
+      "sha256": "80d850da062e93024097811ab4c92527b8f941616ce180e9404963689000f678",
+      "allowed_old_sha256": [],
+      "allow_missing": true
+    },
+    {
+      "path": "app/src/main/cpp/eunora_logi_native.h",
+      "sha256": "09397597cc487660f5c07b1b19946cba609f8f9bd9c95f9f3b591cc754e58d14",
+      "allowed_old_sha256": [],
+      "allow_missing": true
+    },
+    {
+      "path": "app/src/main/jniLibs/arm64-v8a/libeunora_logi_native.so",
+      "sha256": "b40f68d83782b973577e047b71e9b8e80c620aa9f61ef271d37f3e39a4d12f13",
+      "allowed_old_sha256": [],
+      "allow_missing": true
+    },
+    {
+      "path": "app/src/main/jniLibs/armeabi-v7a/libeunora_logi_native.so",
+      "sha256": "63bdd79b7bf37fdafbc352ee0f94fb8ac538d1ffd0e676c09f92c07b43b0f3ac",
+      "allowed_old_sha256": [],
+      "allow_missing": true
+    },
+    {
+      "path": "app/src/main/jniLibs/x86/libeunora_logi_native.so",
+      "sha256": "d25d3ce805e5c812913ca5305167b01756626b3ddf19a320acc4996f553edd6c",
+      "allowed_old_sha256": [],
+      "allow_missing": true
+    },
+    {
+      "path": "app/src/main/jniLibs/x86_64/libeunora_logi_native.so",
+      "sha256": "676997595d2edaecb8474f9a7ed902dd549d459dfedcad0909ba37c1652975b8",
+      "allowed_old_sha256": [],
+      "allow_missing": true
+    },
+    {
+      "path": "tools/build_logi_native.py",
+      "sha256": "577b9cb61ccff755475f1e3900da42254c40dc50161242f09183119bd1f46259",
+      "allowed_old_sha256": [],
+      "allow_missing": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E02.kt",
+      "sha256": "4e4da388b9881658b13e99230db053a9a2c9156e33afcc80bde1ff5f00c774d1",
+      "allowed_old_sha256": [
+        "26799b720e2c45c94fa32522144fb72cc1f8ea08eeb5e916b091bb4f61fb23dd",
+        "d912d61f79beb6ec549a376835b9e87efb961025d0c4eecd24e84c264304d3bc"
+      ],
+      "allow_missing": false
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E03.kt",
+      "sha256": "fadb2178ba08c5d53fa6cce35f2df65a51af4c746d12ab276ae861e9977c64e3",
+      "allowed_old_sha256": [
+        "0bafe085479e2211552638d5ca8f74af5734e46c47fa331e2cf7880c1a01aa08",
+        "c66abaa4df9b0d9e8166a976eede43a83dcd482a1b556da305ee28fc52f9698b"
+      ],
+      "allow_missing": false
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E04.kt",
+      "sha256": "81638c32e7bd431377d375c844a691907a0a26e317d3fbd70b76caaf10908b50",
+      "allowed_old_sha256": [
+        "5794fb0ea09a552f500ad2e322e7def8c629f9169cd1e6c18b24cb7557bb6159",
+        "8523e61a8c99a8877b2a4aeab95d861c67e7fdad9785fd1eaf27471de99458b9"
+      ],
+      "allow_missing": false
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E06.kt",
+      "sha256": "d72c6165dd87479c9d218f56347c67dd29005c569908946abc8dad978db67e4e",
+      "allowed_old_sha256": [
+        "3821f016552ae296d75548822b085b5073222a8eca18b13f6e9097ef73cf5f41",
+        "f873b26280cac10326f46d21aa34964869177f180c9557aa4525ef6bbc0edf1c"
+      ],
+      "allow_missing": false
+    }
+  ],
+  "deletions": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/AutoClickService.kt",
+      "allowed_old_sha256": [
+        "f378feeb62c7da5d0b8e2c84ace885dd1664b06eb33ac93a67bad6a96a7fddc0"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/ExecutionClient.kt",
+      "allowed_old_sha256": [
+        "22afb2f6af7c1a6439b479b07c6c70b90b10bf1376cfd5de23a6b1a4e9abc98d"
+      ]
+    },
+    {
+      "path": "app/src/main/res/xml/eunora_accessibility_service.xml",
+      "allowed_old_sha256": [
+        "65766b3d470baa9636e4ef549be2f8bbb5b6a8374f1f923990d055f02d849589"
+      ]
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/package com/example/wheelprobe  import android/content/BroadcastReceiver import android/content/Context import android/content/Intent import android/util/ErrorReporter.kt",
+      "allowed_old_sha256": [
+        "1f83207af960da45daa4fa2fca0bfca04a9b6f69b142383389f3d856dcf637e7"
+      ]
+    }
+  ]
+}
