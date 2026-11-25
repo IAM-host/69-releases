@@ -1,0 +1,188 @@
+--- a/app/src/main/java/com/example/wheelprobe/E05.kt
++++ b/app/src/main/java/com/example/wheelprobe/E05.kt
+@@ -1102,3 +1102,156 @@
+         }
+     }
+ }
++
++// BEGIN LOGI_NATIVE_BRIDGE
++// Exact LogiD1 21.55 (versionCode 632) inputs only. The base digest binds the
++// version without querying PackageManager before Application creation.
++internal object LogiNativeBridge {
++    private const val TARGET_PACKAGE = "com.logisoft.Logi4"
++    private const val MODULE_PACKAGE = "com.example.wheelprobe"
++    private const val BASE_SHA256 = "f499048003d97075eef65c732566e68659c6d3e55fc0df473bcc23594a860f5b"
++    private const val TARGET_SHA256 = "49be73b2b264f56e823c1a786468e26f9174493fee68b25d947b38f7af2f5d85"
++    private const val TARGET_LIBRARY = "libtmaplib.so"
++    private const val HELPER_LIBRARY = "libeunora_logi_native.so"
++    private const val ABI_DIRECTORY = "lib/arm64-v8a/"
++    @Volatile private var loaded = false
++
++    private fun diagnostic(module: ModuleMain, message: String, error: Throwable? = null) {
++        try {
++            if (error == null) module.log(message) else module.log(message, error)
++        } catch (_: Throwable) { }
++        try {
++            android.util.Log.i("EUNORA_LOGI_NATIVE", message)
++        } catch (_: Throwable) { }
++    }
++
++    @JvmStatic external fun status(): Int
++
++    private fun sha256(input: java.io.InputStream): String {
++        val digest = java.security.MessageDigest.getInstance("SHA-256")
++        val buffer = ByteArray(65536)
++        while (true) {
++            val count = input.read(buffer)
++            if (count < 0) break
++            if (count > 0) digest.update(buffer, 0, count)
++        }
++        return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
++    }
++
++    private fun applicationApks(info: android.content.pm.ApplicationInfo): List<java.io.File> {
++        val paths = linkedSetOf<String>()
++        info.sourceDir?.takeIf { it.isNotBlank() }?.let { paths.add(it) }
++        info.splitSourceDirs?.forEach { if (!it.isNullOrBlank()) paths.add(it) }
++        return paths.map { java.io.File(it) }.filter { it.isAbsolute }
++    }
++
++    private fun identityFailure(
++        target: android.content.pm.ApplicationInfo,
++        processName: String,
++        is64Bit: Boolean,
++        architecture: String
++    ): String? {
++        if (target.packageName != TARGET_PACKAGE || LogiPackageRoute.current() != TARGET_PACKAGE) return "package"
++        if (processName != TARGET_PACKAGE) return "process"
++        val arch = architecture.lowercase(java.util.Locale.ROOT)
++        if (!is64Bit || arch != "aarch64" && arch != "arm64") return "abi"
++        try {
++            val source = target.sourceDir?.let { java.io.File(it) } ?: return "base_missing"
++            if (!source.isAbsolute || !source.isFile || source.inputStream().use { sha256(it) } != BASE_SHA256) return "base_digest"
++            val direct = target.nativeLibraryDir?.takeIf { it.isNotBlank() }
++                ?.let { java.io.File(it, TARGET_LIBRARY) }
++            // A present extracted image is authoritative: a mismatch must never
++            // fall back to an untouched copy from an APK.
++            if (direct != null && direct.exists()) {
++                return if (direct.isAbsolute && direct.isFile && direct.inputStream().use { sha256(it) } == TARGET_SHA256) null else "native_digest"
++            }
++            for (apk in applicationApks(target)) {
++                java.util.zip.ZipFile(apk).use { zip ->
++                    val entry = zip.getEntry(ABI_DIRECTORY + TARGET_LIBRARY) ?: return@use
++                    if (entry.isDirectory || entry.size <= 0) return "native_entry"
++                    return if (zip.getInputStream(entry).use { sha256(it) } == TARGET_SHA256) null else "native_digest"
++                }
++            }
++            return "native_missing"
++        } catch (_: Throwable) {
++            return "identity_io"
++        }
++    }
++
++    private fun helperPaths(info: android.content.pm.ApplicationInfo): List<String> {
++        if (info.packageName != MODULE_PACKAGE) return emptyList()
++        val result = linkedSetOf<String>()
++        info.nativeLibraryDir?.takeIf { it.isNotBlank() }?.let {
++            val direct = java.io.File(it, HELPER_LIBRARY)
++            if (direct.isAbsolute && direct.isFile) result.add(direct.absolutePath)
++        }
++        for (apk in applicationApks(info)) {
++            try {
++                java.util.zip.ZipFile(apk).use { zip ->
++                    val entry = zip.getEntry(ABI_DIRECTORY + HELPER_LIBRARY) ?: return@use
++                    // Android's linker can load an uncompressed APK entry. This
++                    // matches the module class loader's apk!/lib/<abi> paths.
++                    if (!entry.isDirectory && entry.method == java.util.zip.ZipEntry.STORED &&
++                        entry.size > 0 && entry.compressedSize == entry.size) {
++                        result.add(apk.absolutePath + "!/" + ABI_DIRECTORY + HELPER_LIBRARY)
++                    }
++                }
++            } catch (_: Throwable) {
++                // Continue to another installed split; no candidate is loaded here.
++            }
++        }
++        return result.toList()
++    }
++
++    @Synchronized
++    fun install(module: ModuleMain, target: android.content.pm.ApplicationInfo, processName: String) {
++        try {
++            val rejected = identityFailure(target, processName, android.os.Process.is64Bit(), System.getProperty("os.arch").orEmpty())
++            if (rejected != null) {
++                diagnostic(module, "LOGI_NATIVE: rejected reason=$rejected; SDK unchanged")
++                return
++            }
++            if (!loaded) {
++                val candidates = helperPaths(module.applicationInfo)
++                var failure: Throwable? = null
++                for (path in candidates) {
++                    try {
++                        System.load(path)
++                        loaded = true
++                        break
++                    } catch (error: Throwable) {
++                        failure = error
++                    }
++                }
++                if (!loaded) {
++                    diagnostic(module, "LOGI_NATIVE: helper unavailable candidates=${candidates.size} reason=${failure?.javaClass?.simpleName ?: "missing"}; SDK unchanged")
++                    return
++                }
++            }
++            val state = status()
++            val name = when (state) {
++                0 -> "WAIT_FRAMEWORK; framework API unavailable, SDK unchanged"
++                1 -> "WAIT_TARGET; armed, waiting for target library"
++                2 -> "ACTIVE"
++                3 -> "WRONG_PROCESS"
++                4 -> "UNSUPPORTED_ABI"
++                5 -> "API_REJECTED"
++                6 -> "LATE_UNSUPPORTED"
++                7 -> "TARGET_REJECTED"
++                8 -> "HOOK_FAILED"
++                9 -> "ROLLBACK_FAILED"
++                10 -> "RELOAD_REJECTED"
++                11 -> "INSTALLING"
++                else -> "UNKNOWN"
++            }
++            diagnostic(module, "LOGI_NATIVE: status=$state $name")
++        } catch (error: Throwable) {
++            diagnostic(module, "LOGI_NATIVE: bridge/status unavailable", error)
++        }
++    }
++}
++
++internal fun ModuleMain.installLogiNativeAdapter(target: android.content.pm.ApplicationInfo, processName: String) {
++    LogiNativeBridge.install(this, target, processName)
++}
++// END LOGI_NATIVE_BRIDGE
+--- a/app/src/main/java/com/example/wheelprobe/ModuleMain.kt
++++ b/app/src/main/java/com/example/wheelprobe/ModuleMain.kt
+@@ -21,6 +21,8 @@
+     param: XposedModuleInterface.ModuleLoadedParam
+ ) : XposedModule(base, param) {
+ 
++    private val moduleProcessName = runCatching { param.processName }.getOrNull().orEmpty()
++
+     init {
+         module = this
+         val processName = try {
+@@ -170,6 +172,7 @@
+         // ====================================================================
+         if (LogiPackageRoute.supports(pkg) && param.isFirstPackage) {
+             LogiPackageRoute.attach(pkg)
++            installLogiNativeAdapter(param.applicationInfo, moduleProcessName)
+             log("EUNORA: Logi package loaded package=$pkg")
+ 
+             // 감지 ON 전이라도 GPS 브로드캐스트 수신 가능하도록 조건 수신기 등록
+--- a/app/proguard-rules.pro
++++ b/app/proguard-rules.pro
+@@ -35,4 +35,7 @@
+ #    public static *** d(...);
+ #    public static *** i(...);
+ #    public static *** v(...);
+-#}+#}
++
++# Keep the exact JNI export class and native method name.
++-keep class com.example.wheelprobe.LogiNativeBridge { *; }

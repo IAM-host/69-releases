@@ -1,0 +1,145 @@
+{
+  "runtime": "PowerShell 7.5.4 on Linux",
+  "windows_tested": false,
+  "actual_manifest_sha256": "e463254b1719cd1833ea554821b7b78298b31d8feb4cabbb95bdd9174c5b5d3d",
+  "tests": [
+    {
+      "test": "copy all 15; delete exact 4; back up exact 11 originals; repeat writes nothing",
+      "passed": true
+    },
+    {
+      "test": "mixed already updated sources and missing obsolete file",
+      "passed": true
+    },
+    {
+      "test": "cleanup already applied: update native portion only",
+      "passed": true
+    },
+    {
+      "test": "native already applied: retain native E05 and apply cleanup portion",
+      "passed": true
+    },
+    {
+      "test": "all replacements already applied: transaction deletes only obsolete files",
+      "passed": true
+    },
+    {
+      "test": "host path beyond 260 characters, Korean/spaces, and long nested obsolete path",
+      "passed": true
+    },
+    {
+      "test": "unknown local source: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "unknown obsolete file with spaces: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "tampered last payload: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "replacement path traversal: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "duplicate replacement: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "missing replacement manifest entry: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "deletion path traversal: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "duplicate deletion: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "missing deletion manifest entry: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "empty deletion allowed hashes: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "missing required native source: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "missing required cleanup source: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "missing project marker: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "new native file local collision: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "wrong new-file allow_missing flag: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "arbitrary payload source property: reject strict manifest",
+      "passed": true
+    },
+    {
+      "test": "outer JSON array: reject strict top-level object shape",
+      "passed": true
+    },
+    {
+      "test": "replacement symlink: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "broken new-file symlink: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "obsolete file symlink: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "broken obsolete symlink: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "directory at deletion path: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "payload symlink: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "project root symlink: reject before any project write",
+      "passed": true
+    },
+    {
+      "test": "copy-phase fault restores originals and removes only created files",
+      "passed": true
+    },
+    {
+      "test": "fault after all 4 deletions restores 11 originals and removes 8 created files",
+      "passed": true
+    },
+    {
+      "test": "actual 15-file payload/manifest accepted; 11 native entries and E05 history retained",
+      "passed": true
+    },
+    {
+      "test": "Windows PS1 UTF-8 BOM and PS1/CMD CRLF",
+      "passed": true
+    }
+  ],
+  "passed": 34,
+  "total": 34
+}

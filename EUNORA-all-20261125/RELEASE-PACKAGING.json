@@ -1,0 +1,49 @@
+{
+  "APK_sha256": "665fc3fc972597b57755f81173086c2c71052c6469d925eaf731132db76d466b",
+  "zipalign_16K": "passed",
+  "APK_integrity": "passed",
+  "metadata_and_JNI": "passed",
+  "existing_Hooker_classes_retained": 12,
+  "packaged_libraries": [
+    {
+      "abi": "arm64-v8a",
+      "STORED": true,
+      "bytes": 10832,
+      "exports": [
+        "native_init",
+        "Java_com_example_wheelprobe_LogiNativeBridge_status"
+      ],
+      "sha256": "7375ce82623387006d4897470d71a7ea6780d9fa35d561c4b0192a5cbc4d2fa8"
+    },
+    {
+      "abi": "armeabi-v7a",
+      "STORED": true,
+      "bytes": 3832,
+      "exports": [
+        "native_init",
+        "Java_com_example_wheelprobe_LogiNativeBridge_status"
+      ],
+      "sha256": "f6b184164c5163188134da1ec10998cd8572938b978cd144c5fe588ed0194220"
+    },
+    {
+      "abi": "x86",
+      "STORED": true,
+      "bytes": 4004,
+      "exports": [
+        "native_init",
+        "Java_com_example_wheelprobe_LogiNativeBridge_status"
+      ],
+      "sha256": "8b3a5478fa95b7538b576588b134d126fb320bb4e076d80d12172fd9369bf8c4"
+    },
+    {
+      "abi": "x86_64",
+      "STORED": true,
+      "bytes": 5224,
+      "exports": [
+        "native_init",
+        "Java_com_example_wheelprobe_LogiNativeBridge_status"
+      ],
+      "sha256": "1489a154223dc4c30310e299b413fec4b63c9da3c39d9253effcdca4a0acf977"
+    }
+  ]
+}
