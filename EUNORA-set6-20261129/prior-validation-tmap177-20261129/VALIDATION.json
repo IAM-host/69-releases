@@ -1,0 +1,51 @@
+{
+  "date": "2026-11-29",
+  "target": {
+    "package": "com.tmapmobility.drive.driver",
+    "version_name": "3.8.3.190002",
+    "version_code": 177,
+    "APK_SHA256": "35e40ddfa5f65a919fda808a99fd85a8226669e409e21fa6f89e838748004b43"
+  },
+  "source_SHA256": {
+    "E03.kt": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280",
+    "ModuleMain.kt": "98b94029c3b5e3e61979f484061329f4314227c5b565cd5fa6f7a1007915a009"
+  },
+  "changed_files": [
+    "E03.kt",
+    "ModuleMain.kt"
+  ],
+  "other_baseline_files_unchanged": 76,
+  "other_payload_files_unchanged": 13,
+  "build": "Debug/Release Kotlin; Release lintVital/R8/assembleRelease passed in1m49s",
+  "tests": {
+    "detection_cases": 21,
+    "accept_ledger_native_continuation_assertions": 35,
+    "security_assertions": 159,
+    "security_scenarios": 15,
+    "connected_flow_cases": 24,
+    "apply_baselines": 5,
+    "unknown_local_edit_guards": 6
+  },
+  "release_packaging": {
+    "CRC": "pass",
+    "annotated_Hookers_retained": 51,
+    "four_native_libraries": "byte-identical to previousKakao release",
+    "Xposedmetadata": "byte-identical",
+    "16KB_alignment": "pass"
+  },
+  "delivery": {
+    "cumulative_payload_files": 15,
+    "guarded_deletions": 4,
+    "full_code_TXT_files": 6,
+    "no_targetAPK_or_privatefullproject": true
+  },
+  "runtime_limits": [
+    "Android/Xposed/physical device and target APK execution not tested",
+    "No real backend acceptance request sent; Unit-success interpretation based on suppliedAPK Retrofit contract",
+    "No comprehensive native security, PlayIntegrity or server-policy implementation",
+    "Native lastLocation unavailable or zero prevents automatic request and leaves detection ON",
+    "Unknown outcomes retain a process-local reservation across OFF/ON; verify actual allocation before further action",
+    "PowerShellhelper executed on Linux; Windows CMD/Explorer execution not tested",
+    "Existing unchanged E02 compiler warnings remain"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "source": "/workspace/projects/WheelProbe-kakao315-20261125/app/src/main/java/com/example/wheelprobe/E02.kt",
+  "source_sha256": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f",
+  "actual_controller_sha256": "f005597ee4379bb0c63a63bcfa8a399b71123c190eeb5a17bd9f5f07a8dc7dca",
+  "actual_core_sha256": "2058f5c95899b76cb2b9e5c94dd99cde92c1dc8c6e675d4976e00abd7095cdaa",
+  "production_code_substitutions": [],
+  "extraction": "Actual DirectAcceptController object, marked core, and DirectAcceptSource/Outcome enums unchanged; only imports added",
+  "fresh_jvm_per_scenario": true,
+  "scenarios": [
+    "manual-same-id",
+    "off-on-stale",
+    "unknown-timeout",
+    "original-exception",
+    "terminal-server-rejection"
+  ],
+  "passed_scenario_count": 5,
+  "fixture_exit_code": 0,
+  "boundaries": [
+    "fake r41.e invokes fixture start action",
+    "fake qm1.D invokes dispatch hook before recording arguments",
+    "deterministic Handler/Looper and condition broadcasts",
+    "ConditionClient/ModuleMain/Xposed stubs"
+  ],
+  "android_framework_execution": false,
+  "real_app_or_xposed_execution": false,
+  "network_access": false,
+  "native_code_execution": false
+}

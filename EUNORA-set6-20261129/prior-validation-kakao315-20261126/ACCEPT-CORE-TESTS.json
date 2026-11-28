@@ -1,0 +1,33 @@
+{
+  "source": "/workspace/projects/WheelProbe-kakao315-20261125/app/src/main/java/com/example/wheelprobe/E02.kt",
+  "source_sha256": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f",
+  "actual_core_sha256": "2058f5c95899b76cb2b9e5c94dd99cde92c1dc8c6e675d4976e00abd7095cdaa",
+  "extraction": "Marked production core and actual DirectAcceptSource/Outcome enums, unchanged; imports only added",
+  "production_core_substitutions": [],
+  "java_fixture_sources": 21,
+  "contract_mutations": [
+    "source_serialization",
+    "source_missing",
+    "event_field_type",
+    "task_variant_type",
+    "task_host_type",
+    "success_payload_field",
+    "failure_payload_field",
+    "ongoing_call_type",
+    "call_id_type",
+    "callback_return",
+    "state_result_return",
+    "dispatch_return",
+    "host_holder_static",
+    "server_exception_status_type",
+    "server_exception_message_type",
+    "server_exception_body_type",
+    "server_code_type",
+    "server_parser_return"
+  ],
+  "passed_case_count": 41,
+  "fixture_exit_code": 0,
+  "android_execution": false,
+  "network_access": false,
+  "native_code_execution": false
+}

@@ -1,0 +1,22 @@
+{
+  "passed": 44,
+  "total": 44,
+  "source_sha256": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+  "pager_and_scroll_parent": {
+    "passed": 24,
+    "total": 24,
+    "source": "/workspace/projects/WheelProbe-set6-20261129/app/src/main/java/com/example/wheelprobe/MainActivity.kt",
+    "source_sha256": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+    "extraction": "Actual HorizontalSetPager and SetPageScrollView blocks compiled unchanged except private visibility",
+    "limitations": "Android framework is stubbed (including Android-like native ScrollView dy-only interception and ViewGroup child-CANCEL routing); no Android device or emulator. Scroller settles deterministically; no frame timing validation."
+  },
+  "detection_and_history": {
+    "passed": 20,
+    "total": 20,
+    "source": "/workspace/projects/WheelProbe-set6-20261129/app/src/main/java/com/example/wheelprobe/MainActivity.kt",
+    "source_sha256": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+    "extraction": "Actual canStartDetection, migrateLineHistoryGroupsIfNeeded, historySetSuffix, history-key functions and SetConfig compiled with only private visibility removed",
+    "limitations": "In-memory preferences and six-slot ConditionProvider helper stub; no Android framework"
+  },
+  "production_files_modified_by_tests": false
+}

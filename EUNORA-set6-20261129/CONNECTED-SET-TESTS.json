@@ -1,0 +1,69 @@
+{
+  "status": "passed",
+  "routes": [
+    "com.kakao.wheel.driver",
+    "com.callmanerdriver2sharp1",
+    "com.callmanerdriver2sharp2",
+    "com.tmapmobility.drive.driver",
+    "com.idriver",
+    "com.logisoft.Logi4",
+    "com.logisoft.Logi5"
+  ],
+  "fresh_jvm_per_route": true,
+  "production_files": {
+    "ConditionProvider.kt": "4e961636d46da4769992b9411adb51046899031fe36172c42f5362d13e0f3a79",
+    "ConditionBridgeReceiver.kt": "f352e351d5bc624f13457fbe6dbf0b32477a364d6a1d7de26212d63e200dd839",
+    "ConditionClient.kt": "beb112671d1a65018d69c73103f8702de81c4d936ad67714b8bdb3e2ebb5a577",
+    "CallMatcher.kt": "629399a2d2adee71ebb0e1c15959882331c335124fdad7dbaa195bf503b1ad91",
+    "ModuleMain.kt": "98b94029c3b5e3e61979f484061329f4314227c5b565cd5fa6f7a1007915a009",
+    "E01.kt": "0fd9d118057c16f7f45b65510d54c6f204192ce2a249d5a1df073100d797be11"
+  },
+  "verbatim_fragments": [
+    {
+      "file": "E01.kt",
+      "declaration": "CallKindFilter",
+      "sha256": "22f76c7b3f2a685f3d7d2c8c60e62a1ecaa0bdd92f147ef4579a72a51143e3d1"
+    },
+    {
+      "file": "E01.kt",
+      "declaration": "TaksongDateFilter",
+      "sha256": "7f79064ceef9c26528e56f884cc35b86b974d44ddf58ad02ece28378830610e7"
+    },
+    {
+      "file": "ModuleMain.kt",
+      "start_line": 320,
+      "sha256": "44be3dbf0da18c9d60a725d9c2c6c99481fc48c58f8364d63f9ea577c4ec7887"
+    },
+    {
+      "file": "ModuleMain.kt",
+      "start_line": 383,
+      "sha256": "06100540134d4e001690616b1bc02aa44d2f32fdff80bbae6f49e8c254b95771"
+    },
+    {
+      "file": "ModuleMain.kt",
+      "start_line": 392,
+      "sha256": "66eb9d43ecacae507525933d55528f9903d8993b55f9e2649580b04f2082ccbb"
+    }
+  ],
+  "verified_chain": [
+    "Provider.call with old preference migration before UI",
+    "Bridge.onReceive request and seven targeted response payloads",
+    "Real ConditionClient registered receiver",
+    "Real global filters",
+    "Real ModuleMain.matchAndAccept and CallMatcher"
+  ],
+  "boundaries": [
+    "Android framework/prefs/broadcast scheduler represented by narrow deterministic JVM fixtures",
+    "Kakao acceptance records IDs only; all other supported prefixes return before acceptance as production does",
+    "DirectAcceptController condition observer stubbed",
+    "GPS delivery recorded, GPS runtime unchanged and separately hash audited"
+  ],
+  "not_executed": [
+    "Android/Xposed process and UI scheduling",
+    "Target APK parsers and backend acceptance",
+    "Physical device install",
+    "Real network/native service calls"
+  ],
+  "network_access": false,
+  "target_apk_execution": false
+}

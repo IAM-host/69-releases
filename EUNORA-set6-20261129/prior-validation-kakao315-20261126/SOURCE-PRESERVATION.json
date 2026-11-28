@@ -1,0 +1,590 @@
+{
+  "variant_sha256": {
+    "accept": "e2dba6dccc7209226af637d0238dfd356321ef36b44326e7eb74682c6f91721c",
+    "detection": "aa314253e53adddcb3c959ae30aa693605dfd83ebbad893132737df16d805219",
+    "security": "9a627aba1e2245c60b9afaede8b7fca8d0b2cbe80ccccb1d1031795a453691b1"
+  },
+  "merged_E02_sha256": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f",
+  "merged_ModuleMain_sha256": "2d0468c1b60553d50011e05475605a32b4279d8fe53aa97c90791d67013c80ca",
+  "nonoverlapping_edits": [
+    {
+      "owner": "accept",
+      "baseline_start_line": 45,
+      "baseline_end_line": 44,
+      "new_lines": 2
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 46,
+      "baseline_end_line": 45,
+      "new_lines": 17
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 49,
+      "baseline_end_line": 48,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 51,
+      "baseline_end_line": 51,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 84,
+      "baseline_end_line": 84,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 129,
+      "baseline_end_line": 129,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 162,
+      "baseline_end_line": 162,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 166,
+      "baseline_end_line": 168,
+      "new_lines": 3
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 297,
+      "baseline_end_line": 297,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 299,
+      "baseline_end_line": 299,
+      "new_lines": 5
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 301,
+      "baseline_end_line": 300,
+      "new_lines": 4
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 302,
+      "baseline_end_line": 301,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 305,
+      "baseline_end_line": 304,
+      "new_lines": 2
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 306,
+      "baseline_end_line": 305,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 307,
+      "baseline_end_line": 306,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 309,
+      "baseline_end_line": 310,
+      "new_lines": 4
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 312,
+      "baseline_end_line": 313,
+      "new_lines": 0
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 315,
+      "baseline_end_line": 315,
+      "new_lines": 5
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 319,
+      "baseline_end_line": 323,
+      "new_lines": 6
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 327,
+      "baseline_end_line": 329,
+      "new_lines": 3
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 331,
+      "baseline_end_line": 336,
+      "new_lines": 6
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 339,
+      "baseline_end_line": 339,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 342,
+      "baseline_end_line": 342,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 345,
+      "baseline_end_line": 344,
+      "new_lines": 2
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 349,
+      "baseline_end_line": 349,
+      "new_lines": 2
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 352,
+      "baseline_end_line": 352,
+      "new_lines": 4
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 360,
+      "baseline_end_line": 371,
+      "new_lines": 13
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 374,
+      "baseline_end_line": 377,
+      "new_lines": 8
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 379,
+      "baseline_end_line": 379,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 382,
+      "baseline_end_line": 388,
+      "new_lines": 2
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 391,
+      "baseline_end_line": 391,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 393,
+      "baseline_end_line": 407,
+      "new_lines": 69
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 411,
+      "baseline_end_line": 410,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 419,
+      "baseline_end_line": 427,
+      "new_lines": 3
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 430,
+      "baseline_end_line": 430,
+      "new_lines": 0
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 432,
+      "baseline_end_line": 431,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 433,
+      "baseline_end_line": 434,
+      "new_lines": 4
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 437,
+      "baseline_end_line": 438,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 440,
+      "baseline_end_line": 466,
+      "new_lines": 4
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 469,
+      "baseline_end_line": 468,
+      "new_lines": 243
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 471,
+      "baseline_end_line": 476,
+      "new_lines": 5
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 480,
+      "baseline_end_line": 481,
+      "new_lines": 1
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 484,
+      "baseline_end_line": 488,
+      "new_lines": 0
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 491,
+      "baseline_end_line": 506,
+      "new_lines": 4
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 510,
+      "baseline_end_line": 515,
+      "new_lines": 0
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 517,
+      "baseline_end_line": 538,
+      "new_lines": 3
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 542,
+      "baseline_end_line": 542,
+      "new_lines": 1
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 568,
+      "baseline_end_line": 568,
+      "new_lines": 1
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 585,
+      "baseline_end_line": 597,
+      "new_lines": 3
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 600,
+      "baseline_end_line": 603,
+      "new_lines": 0
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 605,
+      "baseline_end_line": 631,
+      "new_lines": 7
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 635,
+      "baseline_end_line": 641,
+      "new_lines": 3
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 643,
+      "baseline_end_line": 642,
+      "new_lines": 1
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 648,
+      "baseline_end_line": 651,
+      "new_lines": 10
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 657,
+      "baseline_end_line": 657,
+      "new_lines": 1
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 659,
+      "baseline_end_line": 668,
+      "new_lines": 3
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 706,
+      "baseline_end_line": 706,
+      "new_lines": 3
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 714,
+      "baseline_end_line": 717,
+      "new_lines": 8
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 723,
+      "baseline_end_line": 724,
+      "new_lines": 0
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 726,
+      "baseline_end_line": 729,
+      "new_lines": 3
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 738,
+      "baseline_end_line": 743,
+      "new_lines": 0
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 747,
+      "baseline_end_line": 748,
+      "new_lines": 1
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 750,
+      "baseline_end_line": 753,
+      "new_lines": 5
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 808,
+      "baseline_end_line": 807,
+      "new_lines": 5
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 825,
+      "baseline_end_line": 825,
+      "new_lines": 1
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 926,
+      "baseline_end_line": 925,
+      "new_lines": 4
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1005,
+      "baseline_end_line": 1005,
+      "new_lines": 1
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1018,
+      "baseline_end_line": 1018,
+      "new_lines": 3
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1029,
+      "baseline_end_line": 1029,
+      "new_lines": 2
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1037,
+      "baseline_end_line": 1037,
+      "new_lines": 17
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1084,
+      "baseline_end_line": 1084,
+      "new_lines": 2
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1105,
+      "baseline_end_line": 1105,
+      "new_lines": 22
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1117,
+      "baseline_end_line": 1120,
+      "new_lines": 16
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1126,
+      "baseline_end_line": 1127,
+      "new_lines": 1
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1130,
+      "baseline_end_line": 1130,
+      "new_lines": 1
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1140,
+      "baseline_end_line": 1148,
+      "new_lines": 3
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1157,
+      "baseline_end_line": 1171,
+      "new_lines": 6
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1173,
+      "baseline_end_line": 1173,
+      "new_lines": 1
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1180,
+      "baseline_end_line": 1180,
+      "new_lines": 2
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1182,
+      "baseline_end_line": 1182,
+      "new_lines": 1
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1184,
+      "baseline_end_line": 1185,
+      "new_lines": 3
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1189,
+      "baseline_end_line": 1190,
+      "new_lines": 3
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1199,
+      "baseline_end_line": 1200,
+      "new_lines": 3
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1204,
+      "baseline_end_line": 1206,
+      "new_lines": 3
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1212,
+      "baseline_end_line": 1213,
+      "new_lines": 3
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1215,
+      "baseline_end_line": 1215,
+      "new_lines": 1
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1279,
+      "baseline_end_line": 1280,
+      "new_lines": 8
+    },
+    {
+      "owner": "security",
+      "baseline_start_line": 1283,
+      "baseline_end_line": 1283,
+      "new_lines": 1
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 1298,
+      "baseline_end_line": 1298,
+      "new_lines": 1
+    },
+    {
+      "owner": "detection",
+      "baseline_start_line": 1300,
+      "baseline_end_line": 1303,
+      "new_lines": 3
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 1345,
+      "baseline_end_line": 1345,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 1350,
+      "baseline_end_line": 1361,
+      "new_lines": 4
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 1366,
+      "baseline_end_line": 1365,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 1367,
+      "baseline_end_line": 1366,
+      "new_lines": 1
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 1368,
+      "baseline_end_line": 1381,
+      "new_lines": 11
+    },
+    {
+      "owner": "accept",
+      "baseline_start_line": 1383,
+      "baseline_end_line": 1383,
+      "new_lines": 1
+    }
+  ],
+  "other76_baseline_files_unchanged": true,
+  "CRLF_preserved": true,
+  "profile_before_all_Kakao_specific_installers": true
+}

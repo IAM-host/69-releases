@@ -1,0 +1,213 @@
+{
+  "status": "passed",
+  "powershell_version": "7.5.4",
+  "runtime": "Linux PowerShell; Windows PowerShell 5.1 compatibility was reviewed but actual Windows runtime was unavailable",
+  "cases": [
+    {
+      "baseline": "previous-tmap177",
+      "status": "passed",
+      "all_78_final_files_byte_exact": true,
+      "guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 5,
+      "second_run_no_file_or_backup_changes": true
+    },
+    {
+      "baseline": "previous-kakao315",
+      "status": "passed",
+      "all_78_final_files_byte_exact": true,
+      "guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 7,
+      "second_run_no_file_or_backup_changes": true
+    },
+    {
+      "baseline": "previous-v3",
+      "status": "passed",
+      "all_78_final_files_byte_exact": true,
+      "guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 8,
+      "second_run_no_file_or_backup_changes": true
+    },
+    {
+      "baseline": "original-zip",
+      "status": "passed",
+      "all_78_final_files_byte_exact": true,
+      "guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 16,
+      "second_run_no_file_or_backup_changes": true
+    },
+    {
+      "baseline": "original-seven-uploaded",
+      "status": "passed",
+      "all_78_final_files_byte_exact": true,
+      "guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 16,
+      "second_run_no_file_or_backup_changes": true
+    },
+    {
+      "baseline": "already-current",
+      "status": "passed",
+      "all_78_final_files_byte_exact": true,
+      "guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 0,
+      "second_run_no_file_or_backup_changes": true
+    }
+  ],
+  "failure_preflight_guards": [
+    {
+      "case": "local-edit-MainActivity",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "local-edit-CallMatcher",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "local-edit-ConditionProvider",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "local-edit-ConditionClient",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "local-edit-ConditionBridgeReceiver",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "local-edit-E03",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "local-edit-ErrorReporter",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "wrong-patch-sha",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "already-applied-wrong-patch-sha",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "wrong-old-slice-hash",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "wrong-replacement-whole-hash",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "wrong-same-length-whole-hash",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "negative-offset",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "out-of-bounds-edit",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "wrong-target-hash",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "unknown-patch-property",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "unsupported-source-edit-path",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "case": "main-symlink",
+      "status": "passed",
+      "rejected_before_any_write": true
+    }
+  ],
+  "rollback": {
+    "status": "passed",
+    "injection": "local-only test helper throws after all file writes and deletions",
+    "all_original_files_restored": true,
+    "new_files_removed": true,
+    "MainActivity_backup_byte_exact": true
+  },
+  "bundle": "/workspace/artifacts/EUNORA-set6-20261129",
+  "final_project": "/workspace/projects/WheelProbe-set6-20261129",
+  "payload_file_count": 19,
+  "guarded_deletion_count": 4,
+  "source_edit_count": 1,
+  "full_code_TXT_file_count": 10,
+  "new_full_code_TXT_files": [
+    "CallMatcher.txt",
+    "ConditionProvider.txt",
+    "ConditionClient.txt",
+    "ConditionBridgeReceiver.txt"
+  ],
+  "source_changes_since_previous_cumulative": {
+    "app/src/main/java/com/example/wheelprobe/CallMatcher.kt": "629399a2d2adee71ebb0e1c15959882331c335124fdad7dbaa195bf503b1ad91",
+    "app/src/main/java/com/example/wheelprobe/ConditionProvider.kt": "4e961636d46da4769992b9411adb51046899031fe36172c42f5362d13e0f3a79",
+    "app/src/main/java/com/example/wheelprobe/ConditionClient.kt": "beb112671d1a65018d69c73103f8702de81c4d936ad67714b8bdb3e2ebb5a577",
+    "app/src/main/java/com/example/wheelprobe/ConditionBridgeReceiver.kt": "f352e351d5bc624f13457fbe6dbf0b32477a364d6a1d7de26212d63e200dd839",
+    "app/src/main/java/com/example/wheelprobe/MainActivity.kt": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04"
+  },
+  "other_73_baseline_files_unchanged": true,
+  "previous_15_payload_files_and_all_hash_variants_unchanged": true,
+  "previous_four_deletion_rules_unchanged": true,
+  "MainActivity_UI_privacy": {
+    "private_blocks_byte_identical": true,
+    "unchanged_context_lines_published": 0,
+    "edit_count": 28,
+    "changed_old_bytes": 11219,
+    "replacement_bytes": 20274,
+    "original_sha256": "cf763fb41090fcbafd8a4601387325d865ed010ef88b981dc97cc1042feba90b",
+    "target_sha256": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+    "whole_target_reconstruction_byte_exact": true,
+    "no_full_MainActivity_source_or_TXT": true
+  },
+  "helper_sha256": "96d2b0493aff038e826fb41f2cff3d07e3c80f41c81da260447dad5fec5098d5",
+  "cmd_sha256": "c66f7dbc5a3a4d96127b738854d304032038c4459fb1dc45970c1884cb1502a1",
+  "previous_reports_moved_to_history": [
+    "ACCEPT-CORE-TESTS.json",
+    "APPLY-INTEGRATION.json",
+    "BUILD.log",
+    "CONNECTED-TESTS.json",
+    "DETECTION-TESTS.json",
+    "FINAL-REVIEW.json",
+    "FINAL-REVIEW.md",
+    "JAVA-SECURITY-TESTS.json",
+    "NATIVE-LOCATION-CONTRACTS.json",
+    "PREVIOUS-README.md",
+    "README.md",
+    "RELEASE-PACKAGING.json",
+    "SHA256SUMS.txt",
+    "SOURCE-PRESERVATION.json",
+    "VALIDATION.json"
+  ],
+  "finalization": "draft folder only; no ZIP/checksums/publish/git/push; root supplies final reports and README"
+}

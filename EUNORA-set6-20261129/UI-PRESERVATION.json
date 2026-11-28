@@ -1,0 +1,14 @@
+{
+  "MainActivity_sha256": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+  "checks": {
+    "AdminPass byte equivalent": true,
+    "Member UI and update region byte equivalent": true,
+    "Original global ON button byte equivalent": true,
+    "Base screen style unchanged": true,
+    "Current row and setting box style unchanged": true,
+    "History input UI unchanged": true,
+    "Existing GPS UI unchanged": true,
+    "No destructive initializer remains": true,
+    "All changes preserve CRLF": true
+  }
+}

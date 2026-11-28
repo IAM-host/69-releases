@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-29",
+  "status": "passed within stated offline/static scope",
+  "source_SHA256": {
+    "E03.kt": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280",
+    "ModuleMain.kt": "98b94029c3b5e3e61979f484061329f4314227c5b565cd5fa6f7a1007915a009"
+  },
+  "findings_requiring_source_changes": [],
+  "source_scope": "E03 detection/security/acceptance only; ModuleMain only TMAP eager-stop exclusion; other76baselinefiles byte-identical",
+  "reviewed": [
+    "Exact176/177 mapper and native location reflection descriptors independently rechecked in raw DEX indexes",
+    "Original mapping exceptions/results preserved; malformed data cannot default to qualifying values",
+    "Same-session2xx confirmation only; credentials re-read and exact package/version checked",
+    "Native lastLocation immediate/suspended/failure completion; no abstract continuation or Unsafe",
+    "One flight, duplicate terminal callbacks, stale sessions and unknown outcomes keep reservation",
+    "Only401/403 classified definite auth rejection; other non2xx/transport outcome remains unknown",
+    "Security known Java root contracts only; non-root selectors/exceptions/unknown versions preserved",
+    "ReleaseAPKCRC/R8 Hookers/Xposedmetadata/nativeSO/JNI/16KBalignment checked",
+    "Actual PowerShell helper checked across5sourcebaselines/6unknown-editguards"
+  ],
+  "material_limits": [
+    "Android/Xposed/physical device and target APK execution not tested",
+    "No real backend acceptance request sent; Unit-success interpretation based on suppliedAPK Retrofit contract",
+    "No comprehensive native security, PlayIntegrity or server-policy implementation",
+    "Native lastLocation unavailable or zero prevents automatic request and leaves detection ON",
+    "Unknown outcomes retain a process-local reservation across OFF/ON; verify actual allocation before further action",
+    "PowerShellhelper executed on Linux; Windows CMD/Explorer execution not tested",
+    "Existing unchanged E02 compiler warnings remain"
+  ]
+}

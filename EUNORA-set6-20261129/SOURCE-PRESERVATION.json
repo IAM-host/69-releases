@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "source_files_changed": [
+    "app/src/main/java/com/example/wheelprobe/ConditionBridgeReceiver.kt",
+    "app/src/main/java/com/example/wheelprobe/MainActivity.kt",
+    "app/src/main/java/com/example/wheelprobe/ConditionProvider.kt",
+    "app/src/main/java/com/example/wheelprobe/ConditionClient.kt",
+    "app/src/main/java/com/example/wheelprobe/CallMatcher.kt"
+  ],
+  "source_SHA256": {
+    "ConditionBridgeReceiver.kt": "f352e351d5bc624f13457fbe6dbf0b32477a364d6a1d7de26212d63e200dd839",
+    "MainActivity.kt": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+    "ConditionProvider.kt": "4e961636d46da4769992b9411adb51046899031fe36172c42f5362d13e0f3a79",
+    "ConditionClient.kt": "beb112671d1a65018d69c73103f8702de81c4d936ad67714b8bdb3e2ebb5a577",
+    "CallMatcher.kt": "629399a2d2adee71ebb0e1c15959882331c335124fdad7dbaa195bf503b1ad91"
+  },
+  "other_baseline_files_unchanged": 73,
+  "E01_E02_E03_E04_E05_E06_ModuleMain_native_scope_manifest_build_and_private_license_updater_unchanged": true,
+  "Main_private_blocks_byte_identical": true,
+  "new_application_Kotlin_files": 0,
+  "actual_device_or_backend_tested": false
+}

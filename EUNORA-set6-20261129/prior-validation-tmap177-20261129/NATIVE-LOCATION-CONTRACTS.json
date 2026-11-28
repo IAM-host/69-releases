@@ -1,0 +1,130 @@
+[
+  {
+    "version_code": 177,
+    "methods": {
+      "xi.c": [
+        [
+          "getContext",
+          "()Lxi/h;"
+        ],
+        [
+          "resumeWith",
+          "(Ljava/lang/Object;)V"
+        ]
+      ],
+      "ti.h": [
+        [
+          "getValue",
+          "()Ljava/lang/Object;"
+        ]
+      ],
+      "c5.a": [
+        [
+          "f",
+          "(Ln9/b;Lxi/c;)Ljava/lang/Object;"
+        ]
+      ]
+    },
+    "fields": {
+      "xi.i": [
+        [
+          "a",
+          "Lxi/i;"
+        ]
+      ],
+      "yi.a": [
+        [
+          "a",
+          "Lyi/a;"
+        ]
+      ],
+      "ti.m": [
+        [
+          "a",
+          "Ljava/lang/Throwable;"
+        ]
+      ],
+      "com.tmapmobility.drive.driver.data.repository.y0": [
+        [
+          "INSTANCE",
+          "Lcom/tmapmobility/drive/driver/data/repository/w0;"
+        ],
+        [
+          "fusedLocationClient$delegate",
+          "Lti/h;"
+        ]
+      ],
+      "com.tmapmobility.drive.driver.data.repository.l0": [
+        [
+          "locationRepository",
+          "Lcom/tmapmobility/drive/driver/data/repository/w0;"
+        ]
+      ]
+    },
+    "status": "raw DEX descriptors match"
+  },
+  {
+    "version_code": 176,
+    "methods": {
+      "ni.c": [
+        [
+          "getContext",
+          "()Lni/h;"
+        ],
+        [
+          "resumeWith",
+          "(Ljava/lang/Object;)V"
+        ]
+      ],
+      "ji.h": [
+        [
+          "getValue",
+          "()Ljava/lang/Object;"
+        ]
+      ],
+      "com.google.android.gms.internal.measurement.a4": [
+        [
+          "h",
+          "(Ln9/b;Lni/c;)Ljava/lang/Object;"
+        ]
+      ]
+    },
+    "fields": {
+      "ni.i": [
+        [
+          "a",
+          "Lni/i;"
+        ]
+      ],
+      "oi.a": [
+        [
+          "a",
+          "Loi/a;"
+        ]
+      ],
+      "ji.m": [
+        [
+          "a",
+          "Ljava/lang/Throwable;"
+        ]
+      ],
+      "com.tmapmobility.drive.driver.data.repository.y0": [
+        [
+          "INSTANCE",
+          "Lcom/tmapmobility/drive/driver/data/repository/w0;"
+        ],
+        [
+          "fusedLocationClient$delegate",
+          "Lji/h;"
+        ]
+      ],
+      "com.tmapmobility.drive.driver.data.repository.l0": [
+        [
+          "locationRepository",
+          "Lcom/tmapmobility/drive/driver/data/repository/w0;"
+        ]
+      ]
+    },
+    "status": "raw DEX descriptors match"
+  }
+]

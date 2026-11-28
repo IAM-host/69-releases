@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "assertions": 35,
+  "source_path": "/workspace/projects/WheelProbe-tmap177-20261129/app/src/main/java/com/example/wheelprobe/E03.kt",
+  "source_sha256": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280",
+  "helpers_sha256": "c003c5db47865d23b3f14d59435ff1f9caf780305d10136213c232b2d2f05963",
+  "scope": "Verbatim production ledger and native location reflection bridge; synthetic177classes/continuation; no Android/Xposed/device/targetAPK/network/backend execution."
+}

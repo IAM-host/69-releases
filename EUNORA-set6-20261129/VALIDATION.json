@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-29",
+  "feature": "Independent DAERI SET1/2/3 and TAKSONG SET1/2/3; view-only swipe, global detection and GPS",
+  "source_SHA256": {
+    "ConditionBridgeReceiver.kt": "f352e351d5bc624f13457fbe6dbf0b32477a364d6a1d7de26212d63e200dd839",
+    "MainActivity.kt": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+    "ConditionProvider.kt": "4e961636d46da4769992b9411adb51046899031fe36172c42f5362d13e0f3a79",
+    "ConditionClient.kt": "beb112671d1a65018d69c73103f8702de81c4d936ad67714b8bdb3e2ebb5a577",
+    "CallMatcher.kt": "629399a2d2adee71ebb0e1c15959882331c335124fdad7dbaa195bf503b1ad91"
+  },
+  "previous73files_unchanged": true,
+  "new_application_Kotlin_files": 0,
+  "private_MainActivity_blocks_unchanged": true,
+  "build": "Debug/Release Kotlin; Release lintVital/R8/assembleRelease passed in1m28s on finalsource",
+  "test_counts": {
+    "data_cases": 19,
+    "malformed_array_subcases": 30,
+    "independent_routes": 7,
+    "connected_assertions": 854,
+    "pager_parent_cases": 24,
+    "state_history_cases": 20,
+    "Kakao_regression_cases": 36,
+    "Tmap_regression_cases": 24,
+    "PowerShell_apply_baselines": 6,
+    "apply_preflight_guards": 18,
+    "rollback": "passed"
+  },
+  "delivery": {
+    "full_payload_files": 19,
+    "Main_UI_splices": 28,
+    "guarded_deletions": 4,
+    "full_TXT_files": 10,
+    "private_Main_full_source_published": false
+  },
+  "limits": [
+    "No physical Android/LSPosed/emulator rendering or real backend calls",
+    "UI tests compile real extracted classes/methods against documented framework stubs; animation timing not tested",
+    "PowerShell7.5.4 ran onLinux; Windows5.1 and CMD runtime not executed",
+    "Existing unchanged E02 compiler warnings remain",
+    "All target apps must reload the updated module to use the extra SETs; legacy projection retains originalthree-slotmeaning until then"
+  ]
+}

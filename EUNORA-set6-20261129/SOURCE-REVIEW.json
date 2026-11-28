@@ -1,0 +1,69 @@
+{
+  "status": "passed",
+  "source_sha256": {
+    "AppUpdater.kt": "496788b1d6874122b846a3b7451a64e54a2524a4d9cae4bf997c33df4142909a",
+    "CallMatcher.kt": "629399a2d2adee71ebb0e1c15959882331c335124fdad7dbaa195bf503b1ad91",
+    "ConditionBridgeReceiver.kt": "f352e351d5bc624f13457fbe6dbf0b32477a364d6a1d7de26212d63e200dd839",
+    "ConditionClient.kt": "beb112671d1a65018d69c73103f8702de81c4d936ad67714b8bdb3e2ebb5a577",
+    "ConditionProvider.kt": "4e961636d46da4769992b9411adb51046899031fe36172c42f5362d13e0f3a79",
+    "E01.kt": "0fd9d118057c16f7f45b65510d54c6f204192ce2a249d5a1df073100d797be11",
+    "E02.kt": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f",
+    "E03.kt": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280",
+    "E04.kt": "81638c32e7bd431377d375c844a691907a0a26e317d3fbd70b76caaf10908b50",
+    "E05.kt": "323519395979e91284a63d6d1dc9b905f4dbfe0fdf96533cff29a95db3e5c345",
+    "E06.kt": "d72c6165dd87479c9d218f56347c67dd29005c569908946abc8dad978db67e4e",
+    "MainActivity.kt": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+    "MemberLicense.kt": "ec02d43ae384f0bf6fe8bce01d00cf043cd9941a95900130737a1d4005d9263a",
+    "ModuleMain.kt": "98b94029c3b5e3e61979f484061329f4314227c5b565cd5fa6f7a1007915a009"
+  },
+  "checks": {
+    "AdminPass object byte-identical": true,
+    "Membership profile bind updater region byte-identical": true,
+    "Global ON body byte-identical": true,
+    "Native code and binaries byte-identical": true,
+    "All seven hook implementations byte-identical": true,
+    "Manifest and module scope byte-identical": true,
+    "Destructive initializer removed": true,
+    "No old index2 TAK-only assumption in main or matcher": true,
+    "GPS declared before and outside pager": true,
+    "Page callback writes only visible page state": true,
+    "One outer vertical scroll plus plain pages": true,
+    "Outer scroll decides gesture axis before native interception": true,
+    "Grouped history keys differ for every slot": true,
+    "Private-preserving UI patch reconstructs exact source": true,
+    "No private identifiers in decoded patch replacements": true
+  },
+  "privacy_patch_report": {
+    "private_blocks_byte_identical": true,
+    "unchanged_context_lines_published": 0,
+    "edit_count": 28,
+    "changed_old_bytes": 11219,
+    "replacement_bytes": 20274,
+    "original_sha256": "cf763fb41090fcbafd8a4601387325d865ed010ef88b981dc97cc1042feba90b",
+    "target_sha256": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+    "whole_target_reconstruction_byte_exact": true,
+    "no_full_MainActivity_source_or_TXT": true
+  },
+  "changed_Kotlin_files": [
+    "CallMatcher.kt",
+    "ConditionBridgeReceiver.kt",
+    "ConditionClient.kt",
+    "ConditionProvider.kt",
+    "MainActivity.kt"
+  ],
+  "reviewed_seven_package_paths": {
+    "com.kakao.wheel.driver": "E02 list/card adapters -> ModuleMain matchAndAccept/processGeneralSocketCallCard -> shared matcher",
+    "com.callmanerdriver2sharp1": "E04 native card/list -> ModuleMain.matchAndAccept -> shared matcher",
+    "com.callmanerdriver2sharp2": "E04 package route shares native card/list -> ModuleMain.matchAndAccept -> shared matcher",
+    "com.tmapmobility.drive.driver": "E03 verified list callback -> ModuleMain.matchAndAccept -> shared matcher",
+    "com.idriver": "E06 overlay -> ModuleMain.matchAndAccept -> shared matcher",
+    "com.logisoft.Logi4": "E05 order/controller -> ModuleMain.matchAndAccept -> shared matcher",
+    "com.logisoft.Logi5": "E05 package route shares order/controller -> ModuleMain.matchAndAccept -> shared matcher"
+  },
+  "review_scope": "Data migration/wire format/client/matcher, pager interactions and layout, enabled-group validity, history mapping, privacy-preserving localized patch and helper static review.",
+  "limitations": [
+    "Android/Xposed/device runtime not executed",
+    "Target parser and native acceptance code byte-identical to baseline; prior coverage remains applicable",
+    "No actual service/backend calls"
+  ]
+}

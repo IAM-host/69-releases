@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "bundle": "/workspace/artifacts/EUNORA-set6-20261129",
+  "patch_sha256": "c1bed26f8f574fa5da04107c3af34056770d5d4bc33f68db798fa80b22edbd51",
+  "MainActivity_target_sha256": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+  "edit_count": 28,
+  "byte_exact_reconstruction": true,
+  "no_full_MainActivity": true,
+  "no_private_identifier_in_text_or_decoded_replacements": true
+}

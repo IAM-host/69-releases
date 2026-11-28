@@ -1,0 +1,794 @@
+--- a/app/src/main/java/com/example/wheelprobe/MainActivity.kt
++++ b/app/src/main/java/com/example/wheelprobe/MainActivity.kt
+@@ -30,0 +31,3 @@
++import android.view.MotionEvent
++import android.view.VelocityTracker
++import android.view.ViewConfiguration
+@@ -40,0 +44 @@
++import android.widget.Scroller
+@@ -133,2 +137,7 @@
+-        fun includeHistoryKey(index: Int) = "include_word_history_$index"
+-        fun excludeHistoryKey(index: Int) = "exclude_word_history_$index"
++        private fun historySetSuffix(index: Int): String {
++            val kind = if (ConditionProvider.isTaksongIndex(index)) "taksong" else "daeri"
++            return "${kind}_${ConditionProvider.localSetNumber(index)}"
++        }
++
++        fun includeHistoryKey(index: Int) = "include_word_history_${historySetSuffix(index)}"
++        fun excludeHistoryKey(index: Int) = "exclude_word_history_${historySetSuffix(index)}"
+@@ -138,0 +148 @@
++    private var visibleSetPage: Int = 0
+@@ -188 +198,5 @@
+-        initializeEmptySetsIfNeeded()
++        visibleSetPage = savedInstanceState?.getInt("visible_set_page")
++            ?.coerceIn(0, 1)
++            ?: if (!preferences().getBoolean(PREF_ALLOW_DAERI, true) &&
++                preferences().getBoolean(PREF_ALLOW_TAKSONG, true)) 1 else 0
++        if (!initializeSetGroupsIfNeeded()) return
+@@ -211,0 +226,5 @@
++    }
++
++    override fun onSaveInstanceState(outState: Bundle) {
++        outState.putInt("visible_set_page", visibleSetPage)
++        super.onSaveInstanceState(outState)
+@@ -1134,88 +1153 @@
+-        val myInfoButton =
+-            TextView(this).apply {
+-                text = "내 정보"
+-                textSize = 16f
+-                letterSpacing = 0f
+-                includeFontPadding = true
+-                setTextColor(Color.argb(200, 232, 221, 199))
+-                typeface = Typeface.create("sans-serif", Typeface.BOLD)
+-                setPadding(dp(6), dp(8), dp(6), dp(8))
+-                setOnClickListener {
+-                    showMyInfoScreen()
+-                }
+-            }
+-
+-        val content =
+-            LinearLayout(this).apply {
+-                orientation = LinearLayout.VERTICAL
+-                gravity = Gravity.CENTER_HORIZONTAL
+-
+-                setPadding(
+-                    dp(24),
+-                    dp(8),
+-                    dp(24),
+-                    dp(8)
+-                )
+-            }
+-
+-        // ---- GPS 행 (SET 위) : 제목 왼쪽 + ON/OFF 오른쪽, 아래 장소 표시 ----
+-        val gpsRow =
+-            createGpsRow(
+-                enabled = gpsEnabled,
+-                onToggleClick = click@{
+-                    val newEnabled =
+-                        !preferences.getBoolean(PREF_GPS_ENABLED, false)
+-
+-                    if (newEnabled && !loadGpsConfig().hasLocation()) {
+-                        Toast.makeText(
+-                            this,
+-                            "GPS 위치를 먼저 저장하세요.",
+-                            Toast.LENGTH_SHORT
+-                        ).show()
+-                        showEditGpsScreen()
+-                        return@click
+-                    }
+-
+-                    preferences.edit()
+-                        .putBoolean(PREF_GPS_ENABLED, newEnabled)
+-                        .commit()
+-                    makeConditionsPrefsReadable()
+-                    ConditionBridgeReceiver.sendCurrentConditions(this)
+-                    showMainScreen()
+-                },
+-                onTitleClick = {
+-                    showEditGpsScreen()
+-                }
+-            )
+-
+-        content.addView(
+-            gpsRow,
+-            LinearLayout.LayoutParams(
+-                ViewGroup.LayoutParams.MATCH_PARENT,
+-                dp(50)
+-            )
+-        )
+-
+-        // GPS ON일 때만 장소 표시 (OFF면 숨김)
+-        if (gpsEnabled && gpsConfig.hasLocation() && gpsConfig.address.isNotBlank()) {
+-            content.addView(
+-                createGpsPlaceLabel(gpsConfig.address),
+-                LinearLayout.LayoutParams(
+-                    ViewGroup.LayoutParams.MATCH_PARENT,
+-                    ViewGroup.LayoutParams.WRAP_CONTENT
+-                ).apply {
+-                    topMargin = dp(2)
+-                    leftMargin = dp(4)
+-                    rightMargin = dp(4)
+-                }
+-            )
+-        }
+-
+-        content.addView(
+-            Space(this),
+-            LinearLayout.LayoutParams(
+-                ViewGroup.LayoutParams.MATCH_PARENT,
+-                dp(16)
+-            )
+-        )
+-
++        val allowDaeri = preferences.getBoolean(PREF_ALLOW_DAERI, true)
+@@ -1223,124 +1154,0 @@
+-        for (index in 0 until ConditionProvider.SET_COUNT) {
+-            // SET 3 (index 2) is 탁송 only — hide when 탁송 is off
+-            if (index == 2 && !allowTaksong) continue
+-
+-            val setNumber =
+-                index + 1
+-
+-            val checked =
+-                checkedSets[index]
+-
+-            val setRow =
+-                createSetRow(
+-                    setNumber = setNumber,
+-                    checked = checked,
+-                    onCheckClick = {
+-                        val newChecked =
+-                            !preferences.getBoolean(
+-                                ConditionProvider.prefCheckedKey(index),
+-                                false
+-                            )
+-
+-                        preferences.edit()
+-                            .putBoolean(
+-                                ConditionProvider.prefCheckedKey(index),
+-                                newChecked
+-                            )
+-                            .apply()
+-
+-                        val newCheckedSets =
+-                            BooleanArray(
+-                                ConditionProvider.SET_COUNT
+-                            ) { checkedIndex ->
+-                                preferences.getBoolean(
+-                                    ConditionProvider.prefCheckedKey(
+-                                        checkedIndex
+-                                    ),
+-                                    false
+-                                )
+-                            }
+-
+-                        val detectionStillValid =
+-                            canStartDetection(
+-                                checkedSets = newCheckedSets,
+-                                configs = List(
+-                                    ConditionProvider.SET_COUNT
+-                                ) { configIndex ->
+-                                    loadSetConfig(configIndex)
+-                                }
+-                            )
+-
+-                        if (
+-                            preferences.getBoolean(
+-                                ConditionProvider.PREF_DETECTING,
+-                                false
+-                            ) &&
+-                            !detectionStillValid
+-                        ) {
+-                            preferences.edit()
+-                                .putBoolean(
+-                                    ConditionProvider.PREF_DETECTING,
+-                                    false
+-                                )
+-                                .apply()
+-                        }
+-
+-                        ConditionBridgeReceiver.sendCurrentConditions(
+-                            this
+-                        )
+-
+-                        showMainScreen()
+-                    },
+-                    onTitleClick = {
+-                        showEditSetScreen(index)
+-                    }
+-                )
+-
+-            content.addView(
+-                setRow,
+-                LinearLayout.LayoutParams(
+-                    ViewGroup.LayoutParams.MATCH_PARENT,
+-                    dp(50)
+-                )
+-            )
+-
+-            /*
+-             * PANTYCHE처럼 체크한 SET의 현재 설정을 바로 아래에 표시한다.
+-             */
+-            if (checked) {
+-                content.addView(
+-                    createCurrentSettingBox(
+-                        setConfigs[index]
+-                    ),
+-                    LinearLayout.LayoutParams(
+-                        ViewGroup.LayoutParams.MATCH_PARENT,
+-                        ViewGroup.LayoutParams.WRAP_CONTENT
+-                    ).apply {
+-                        topMargin = dp(7)
+-                    }
+-                )
+-            }
+-
+-            if (index != ConditionProvider.SET_COUNT - 1) {
+-                content.addView(
+-                    Space(this),
+-                    LinearLayout.LayoutParams(
+-                        ViewGroup.LayoutParams.MATCH_PARENT,
+-                        dp(10)
+-                    )
+-                )
+-            }
+-        }
+-
+-        screenRoot.addView(
+-            content,
+-            FrameLayout.LayoutParams(
+-                ViewGroup.LayoutParams.MATCH_PARENT,
+-                ViewGroup.LayoutParams.MATCH_PARENT
+-            ).apply {
+-                topMargin = if (preferences.getBoolean(PREF_ALLOW_TAKSONG, true)) dp(200) else dp(168)
+-                bottomMargin = dp(140)
+-            }
+-        )
+-
+-        val allowDaeri = preferences.getBoolean(PREF_ALLOW_DAERI, true)
+@@ -1349,13 +1157,9 @@
+-        val headerColumn =
+-            LinearLayout(this).apply {
+-                orientation = LinearLayout.VERTICAL
+-                clipChildren = false
+-                clipToPadding = false
+-            }
+-        val headerRow =
+-            LinearLayout(this).apply {
+-                orientation = LinearLayout.HORIZONTAL
+-                gravity = Gravity.CENTER_VERTICAL
+-                clipChildren = false
+-                clipToPadding = false
+-            }
++
++        val content = LinearLayout(this).apply {
++            orientation = LinearLayout.VERTICAL
++            setPadding(dp(24), dp(4), dp(24), dp(8))
++        }
++        val headerRow = LinearLayout(this).apply {
++            orientation = LinearLayout.HORIZONTAL
++            gravity = Gravity.CENTER_VERTICAL
++        }
+@@ -1373,0 +1178 @@
++        headerRow.addView(Space(this), LinearLayout.LayoutParams(0, dp(1), 1f))
+@@ -1375,5 +1180,10 @@
+-            Space(this),
+-            LinearLayout.LayoutParams(0, dp(1), 1f)
+-        )
+-        headerRow.addView(
+-            myInfoButton,
++            TextView(this).apply {
++                text = "내 정보"
++                textSize = 16f
++                letterSpacing = 0f
++                includeFontPadding = true
++                setTextColor(Color.argb(200, 232, 221, 199))
++                typeface = Typeface.create("sans-serif", Typeface.BOLD)
++                setPadding(dp(6), dp(8), dp(6), dp(8))
++                setOnClickListener { showMyInfoScreen() }
++            },
+@@ -1385,7 +1195 @@
+-        headerColumn.addView(
+-            headerRow,
+-            LinearLayout.LayoutParams(
+-                ViewGroup.LayoutParams.MATCH_PARENT,
+-                ViewGroup.LayoutParams.WRAP_CONTENT
+-            )
+-        )
++        content.addView(headerRow)
+@@ -1393 +1197 @@
+-            headerColumn.addView(
++            content.addView(
+@@ -1412 +1216,121 @@
+-        // 스크롤 위에 올려야 클릭이 된다
++        // GPS는 두 SET 페이지가 함께 쓰는 전역 설정이다.
++        content.addView(
++            createGpsRow(
++                enabled = gpsEnabled,
++                onToggleClick = click@{
++                    val newEnabled = !preferences.getBoolean(PREF_GPS_ENABLED, false)
++                    if (newEnabled && !loadGpsConfig().hasLocation()) {
++                        Toast.makeText(this, "GPS 위치를 먼저 저장하세요.", Toast.LENGTH_SHORT).show()
++                        showEditGpsScreen()
++                        return@click
++                    }
++                    preferences.edit().putBoolean(PREF_GPS_ENABLED, newEnabled).commit()
++                    makeConditionsPrefsReadable()
++                    ConditionBridgeReceiver.sendCurrentConditions(this)
++                    showMainScreen()
++                },
++                onTitleClick = { showEditGpsScreen() }
++            ),
++            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50))
++        )
++        if (gpsEnabled && gpsConfig.hasLocation() && gpsConfig.address.isNotBlank()) {
++            content.addView(
++                createGpsPlaceLabel(gpsConfig.address),
++                LinearLayout.LayoutParams(
++                    ViewGroup.LayoutParams.MATCH_PARENT,
++                    ViewGroup.LayoutParams.WRAP_CONTENT
++                ).apply {
++                    topMargin = dp(2)
++                    leftMargin = dp(4)
++                    rightMargin = dp(4)
++                }
++            )
++        }
++
++        val pager = HorizontalSetPager(this, visibleSetPage) { page ->
++            // 페이지 이동은 보기만 바꾸며 감지/업종/SET 저장 상태를 바꾸지 않는다.
++            visibleSetPage = page
++        }
++        for (page in 0..1) {
++            val pageContent = LinearLayout(this).apply {
++                orientation = LinearLayout.VERTICAL
++                setPadding(0, dp(8), 0, dp(12))
++            }
++            pageContent.addView(
++                TextView(this).apply {
++                    text = if (page == 0) "대리" else "탁송"
++                    textSize = 13f
++                    setTextColor(champagneLabel)
++                    letterSpacing = 0.08f
++                    setPadding(0, 0, 0, dp(6))
++                    contentDescription = if (page == 0) "대리 SET 페이지 1/2" else "탁송 SET 페이지 2/2"
++                },
++                LinearLayout.LayoutParams(
++                    ViewGroup.LayoutParams.MATCH_PARENT,
++                    ViewGroup.LayoutParams.WRAP_CONTENT
++                )
++            )
++            val firstIndex = page * ConditionProvider.SETS_PER_KIND
++            for (index in firstIndex until firstIndex + ConditionProvider.SETS_PER_KIND) {
++                pageContent.addView(
++                    createSetRow(
++                        setNumber = ConditionProvider.localSetNumber(index),
++                        checked = checkedSets[index],
++                        onCheckClick = {
++                            val newChecked = !preferences.getBoolean(
++                                ConditionProvider.prefCheckedKey(index), false
++                            )
++                            preferences.edit()
++                                .putBoolean(ConditionProvider.prefCheckedKey(index), newChecked)
++                                .apply()
++                            val newCheckedSets = BooleanArray(ConditionProvider.SET_COUNT) { slot ->
++                                preferences.getBoolean(ConditionProvider.prefCheckedKey(slot), false)
++                            }
++                            val detectionStillValid = canStartDetection(
++                                checkedSets = newCheckedSets,
++                                configs = List(ConditionProvider.SET_COUNT) { slot -> loadSetConfig(slot) }
++                            )
++                            if (preferences.getBoolean(ConditionProvider.PREF_DETECTING, false) &&
++                                !detectionStillValid) {
++                                preferences.edit()
++                                    .putBoolean(ConditionProvider.PREF_DETECTING, false)
++                                    .apply()
++                            }
++                            ConditionBridgeReceiver.sendCurrentConditions(this)
++                            showMainScreen()
++                        },
++                        onTitleClick = { showEditSetScreen(index) }
++                    ),
++                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(50))
++                )
++                if (checkedSets[index]) {
++                    pageContent.addView(
++                        createCurrentSettingBox(setConfigs[index]),
++                        LinearLayout.LayoutParams(
++                            ViewGroup.LayoutParams.MATCH_PARENT,
++                            ViewGroup.LayoutParams.WRAP_CONTENT
++                        ).apply { topMargin = dp(7) }
++                    )
++                }
++                if (ConditionProvider.localSetNumber(index) != ConditionProvider.SETS_PER_KIND) {
++                    pageContent.addView(
++                        Space(this),
++                        LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(10))
++                    )
++                }
++            }
++            pager.addView(pageContent)
++        }
++        content.addView(
++            pager,
++            LinearLayout.LayoutParams(
++                ViewGroup.LayoutParams.MATCH_PARENT,
++                ViewGroup.LayoutParams.WRAP_CONTENT
++            )
++        )
++        val mainScroll = SetPageScrollView(this).apply {
++            isFillViewport = true
++            isVerticalScrollBarEnabled = false
++            overScrollMode = View.OVER_SCROLL_NEVER
++            addView(content)
++        }
+@@ -1414 +1338 @@
+-            headerColumn,
++            mainScroll,
+@@ -1417 +1341 @@
+-                ViewGroup.LayoutParams.WRAP_CONTENT
++                ViewGroup.LayoutParams.MATCH_PARENT
+@@ -1419,4 +1343,2 @@
+-                gravity = Gravity.TOP
+-                topMargin = dp(118)
+-                leftMargin = dp(20)
+-                rightMargin = dp(12)
++                topMargin = dp(110)
++                bottomMargin = dp(140)
+@@ -1589,0 +1512 @@
++        visibleSetPage = if (ConditionProvider.isTaksongIndex(setIndex)) 1 else 0
+@@ -1597 +1520 @@
+-                titleText = "SET ${setIndex + 1}"
++                titleText = "${if (ConditionProvider.isTaksongIndex(setIndex)) "탁송" else "대리"} SET ${ConditionProvider.localSetNumber(setIndex)}"
+@@ -1823,0 +1747,6 @@
++        val editScroll = ScrollView(this).apply {
++            isFillViewport = true
++            isVerticalScrollBarEnabled = false
++            overScrollMode = View.OVER_SCROLL_NEVER
++            addView(content)
++        }
+@@ -1825 +1754 @@
+-            content,
++            editScroll,
+@@ -2370,0 +2300,6 @@
++        }
++        val targetPage = if (targetKey == PREF_ALLOW_TAKSONG) 1 else 0
++        if (!current) {
++            visibleSetPage = targetPage
++        } else if (visibleSetPage == targetPage) {
++            visibleSetPage = 1 - targetPage
+@@ -3141,7 +3076,18 @@
+-        val selectedIndexes =
+-            checkedSets.indices
+-                .filter {
+-                    checkedSets[it]
+-                }
+-
+-        if (selectedIndexes.isEmpty()) {
++        val preferences = preferences()
++        val allowDaeri = preferences.getBoolean(PREF_ALLOW_DAERI, true)
++        val allowTaksong = preferences.getBoolean(PREF_ALLOW_TAKSONG, true) &&
++            (preferences.getBoolean(PREF_TAKSONG_TODAY, true) ||
++                preferences.getBoolean(PREF_TAKSONG_TOMORROW, true))
++        val selectedIndexes = checkedSets.indices.filter { index ->
++            checkedSets[index] &&
++                if (ConditionProvider.isTaksongIndex(index)) allowTaksong else allowDaeri
++        }
++        return selectedIndexes.isNotEmpty() && selectedIndexes.all { index ->
++            configs[index].hasAnyCondition()
++        }
++    }
++
++    private fun initializeSetGroupsIfNeeded(): Boolean {
++        if (!ConditionProvider.ensureSetGroupsMigrated(preferences())) {
++            Toast.makeText(this, "설정을 불러오지 못했습니다. 앱을 다시 실행해 주세요.", Toast.LENGTH_LONG).show()
++            finish()
+@@ -3150,72 +3096,21 @@
+-
+-        return selectedIndexes.all { index ->
+-            configs[index].hasAnyCondition()
+-        }
+-    }
+-
+-    /*
+-     * 이 버전이 처음 실행될 때 한 번만 기존 예시/레거시 SET 값을 지운다.
+-     * 이후 사용자가 SAVE한 값은 SharedPreferences에 그대로 남으므로
+-     * 앱을 종료했다가 다시 실행해도 유지된다.
+-     */
+-    private fun initializeEmptySetsIfNeeded() {
+-        val preferences =
+-            preferences()
+-
+-        val initializationKey =
+-            "empty_sets_initialized_v1"
+-
+-        if (
+-            preferences.getBoolean(
+-                initializationKey,
+-                false
+-            )
+-        ) {
+-            return
+-        }
+-
+-        val editor =
+-            preferences.edit()
+-
+-        for (
+-        index in
+-        0 until ConditionProvider.SET_COUNT
+-        ) {
+-            editor
+-                .remove(
+-                    ConditionProvider.prefIncludeWordKey(index)
+-                )
+-                .remove(
+-                    ConditionProvider.prefExcludeWordKey(index)
+-                )
+-                .remove(
+-                    ConditionProvider.prefMinFareKey(index)
+-                )
+-                .remove(
+-                    ConditionProvider.prefMaxDistanceKey(index)
+-                )
+-                .remove(
+-                    ConditionProvider.prefCheckedKey(index)
+-                )
+-        }
+-
+-        editor
+-            .remove("includeWord")
+-            .remove("excludeWord")
+-            .remove("minFare")
+-            .remove("maxDistance")
+-            .putBoolean(
+-                ConditionProvider.PREF_DETECTING,
+-                false
+-            )
+-            .putBoolean(
+-                ConditionProvider.PREF_SETS_MIGRATED,
+-                true
+-            )
+-            .putBoolean(
+-                initializationKey,
+-                true
+-            )
+-            .apply()
+-
+-        ConditionBridgeReceiver.sendCurrentConditions(this)
++        migrateLineHistoryGroupsIfNeeded()
++        return true
++    }
++
++    private fun migrateLineHistoryGroupsIfNeeded() {
++        val history = historyPrefs()
++        val migrationKey = "set_group_history_version"
++        if (history.getInt(migrationKey, 0) >= 2) return
++        val editor = history.edit()
++        // 기존 SET 3은 탁송 SET 1이었다. 대리 SET 3에는 복사하지 않는다.
++        for ((oldIndex, newIndex) in listOf(0 to 0, 1 to 1, 2 to ConditionProvider.SETS_PER_KIND)) {
++            for ((oldKey, newKey) in listOf(
++                "include_word_history_$oldIndex" to includeHistoryKey(newIndex),
++                "exclude_word_history_$oldIndex" to excludeHistoryKey(newIndex)
++            )) {
++                if (!history.contains(newKey) && history.contains(oldKey)) {
++                    editor.putString(newKey, history.getString(oldKey, "") ?: "")
++                }
++            }
++        }
++        editor.putInt(migrationKey, 2).commit()
+@@ -3228,0 +3124,214 @@
++
++    /** 부모가 대각선 가로 스와이프를 세로 스크롤로 먼저 가로채지 않게 한다. */
++    private class SetPageScrollView(context: Context) : ScrollView(context) {
++        private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
++        private var downX = 0f
++        private var downY = 0f
++        private var horizontalGesture = false
++        private var verticalGesture = false
++
++        override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
++            when (event.actionMasked) {
++                MotionEvent.ACTION_DOWN -> {
++                    downX = event.x
++                    downY = event.y
++                    horizontalGesture = false
++                    verticalGesture = false
++                }
++                MotionEvent.ACTION_MOVE -> {
++                    val dx = kotlin.math.abs(event.x - downX)
++                    val dy = kotlin.math.abs(event.y - downY)
++                    if (!horizontalGesture && !verticalGesture) {
++                        if (dx > touchSlop && dx > dy * 1.2f) horizontalGesture = true
++                        else if (dy > touchSlop && dy >= dx) verticalGesture = true
++                    }
++                    if (!verticalGesture) return false
++                }
++            }
++            return super.onInterceptTouchEvent(event)
++        }
++    }
++
++    /** 두 페이지의 보기만 바꾼다. 부모 ScrollView의 세로 스크롤과 자식 탭은 그대로 둔다. */
++    private class HorizontalSetPager(
++        context: Context,
++        initialPage: Int,
++        private val onPageChanged: (Int) -> Unit
++    ) : ViewGroup(context) {
++        private val scroller = Scroller(context)
++        private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
++        private val minimumFlingVelocity = ViewConfiguration.get(context).scaledMinimumFlingVelocity
++        private val maximumFlingVelocity = ViewConfiguration.get(context).scaledMaximumFlingVelocity
++        private var velocityTracker: VelocityTracker? = null
++        private var page = initialPage.coerceIn(0, 1)
++        private var downX = 0f
++        private var downY = 0f
++        private var lastX = 0f
++        private var dragging = false
++        private var verticalGesture = false
++        private var laidOut = false
++
++        init {
++            // 대리는 왼쪽, 탁송은 오른쪽으로 고정한다.
++            layoutDirection = View.LAYOUT_DIRECTION_LTR
++            clipChildren = true
++            isFocusable = true
++        }
++
++        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
++            val pageWidth = MeasureSpec.getSize(widthMeasureSpec)
++            val exactHeight = MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY
++            val childHeightSpec = if (exactHeight) heightMeasureSpec else
++                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
++            var contentHeight = 0
++            for (index in 0 until childCount) {
++                getChildAt(index).measure(
++                    MeasureSpec.makeMeasureSpec(pageWidth, MeasureSpec.EXACTLY),
++                    childHeightSpec
++                )
++                contentHeight = maxOf(contentHeight, getChildAt(index).measuredHeight)
++            }
++            val pageHeight = resolveSize(contentHeight, heightMeasureSpec)
++            setMeasuredDimension(pageWidth, pageHeight)
++            for (index in 0 until childCount) {
++                getChildAt(index).measure(
++                    MeasureSpec.makeMeasureSpec(pageWidth, MeasureSpec.EXACTLY),
++                    MeasureSpec.makeMeasureSpec(pageHeight, MeasureSpec.EXACTLY)
++                )
++            }
++        }
++
++        override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
++            val pageWidth = right - left
++            for (index in 0 until childCount) {
++                getChildAt(index).layout(index * pageWidth, 0, (index + 1) * pageWidth, bottom - top)
++            }
++            if (!laidOut || changed) {
++                scroller.forceFinished(true)
++                scrollTo(page * pageWidth, 0)
++                laidOut = true
++            }
++        }
++
++        override fun dispatchTouchEvent(event: MotionEvent): Boolean {
++            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
++                velocityTracker?.recycle()
++                velocityTracker = VelocityTracker.obtain()
++            }
++            velocityTracker?.addMovement(event)
++            val handled = super.dispatchTouchEvent(event)
++            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
++                velocityTracker?.recycle()
++                velocityTracker = null
++            }
++            return handled
++        }
++
++        override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
++            when (event.actionMasked) {
++                MotionEvent.ACTION_DOWN -> {
++                    scroller.forceFinished(true)
++                    downX = event.x
++                    downY = event.y
++                    lastX = event.x
++                    dragging = false
++                    verticalGesture = false
++                }
++                MotionEvent.ACTION_MOVE -> {
++                    val dx = kotlin.math.abs(event.x - downX)
++                    val dy = kotlin.math.abs(event.y - downY)
++                    if (!dragging && !verticalGesture) {
++                        if (dy > touchSlop && dy >= dx) {
++                            verticalGesture = true
++                        } else if (dx > touchSlop && dx > dy * 1.2f) {
++                            dragging = true
++                            parent?.requestDisallowInterceptTouchEvent(true)
++                        }
++                    }
++                    if (dragging) return true
++                }
++                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
++                    if (!dragging && width > 0 && scrollX != page * width) settleToPage(page)
++                }
++            }
++            return false
++        }
++
++        override fun onTouchEvent(event: MotionEvent): Boolean {
++            when (event.actionMasked) {
++                MotionEvent.ACTION_DOWN -> {
++                    scroller.forceFinished(true)
++                    downX = event.x
++                    downY = event.y
++                    lastX = event.x
++                    dragging = false
++                    verticalGesture = false
++                    return true
++                }
++                MotionEvent.ACTION_MOVE -> {
++                    val dx = kotlin.math.abs(event.x - downX)
++                    val dy = kotlin.math.abs(event.y - downY)
++                    if (!dragging && !verticalGesture) {
++                        if (dy > touchSlop && dy >= dx) verticalGesture = true
++                        else if (dx > touchSlop && dx > dy * 1.2f) {
++                            dragging = true
++                            parent?.requestDisallowInterceptTouchEvent(true)
++                        }
++                    }
++                    if (dragging) {
++                        val nextX = (scrollX + lastX - event.x).toInt()
++                            .coerceIn(0, (childCount - 1).coerceAtLeast(0) * width)
++                        scrollTo(nextX, 0)
++                    }
++                    lastX = event.x
++                    return true
++                }
++                MotionEvent.ACTION_UP -> {
++                    if (dragging && width > 0) {
++                        velocityTracker?.computeCurrentVelocity(1000, maximumFlingVelocity.toFloat())
++                        val velocity = velocityTracker?.xVelocity ?: 0f
++                        val moved = kotlin.math.abs(event.x - downX) > touchSlop
++                        val destination = if (moved && kotlin.math.abs(velocity) > minimumFlingVelocity) {
++                            page + if (velocity < 0f) 1 else -1
++                        } else {
++                            (scrollX + width / 2) / width
++                        }
++                        settleToPage(destination)
++                    } else {
++                        settleToPage(page)
++                        performClick()
++                    }
++                    dragging = false
++                    return true
++                }
++                MotionEvent.ACTION_CANCEL -> {
++                    settleToPage(page)
++                    dragging = false
++                    return true
++                }
++            }
++            return super.onTouchEvent(event)
++        }
++
++        override fun performClick(): Boolean {
++            super.performClick()
++            return true
++        }
++
++        private fun settleToPage(destination: Int) {
++            val target = destination.coerceIn(0, (childCount - 1).coerceAtLeast(0))
++            if (target != page) {
++                page = target
++                onPageChanged(page)
++            }
++            scroller.startScroll(scrollX, 0, page * width - scrollX, 0, 240)
++            postInvalidateOnAnimation()
++        }
++
++        override fun computeScroll() {
++            if (scroller.computeScrollOffset()) {
++                scrollTo(scroller.currX, 0)
++                postInvalidateOnAnimation()
++            }
++        }
++    }

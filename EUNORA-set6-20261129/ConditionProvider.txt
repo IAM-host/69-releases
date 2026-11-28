@@ -1,0 +1,309 @@
+package com.example.wheelprobe
+
+import android.content.ContentProvider
+import android.content.ContentValues
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.database.Cursor
+import android.net.Uri
+import android.os.Binder
+import android.os.Bundle
+import android.os.Process
+import android.util.Log
+
+class ConditionProvider : ContentProvider() {
+
+    override fun onCreate(): Boolean {
+        val appContext = context ?: return false
+        return try {
+            for (pkg in ALLOWED_PACKAGES) {
+                try {
+                    appContext.grantUriPermission(
+                        pkg,
+                        CONDITION_URI,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Throwable) {
+                }
+            }
+            Log.i(LOG_TAG, "ConditionProvider URI permission granted")
+            true
+        } catch (throwable: Throwable) {
+            Log.e(LOG_TAG, "ConditionProvider URI permission grant failed", throwable)
+            true
+        }
+    }
+
+    override fun call(
+        method: String,
+        arg: String?,
+        extras: Bundle?
+    ): Bundle {
+        checkCaller()
+
+        if (method != METHOD_GET_CONDITIONS) {
+            throw IllegalArgumentException("Unknown method: $method")
+        }
+
+        val appContext = context
+            ?: throw IllegalStateException("Context is not available")
+
+        val preferences = appContext.getSharedPreferences(
+            PREF_FILE_NAME,
+            Context.MODE_PRIVATE
+        )
+        return buildConditionsPayload(preferences)
+    }
+
+    private fun checkCaller() {
+        val appContext = context
+            ?: throw IllegalStateException("Context is not available")
+
+        val callingUid = Binder.getCallingUid()
+        if (callingUid == Process.myUid()) return
+
+        val callerPackages = appContext.packageManager
+            .getPackagesForUid(callingUid)
+            .orEmpty()
+
+        if (callerPackages.none { it in ALLOWED_PACKAGES }) {
+            throw SecurityException(
+                "Caller is not allowed: " + callerPackages.joinToString()
+            )
+        }
+    }
+
+    override fun query(
+        uri: Uri,
+        projection: Array<out String>?,
+        selection: String?,
+        selectionArgs: Array<out String>?,
+        sortOrder: String?
+    ): Cursor? = null
+
+    override fun getType(uri: Uri): String? = null
+    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
+    override fun update(
+        uri: Uri,
+        values: ContentValues?,
+        selection: String?,
+        selectionArgs: Array<out String>?
+    ): Int = 0
+
+    companion object {
+        const val SETS_PER_KIND = 3
+        const val SET_COUNT = SETS_PER_KIND * 2
+        const val SET_GROUPS_VERSION = 2
+        const val AUTHORITY = "com.example.wheelprobe.conditions"
+        const val METHOD_GET_CONDITIONS = "getConditions"
+        const val PREF_FILE_NAME = "wheelprobe_conditions"
+        const val PREF_DETECTING = "detecting"
+        const val PREF_SETS_MIGRATED = "setsMigrated"
+        const val PREF_SET_GROUPS_VERSION = "set_groups_version"
+
+        // GPS prefs (MainActivity와 동일)
+        const val PREF_GPS_ENABLED = "gps_enabled"
+        const val PREF_GPS_LAT = "gps_lat"
+        const val PREF_GPS_LNG = "gps_lng"
+        const val PREF_GPS_ADDRESS = "gps_address"
+        const val PREF_ALLOW_DAERI = "allow_daeri"
+        const val PREF_ALLOW_TAKSONG = "allow_taksong"
+        const val PREF_TAKSONG_TODAY = "taksong_today"
+        const val PREF_TAKSONG_TOMORROW = "taksong_tomorrow"
+
+        const val KEY_DETECTING = "detecting"
+        const val KEY_SET_GROUPS_VERSION = "setGroupsVersion"
+        const val KEY_CHECKED_SETS = "checkedSets"
+        const val KEY_INCLUDE_WORDS = "includeWords"
+        const val KEY_EXCLUDE_WORDS = "excludeWords"
+        const val KEY_MIN_FARES = "minFares"
+        const val KEY_MAX_DISTANCES = "maxDistances"
+        const val KEY_GROUPED_CHECKED_SETS = "groupedCheckedSets"
+        const val KEY_GROUPED_INCLUDE_WORDS = "groupedIncludeWords"
+        const val KEY_GROUPED_EXCLUDE_WORDS = "groupedExcludeWords"
+        const val KEY_GROUPED_MIN_FARES = "groupedMinFares"
+        const val KEY_GROUPED_MAX_DISTANCES = "groupedMaxDistances"
+
+        const val KEY_GPS_ENABLED = "gps_enabled"
+        const val KEY_GPS_LAT = "gps_lat"
+        const val KEY_GPS_LNG = "gps_lng"
+        const val KEY_GPS_ADDRESS = "gps_address"
+        const val KEY_ALLOW_DAERI = "allow_daeri"
+        const val KEY_ALLOW_TAKSONG = "allow_taksong"
+        const val KEY_TAKSONG_TODAY = "taksong_today"
+        const val KEY_TAKSONG_TOMORROW = "taksong_tomorrow"
+
+        val ALLOWED_PACKAGES = listOf(
+            "com.kakao.wheel.driver",
+            "com.callmanerdriver2sharp1",
+            "com.callmanerdriver2sharp2",
+            "com.tmapmobility.drive.driver",
+            "com.idriver",
+            "com.logisoft.Logi4",
+            "com.logisoft.Logi5"
+        )
+
+        private const val LOG_TAG = "EUNORA"
+
+        private val CONDITION_URI: Uri =
+            Uri.parse("content://$AUTHORITY")
+
+        private val setGroupsMigrationLock = Any()
+        private val failedSetMigrations = mutableSetOf<SharedPreferences>()
+
+        /** Both wire formats share one payload so old hook processes keep the old slot meaning. */
+        fun buildConditionsPayload(preferences: SharedPreferences): Bundle {
+            check(ensureSetGroupsMigrated(preferences)) { "Condition set migration failed" }
+
+            val checkedSets = BooleanArray(SET_COUNT) { index ->
+                preferences.getBoolean(prefCheckedKey(index), false)
+            }
+
+            val includeWords = Array(SET_COUNT) { index ->
+                preferences.getString(prefIncludeWordKey(index), "") ?: ""
+            }
+
+            val excludeWords = Array(SET_COUNT) { index ->
+                preferences.getString(prefExcludeWordKey(index), "") ?: ""
+            }
+
+            val minFares = Array(SET_COUNT) { index ->
+                preferences.getString(prefMinFareKey(index), "") ?: ""
+            }
+
+            val maxDistances = Array(SET_COUNT) { index ->
+                preferences.getString(prefMaxDistanceKey(index), "") ?: ""
+            }
+
+            return Bundle().apply {
+                putInt(KEY_SET_GROUPS_VERSION, SET_GROUPS_VERSION)
+                putBoolean(
+                    KEY_DETECTING,
+                    preferences.getBoolean(PREF_DETECTING, false)
+                )
+                putBooleanArray(KEY_GROUPED_CHECKED_SETS, checkedSets)
+                putBooleanArray(KEY_CHECKED_SETS, booleanArrayOf(checkedSets[0], checkedSets[1], checkedSets[SETS_PER_KIND]))
+                putStringArray(KEY_GROUPED_INCLUDE_WORDS, includeWords)
+                putStringArray(KEY_INCLUDE_WORDS, arrayOf(includeWords[0], includeWords[1], includeWords[SETS_PER_KIND]))
+                putStringArray(KEY_GROUPED_EXCLUDE_WORDS, excludeWords)
+                putStringArray(KEY_EXCLUDE_WORDS, arrayOf(excludeWords[0], excludeWords[1], excludeWords[SETS_PER_KIND]))
+                putStringArray(KEY_GROUPED_MIN_FARES, minFares)
+                putStringArray(KEY_MIN_FARES, arrayOf(minFares[0], minFares[1], minFares[SETS_PER_KIND]))
+                putStringArray(KEY_GROUPED_MAX_DISTANCES, maxDistances)
+                putStringArray(KEY_MAX_DISTANCES, arrayOf(maxDistances[0], maxDistances[1], maxDistances[SETS_PER_KIND]))
+
+                // GPS
+                putBoolean(
+                    KEY_GPS_ENABLED,
+                    preferences.getBoolean(PREF_GPS_ENABLED, false)
+                )
+                putString(
+                    KEY_GPS_LAT,
+                    preferences.getString(PREF_GPS_LAT, null)
+                )
+                putString(
+                    KEY_GPS_LNG,
+                    preferences.getString(PREF_GPS_LNG, null)
+                )
+                putString(
+                    KEY_GPS_ADDRESS,
+                    preferences.getString(PREF_GPS_ADDRESS, "") ?: ""
+                )
+
+                putBoolean(
+                    KEY_ALLOW_DAERI,
+                    preferences.getBoolean(PREF_ALLOW_DAERI, true)
+                )
+                putBoolean(
+                    KEY_ALLOW_TAKSONG,
+                    preferences.getBoolean(PREF_ALLOW_TAKSONG, true)
+                )
+                putBoolean(
+                    KEY_TAKSONG_TODAY,
+                    preferences.getBoolean(PREF_TAKSONG_TODAY, true)
+                )
+                putBoolean(
+                    KEY_TAKSONG_TOMORROW,
+                    preferences.getBoolean(PREF_TAKSONG_TOMORROW, true)
+                )
+            }
+        }
+
+        /**
+         * Preserve the old three slots as a backup, mapping their values to
+         * DAERI 1/2 and TAKSONG 1 in one committed preference transaction.
+         * Existing grouped values always win, including intentionally empty ones.
+         */
+        fun ensureSetGroupsMigrated(preferences: SharedPreferences): Boolean =
+            synchronized(setGroupsMigrationLock) {
+                if (preferences.getInt(PREF_SET_GROUPS_VERSION, 0) >= SET_GROUPS_VERSION &&
+                    preferences !in failedSetMigrations
+                ) {
+                    return@synchronized true
+                }
+
+                val oldValues = preferences.all
+                val editor = preferences.edit()
+                val legacyIndices = arrayOf(0, 1, null, 2, null, null)
+
+                for (index in 0 until SET_COUNT) {
+                    val legacyIndex = legacyIndices[index]
+                    val checkedKey = prefCheckedKey(index)
+                    if (!oldValues.containsKey(checkedKey)) {
+                        val checked = legacyIndex?.let { oldValues["set_${it}_checked"] as? Boolean }
+                        editor.putBoolean(checkedKey, checked ?: false)
+                    }
+
+                    val stringKeys = listOf(
+                        prefIncludeWordKey(index) to "includeWord",
+                        prefExcludeWordKey(index) to "excludeWord",
+                        prefMinFareKey(index) to "minFare",
+                        prefMaxDistanceKey(index) to "maxDistance"
+                    )
+                    for ((key, suffix) in stringKeys) {
+                        if (!oldValues.containsKey(key)) {
+                            val value = legacyIndex?.let { oldValues["set_${it}_$suffix"] as? String }
+                            editor.putString(key, value ?: "")
+                        }
+                    }
+                }
+
+                val committed = editor.putInt(PREF_SET_GROUPS_VERSION, SET_GROUPS_VERSION).commit()
+                // Android can publish edits in memory even when disk commit fails.
+                // Retry the save on the next call instead of trusting that in-memory marker.
+                if (committed) failedSetMigrations.remove(preferences) else failedSetMigrations.add(preferences)
+                committed
+            }
+
+        fun isTaksongIndex(index: Int): Boolean =
+            safeIndex(index) >= SETS_PER_KIND
+
+        fun localSetNumber(index: Int): Int =
+            safeIndex(index) % SETS_PER_KIND + 1
+
+        private fun prefSetPrefix(index: Int): String {
+            val kind = if (isTaksongIndex(index)) "taksong" else "daeri"
+            return "${kind}_set_${localSetNumber(index) - 1}"
+        }
+
+        fun prefCheckedKey(index: Int): String =
+            "${prefSetPrefix(index)}_checked"
+
+        fun prefIncludeWordKey(index: Int): String =
+            "${prefSetPrefix(index)}_includeWord"
+
+        fun prefExcludeWordKey(index: Int): String =
+            "${prefSetPrefix(index)}_excludeWord"
+
+        fun prefMinFareKey(index: Int): String =
+            "${prefSetPrefix(index)}_minFare"
+
+        fun prefMaxDistanceKey(index: Int): String =
+            "${prefSetPrefix(index)}_maxDistance"
+
+        private fun safeIndex(index: Int): Int =
+            index.coerceIn(0, SET_COUNT - 1)
+    }
+}

@@ -1,0 +1,18 @@
+{
+  "status": "PASS",
+  "source": {
+    "path": "/workspace/projects/WheelProbe-tmap177-20261129/app/src/main/java/com/example/wheelprobe/E03.kt",
+    "sha256": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280"
+  },
+  "hooker_sha256": "c667d563ec6f22297689ab78cf5bbc3eb50a0737070bafc4235f8910c6caa725",
+  "installer_sha256": "182d5181d0b82b2216c4b8e9f07fa19ab53fa1e301da377e2dabefda01bd8374",
+  "production_extraction_sha256": "db7ad9f468e93af84064c001516be99b8266adc8fcb145c54b47594def546ccf",
+  "matcher_sha256": "5dbbf074d2001105d97cddd266af300da17fc5aac6e487e9c86e62b0208a61dd",
+  "libxposed_api100_sha256": "838bccad215e801547e376856f416f46178118f91d7f88a224e0276a6b05b9dc",
+  "target_contract": {
+    "path": "/workspace/analysis/tmap-update-20261129/detection/detection-findings.json",
+    "sha256": "83507fe4e86d6aa084a50cc59c6954baf3c499d00cd56938b862286406af5885"
+  },
+  "cases": 21,
+  "scope": "JVM fixture execution of actual fragments and actual shared matcher; no Android/device/server execution."
+}

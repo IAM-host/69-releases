@@ -1,0 +1,196 @@
+{
+  "status": "passed",
+  "production_source_directory": "/workspace/projects/WheelProbe-kakao315-20261125/app/src/main/java/com/example/wheelprobe",
+  "source_sha256": {
+    "E02.kt": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f",
+    "ModuleMain.kt": "2d0468c1b60553d50011e05475605a32b4279d8fe53aa97c90791d67013c80ca",
+    "CallMatcher.kt": "5dbbf074d2001105d97cddd266af300da17fc5aac6e487e9c86e62b0208a61dd",
+    "E01.kt": "0fd9d118057c16f7f45b65510d54c6f204192ce2a249d5a1df073100d797be11"
+  },
+  "extracted_fragments": [
+    {
+      "file": "E02.kt",
+      "label": "DirectAcceptController",
+      "first_line": 36,
+      "sha256": "f005597ee4379bb0c63a63bcfa8a399b71123c190eeb5a17bd9f5f07a8dc7dca",
+      "characters": 8789
+    },
+    {
+      "file": "E02.kt",
+      "label": "DirectAcceptSource",
+      "first_line": 208,
+      "sha256": "273e86f650a09e917244d211080be9d1b48a07071eec0c341eb11487169d1779",
+      "characters": 125
+    },
+    {
+      "file": "E02.kt",
+      "label": "DirectAcceptOutcome",
+      "first_line": 214,
+      "sha256": "32180dbce60228c0a98b682ecf14830cdf65cf188fd41f9b7e20ddd40280433d",
+      "characters": 150
+    },
+    {
+      "file": "E02.kt",
+      "label": "accept-core",
+      "first_line": 219,
+      "sha256": "1ae9ee09358f4cb85ecac585fe09b3ce701d2f6029ae1d32afa9273151e02b78",
+      "characters": 16247
+    },
+    {
+      "file": "E02.kt",
+      "label": "detection-data-and-hooks",
+      "first_line": 542,
+      "sha256": "0a9075637d64a1b773d811583092117e1dc724165d3a40776035182e7a7a5717",
+      "characters": 12556
+    },
+    {
+      "file": "E02.kt",
+      "label": "list-observer-and-matching-entry",
+      "first_line": 860,
+      "sha256": "23a621c6cb933d743935a71842529154bbc0f7b83038593b86841ac61047f239",
+      "characters": 1872
+    },
+    {
+      "file": "E02.kt",
+      "label": "card-observers",
+      "first_line": 945,
+      "sha256": "72e77f7de65dbe758edb4dc01f5437ba38314624f207a494aaf47dda8bec5e92",
+      "characters": 1561
+    },
+    {
+      "file": "CallMatcher.kt",
+      "label": "entire-source-byte-copy",
+      "first_line": 1,
+      "sha256": "5dbbf074d2001105d97cddd266af300da17fc5aac6e487e9c86e62b0208a61dd",
+      "bytes": 6779
+    },
+    {
+      "file": "E01.kt",
+      "label": "CallKindFilter",
+      "first_line": 199,
+      "sha256": "22f76c7b3f2a685f3d7d2c8c60e62a1ecaa0bdd92f147ef4579a72a51143e3d1",
+      "characters": 601
+    },
+    {
+      "file": "E01.kt",
+      "label": "TaksongDateFilter",
+      "first_line": 221,
+      "sha256": "7f79064ceef9c26528e56f884cc35b86b974d44ddf58ad02ece28378830610e7",
+      "characters": 2575
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "internal fun matchAndAccept(",
+      "first_line": 320,
+      "sha256": "e2a129281029d7327483ccf52df5cbc6b836d15dd130ed1e5ae1f04ac7bd7898",
+      "characters": 3004
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "internal fun initializeConditions(",
+      "first_line": 382,
+      "sha256": "06100540134d4e001690616b1bc02aa44d2f32fdff80bbae6f49e8c254b95771",
+      "characters": 428
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "internal fun canProcessConditions(",
+      "first_line": 391,
+      "sha256": "66eb9d43ecacae507525933d55528f9903d8993b55f9e2649580b04f2082ccbb",
+      "characters": 345
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "internal fun processPopupDto(",
+      "first_line": 411,
+      "sha256": "23b931b0a0c134fc8facf3eb00094585e7679ad21a4afb40ccebea5066f8dd51",
+      "characters": 217
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "internal fun processGeneralSocketCallCard(",
+      "first_line": 416,
+      "sha256": "b23e2138fd4b039cc34502854e832155a54d6fd5d23859781ae460880fb44a0a",
+      "characters": 1714
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "internal fun handleDirectAccept(",
+      "first_line": 445,
+      "sha256": "8437dc6c1e06f10a612734316251167afdcee4e6a17ebddc892ec93aaad60408",
+      "characters": 640
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "fun readField(",
+      "first_line": 458,
+      "sha256": "e0d34c32e0f6a05e2c2ca750d1a701c78838ff5c33a16355b14e1a24d7c7c6d4",
+      "characters": 184
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "KakaoCardData",
+      "first_line": 550,
+      "sha256": "75a103646614af2750474ef7bab0b985fdcfc333148acb040a400c426ea30d02",
+      "characters": 348
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "clean",
+      "first_line": 474,
+      "sha256": "98ad1e96d50535844ae8c477d82297aabe56a2c270c6224e55c5fbf668ffc35c",
+      "characters": 191
+    }
+  ],
+  "production_code_substitutions": [],
+  "extraction": "Verbatim declarations/functions placed in a fixture ModuleMain companion; CallMatcher copied byte-for-byte; only wrappers/imports supplied.",
+  "fresh_jvm_per_case": true,
+  "routes": [
+    "list",
+    "premium-mini",
+    "premium-card",
+    "wayback"
+  ],
+  "cases_per_route": [
+    "success",
+    "exclude",
+    "destination",
+    "amount",
+    "driver-distance",
+    "no-distance",
+    "no-condition",
+    "detection-off",
+    "not-ready"
+  ],
+  "passed_case_count": 36,
+  "fixture_exit_code": 0,
+  "verified_chain": [
+    "Actual NetworkResponseHooker for list; guarded card hook for premium-mini/wayback; processPopupDto for premium-card",
+    "Actual Kakao315DetectionData field adapter",
+    "Actual ModuleMain matching functions + CallMatcher",
+    "Actual DirectAcceptController + KakaoAcceptLedger + KakaoNativeAcceptBridge",
+    "Reflective f01 event with ID/source/mini/vip flags",
+    "Fixture r41.e -> fl variant 3 -> qm1.D hook seam",
+    "Actual controller callback wrapping",
+    "Wrong-ID/manual callback cannot stop detection",
+    "Matching managed server-success DTO stops detection once"
+  ],
+  "fixture_boundaries": [
+    "ConditionClient provides typed ready/current/detecting state; stopDetecting/bringAppToFront record side effects",
+    "Existing narrow deterministic Handler/Looper/Context broadcast stubs",
+    "Synthetic wt0/z01/g81 and accept DTO classes; fake r41.e dispatches f01 through qm1.D",
+    "Xposed hook callbacks invoked explicitly; no Xposed installation/runtime"
+  ],
+  "not_executed": [
+    "ConditionClient Android condition-delivery and stop broadcast implementation",
+    "Actual APK r41/f01/fl/native coroutine or backend acceptance implementation",
+    "Android framework scheduling, APK process, Xposed runtime, UI or physical-device installation",
+    "Other-app matching/routing; this fixture covers Kakao exclusively"
+  ],
+  "android_framework_execution": false,
+  "target_apk_execution": false,
+  "network_access": false,
+  "native_code_execution": false,
+  "fragment_hash_encoding": "UTF-8 after Python universal-newline reads; full source SHA-256 and CallMatcher byte copy hash are raw file bytes",
+  "independent_fixture_review": "No material false-positive defect found; route-specific popup entry distinction recorded."
+}

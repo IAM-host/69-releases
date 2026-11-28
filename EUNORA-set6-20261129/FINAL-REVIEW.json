@@ -1,0 +1,85 @@
+{
+  "status": "passed",
+  "material_unresolved_findings": [],
+  "reviewed_source_sha256": {
+    "AppUpdater.kt": "496788b1d6874122b846a3b7451a64e54a2524a4d9cae4bf997c33df4142909a",
+    "CallMatcher.kt": "629399a2d2adee71ebb0e1c15959882331c335124fdad7dbaa195bf503b1ad91",
+    "ConditionBridgeReceiver.kt": "f352e351d5bc624f13457fbe6dbf0b32477a364d6a1d7de26212d63e200dd839",
+    "ConditionClient.kt": "beb112671d1a65018d69c73103f8702de81c4d936ad67714b8bdb3e2ebb5a577",
+    "ConditionProvider.kt": "4e961636d46da4769992b9411adb51046899031fe36172c42f5362d13e0f3a79",
+    "E01.kt": "0fd9d118057c16f7f45b65510d54c6f204192ce2a249d5a1df073100d797be11",
+    "E02.kt": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f",
+    "E03.kt": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280",
+    "E04.kt": "81638c32e7bd431377d375c844a691907a0a26e317d3fbd70b76caaf10908b50",
+    "E05.kt": "323519395979e91284a63d6d1dc9b905f4dbfe0fdf96533cff29a95db3e5c345",
+    "E06.kt": "d72c6165dd87479c9d218f56347c67dd29005c569908946abc8dad978db67e4e",
+    "MainActivity.kt": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04",
+    "MemberLicense.kt": "ec02d43ae384f0bf6fe8bce01d00cf043cd9941a95900130737a1d4005d9263a",
+    "ModuleMain.kt": "98b94029c3b5e3e61979f484061329f4314227c5b565cd5fa6f7a1007915a009"
+  },
+  "independent_connected_test": {
+    "status": "passed",
+    "fresh_jvm_routes": 7,
+    "assertions_per_route": 122,
+    "total_assertions": 854,
+    "report": "connected/report.json"
+  },
+  "review_checks": {
+    "status": "passed",
+    "passed": 15,
+    "total": 15,
+    "report": "source-review.json"
+  },
+  "additional_evidence_reviewed": {
+    "data_tests": "../data/report.json",
+    "ui_state_tests": "../ui/state_report.json",
+    "helper_static_review": "README.md",
+    "ui_pager_parent_tests": "../ui/pager_report.json"
+  },
+  "resolved_findings": [
+    {
+      "issue": "Missing/truncated arrays dropped condition restrictions",
+      "resolution": "Both wire schemas require all five arrays at exact schema length; otherwise empty effective conditions and detection false."
+    },
+    {
+      "issue": "Old hook processes could interpret DAERI SET 3 as TAKSONG",
+      "resolution": "Original wire keys retain three-slot projection [DAERI1, DAERI2, TAK1]; new explicit schema publishes six separate grouped slots."
+    },
+    {
+      "issue": "Failed disk commit can publish migration marker in memory",
+      "resolution": "Failed preference instances force a later save retry despite in-memory marker."
+    },
+    {
+      "issue": "Fixed controls could consume small viewport and leave zero pager height",
+      "resolution": "One outer vertical scroll measures max natural height of plain page contents; global ON remains outside."
+    },
+    {
+      "issue": "Native outer ScrollView could steal slightly diagonal horizontal swipes",
+      "resolution": "Actual parent subclass locks gesture axis before delegating native vertical interception; first vertical gesture retains native child cancellation."
+    }
+  ],
+  "privacy": {
+    "AdminPass_byte_identical": true,
+    "membership_profile_bind_update_byte_identical": true,
+    "full_MainActivity_published": false,
+    "localized_UI_patch_exact_reconstruction": true
+  },
+  "limitations": [
+    "Android framework and Xposed scheduling not executed",
+    "Target app parser and acceptance implementations unchanged from baseline; seven route fixture starts at CallData boundary",
+    "No physical device visual test or backend acceptance",
+    "PowerShell helper actual execution tests owned by delivery agent; independent review inspected helper source and patch generator"
+  ],
+  "ui_functional_tests": {
+    "status": "passed",
+    "pager_and_native_scroll_parent_cases": 24,
+    "enabled_group_validation_and_history_cases": 20,
+    "total_cases": 44,
+    "MainActivity_sha256": "f6aeb9428b41cc4e720ee5edef9a242c2a1e24d7c76e2676a94f712fd4b14f04"
+  },
+  "staged_bundle_privacy": {
+    "status": "passed",
+    "report": "bundle-privacy.json",
+    "localized_edit_count": 28
+  }
+}

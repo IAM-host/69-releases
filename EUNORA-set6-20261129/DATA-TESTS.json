@@ -1,0 +1,77 @@
+{
+  "status": "passed",
+  "passed_case_count": 19,
+  "cases": [
+    "migration-empty",
+    "migration-legacy",
+    "migration-existing-new-config",
+    "migration-commit-failure",
+    "migration-concurrent",
+    "matcher-groups",
+    "matcher-regressions",
+    "provider-six",
+    "provider-migrates",
+    "bridge-six-client-roundtrip",
+    "bridge-migrates",
+    "client-legacy-three",
+    "client-incomplete-empty",
+    "client-update-replacement",
+    "migration-failed-disk-published-memory",
+    "client-global-flags",
+    "client-unknown-version",
+    "dual-wire-legacy-consumer",
+    "client-malformed-all-array-shapes"
+  ],
+  "source_directory": "/workspace/projects/WheelProbe-set6-20261129/app/src/main/java/com/example/wheelprobe",
+  "full_production_file_sha256": {
+    "CallMatcher.kt": "629399a2d2adee71ebb0e1c15959882331c335124fdad7dbaa195bf503b1ad91",
+    "ConditionProvider.kt": "4e961636d46da4769992b9411adb51046899031fe36172c42f5362d13e0f3a79",
+    "ConditionClient.kt": "beb112671d1a65018d69c73103f8702de81c4d936ad67714b8bdb3e2ebb5a577",
+    "ConditionBridgeReceiver.kt": "f352e351d5bc624f13457fbe6dbf0b32477a364d6a1d7de26212d63e200dd839"
+  },
+  "additional_production_source_sha256": {
+    "E01.kt": "0fd9d118057c16f7f45b65510d54c6f204192ce2a249d5a1df073100d797be11"
+  },
+  "verbatim_declarations": [
+    {
+      "file": "E01.kt",
+      "declaration": "GpsSpoofState",
+      "sha256": "77b4933066ee28922a85a63225d3848c02e79f5a5395d43884f0c162411455b4",
+      "first_line": 38
+    },
+    {
+      "file": "E01.kt",
+      "declaration": "CallKindFilter",
+      "sha256": "22f76c7b3f2a685f3d7d2c8c60e62a1ecaa0bdd92f147ef4579a72a51143e3d1",
+      "first_line": 199
+    },
+    {
+      "file": "E01.kt",
+      "declaration": "TaksongDateFilter",
+      "sha256": "7f79064ceef9c26528e56f884cc35b86b974d44ddf58ad02ece28378830610e7",
+      "first_line": 221
+    }
+  ],
+  "production_code_substitutions": [],
+  "fresh_jvm_per_case": true,
+  "network_access": false,
+  "android_framework_execution": false,
+  "fixture_boundaries": [
+    "Minimal Android Context/ContentProvider/Intent/Bundle, atomic in-memory SharedPreferences editor, Binder same-UID fixture, receiver registration and explicit delivery.",
+    "SharedPreferences failed-commit cases model both a rejected batch and Android-like complete in-memory publication with a failed disk write; disk and process crashes not emulated.",
+    "Handler delays recorded as no-op; Android scheduling not executed.",
+    "GPS provider/XSharedPreferences fallback not executed: real GpsSpoofState consumes broadcast-delivered coordinates."
+  ],
+  "not_executed": [
+    "Android framework persistence or multi-process preferences semantics",
+    "Device UI/Xposed scheduling",
+    "Target applications or network services"
+  ],
+  "compiled_production_file_sha256": {
+    "CallMatcher.kt": "629399a2d2adee71ebb0e1c15959882331c335124fdad7dbaa195bf503b1ad91",
+    "ConditionProvider.kt": "4e961636d46da4769992b9411adb51046899031fe36172c42f5362d13e0f3a79",
+    "ConditionClient.kt": "beb112671d1a65018d69c73103f8702de81c4d936ad67714b8bdb3e2ebb5a577",
+    "ConditionBridgeReceiver.kt": "f352e351d5bc624f13457fbe6dbf0b32477a364d6a1d7de26212d63e200dd839"
+  },
+  "compiled_source_matches_current": true
+}
