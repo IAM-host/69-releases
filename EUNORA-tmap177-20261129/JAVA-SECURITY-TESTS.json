@@ -1,0 +1,17 @@
+{
+  "source": "/workspace/projects/WheelProbe-tmap177-20261129/app/src/main/java/com/example/wheelprobe/E03.kt",
+  "source_sha256": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280",
+  "extracted_production_sha256": "2284b3f56d51f6ee59bfea694cb802f35b3c10a5721af8c7d7c77af927202070",
+  "baseline_sha256": "fadb2178ba08c5d53fa6cce35f2df65a51af4c746d12ab276ae861e9977c64e3",
+  "passed": true,
+  "assertions": 159,
+  "scenarios": 15,
+  "platform_preservation": {
+    "security_hookers_unchanged": true,
+    "root_paths_unchanged": true,
+    "command_recognizer_unchanged": true,
+    "platform_file_installation_unchanged": true,
+    "platform_build_runtime_installation_unchanged": true
+  },
+  "scope": "JVM reflection fixtures and libxposed/Android API stubs; no Android/device, native, Integrity, network or server execution"
+}

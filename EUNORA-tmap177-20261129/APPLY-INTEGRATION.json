@@ -1,0 +1,151 @@
+{
+  "status": "passed",
+  "bundle": "/workspace/artifacts/EUNORA-tmap177-20261129",
+  "final_project": "/workspace/projects/WheelProbe-tmap177-20261129",
+  "payload_file_count": 15,
+  "guarded_deletion_count": 4,
+  "full_code_TXT_file_count": 6,
+  "source_changes_since_previous_cumulative": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E03.kt",
+      "previous_kakao315_target_sha256": "fadb2178ba08c5d53fa6cce35f2df65a51af4c746d12ab276ae861e9977c64e3",
+      "new_target_sha256": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280"
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/ModuleMain.kt",
+      "previous_kakao315_target_sha256": "2d0468c1b60553d50011e05475605a32b4279d8fe53aa97c90791d67013c80ca",
+      "new_target_sha256": "98b94029c3b5e3e61979f484061329f4314227c5b565cd5fa6f7a1007915a009"
+    }
+  ],
+  "unchanged_E02_sha256": "6fd7928e6798dae54706f4560a73bf68761ecd181dba2f1ebd82e94c4d43dd6f",
+  "other_76_baseline_files_unchanged": true,
+  "other_13_payload_files_unchanged": true,
+  "helpers_raw_sha256": {
+    "Apply-EUNORA-All.ps1": "9091827643df3ac304c838b78452e95b553fa5dcbd96bd48100fc7720439bf50",
+    "Apply-EUNORA-All.cmd": "c66f7dbc5a3a4d96127b738854d304032038c4459fb1dc45970c1884cb1502a1"
+  },
+  "helper_ps1_cmd_bytes_unchanged": true,
+  "deletion_rules_and_list_unchanged": true,
+  "all_prior_reviewed_uploaded_variants_preserved": true,
+  "only_previous_kakao315_target_hashes_added_to_allowed_old": true,
+  "powershell_version": "7.5.4",
+  "runtime": "Linux PowerShell; actual Windows/Android/server runtime not tested",
+  "cases": [
+    {
+      "baseline": "previous-kakao315",
+      "status": "passed",
+      "all_78_final_project_files_byte_exact": true,
+      "four_guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 2,
+      "second_run_no_file_or_backup_changes": true,
+      "all_seven_actual_uploads_together": false
+    },
+    {
+      "baseline": "previous-v3",
+      "status": "passed",
+      "all_78_final_project_files_byte_exact": true,
+      "four_guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 3,
+      "second_run_no_file_or_backup_changes": true,
+      "all_seven_actual_uploads_together": false
+    },
+    {
+      "baseline": "original-zip",
+      "status": "passed",
+      "all_78_final_project_files_byte_exact": true,
+      "four_guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 11,
+      "second_run_no_file_or_backup_changes": true,
+      "all_seven_actual_uploads_together": false
+    },
+    {
+      "baseline": "original-seven-uploaded",
+      "status": "passed",
+      "all_78_final_project_files_byte_exact": true,
+      "four_guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 11,
+      "second_run_no_file_or_backup_changes": true,
+      "all_seven_actual_uploads_together": true
+    },
+    {
+      "baseline": "already-current",
+      "status": "passed",
+      "all_78_final_project_files_byte_exact": true,
+      "four_guarded_deletions_absent": true,
+      "backup_byte_exact": true,
+      "backup_file_count": 0,
+      "second_run_no_file_or_backup_changes": true,
+      "all_seven_actual_uploads_together": false
+    }
+  ],
+  "local_change_guards": [
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E03.kt",
+      "mutation": "unknown appended raw bytes",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/ModuleMain.kt",
+      "mutation": "unknown appended raw bytes",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E02.kt",
+      "mutation": "unknown appended raw bytes",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E06.kt",
+      "mutation": "unknown appended raw bytes",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/package com/example/wheelprobe  import android/content/BroadcastReceiver import android/content/Context import android/content/Intent import android/util/ErrorReporter.kt",
+      "mutation": "unknown appended raw bytes",
+      "status": "passed",
+      "rejected_before_any_write": true
+    },
+    {
+      "path": "app/src/main/java/com/example/wheelprobe/E03.kt",
+      "mutation": "CRLF to LF only",
+      "status": "passed",
+      "rejected_before_any_write": true
+    }
+  ],
+  "removed_stale_previous_validation_files": [
+    "ACCEPT-CONTROLLER-TESTS.json",
+    "ACCEPT-CORE-TESTS.json",
+    "APK-IDENTITY-TESTS.json",
+    "APPLY-INTEGRATION.json",
+    "BUILD.log",
+    "CONNECTED-TESTS.json",
+    "DETECTION-TESTS.json",
+    "FINAL-REVIEW.json",
+    "FINAL-REVIEW.md",
+    "JAVA-SECURITY-TESTS.json",
+    "RELEASE-PACKAGING.json",
+    "SHA256SUMS.txt",
+    "SOURCE-PRESERVATION.json",
+    "VALIDATION.json"
+  ],
+  "previous_reports_preserved_as_history": "prior-validation-kakao315-20261126",
+  "privacy": {
+    "no_private_project_license_updater_keys_or_APK": true,
+    "no_target_SDK_libraries": true,
+    "native_files_only_unchanged_own_helper": [
+      "app/src/main/jniLibs/x86/libeunora_logi_native.so",
+      "app/src/main/jniLibs/arm64-v8a/libeunora_logi_native.so",
+      "app/src/main/jniLibs/x86_64/libeunora_logi_native.so",
+      "app/src/main/jniLibs/armeabi-v7a/libeunora_logi_native.so"
+    ]
+  },
+  "finalization": "draft folder only; no ZIP/checksums/publish/git/push; parent supplies final reports and README"
+}

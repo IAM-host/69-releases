@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "source_files_changed": [
+    "app/src/main/java/com/example/wheelprobe/E03.kt",
+    "app/src/main/java/com/example/wheelprobe/ModuleMain.kt"
+  ],
+  "other_baseline_files_unchanged": 76,
+  "source_SHA256": {
+    "ModuleMain.kt": "98b94029c3b5e3e61979f484061329f4314227c5b565cd5fa6f7a1007915a009",
+    "E03.kt": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280"
+  },
+  "Main_change": "TMAP-only eager stop exclusion; all other bytes identical",
+  "E03_preserved_byte_exact": [
+    "imports",
+    "existing root path/command callback hookers",
+    "GPS callback hookers",
+    "GPS installer"
+  ],
+  "actual_device_or_backend_tested": false
+}

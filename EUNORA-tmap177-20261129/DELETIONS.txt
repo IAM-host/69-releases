@@ -1,0 +1,6 @@
+﻿Apply-EUNORA-All.cmd backs up and removes only these verified unused files.
+
+app/src/main/java/com/example/wheelprobe/AutoClickService.kt
+app/src/main/java/com/example/wheelprobe/ExecutionClient.kt
+app/src/main/res/xml/eunora_accessibility_service.xml
+app/src/main/java/com/example/wheelprobe/package com/example/wheelprobe  import android/content/BroadcastReceiver import android/content/Context import android/content/Intent import android/util/ErrorReporter.kt

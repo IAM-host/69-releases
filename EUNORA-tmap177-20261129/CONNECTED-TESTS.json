@@ -1,0 +1,124 @@
+{
+  "status": "passed",
+  "production_source_directory": "/workspace/projects/WheelProbe-tmap177-20261129/app/src/main/java/com/example/wheelprobe",
+  "source_sha256": {
+    "E03.kt": "77a9a5f0d0c05c8acde2d79efc332ff4bf19d3f96a8e64c64b596cb219d42280",
+    "ModuleMain.kt": "98b94029c3b5e3e61979f484061329f4314227c5b565cd5fa6f7a1007915a009",
+    "CallMatcher.kt": "5dbbf074d2001105d97cddd266af300da17fc5aac6e487e9c86e62b0208a61dd",
+    "E01.kt": "0fd9d118057c16f7f45b65510d54c6f204192ce2a249d5a1df073100d797be11"
+  },
+  "extracted_fragments": [
+    {
+      "file": "E03.kt",
+      "label": "connected-detection-and-controller",
+      "first_line": 321,
+      "sha256": "1b299184b5c0b9c0b2d95048685c246e3a3cd07192e6c041b6d169875368501b",
+      "characters": 26060
+    },
+    {
+      "file": "E03.kt",
+      "label": "ModuleMain.installTmapCallListHook",
+      "first_line": 925,
+      "sha256": "33f8e15e6636a9a391f79f9980745413abf3a068498965104f0fff351fd642f4",
+      "characters": 1487
+    },
+    {
+      "file": "CallMatcher.kt",
+      "label": "entire-source-byte-copy",
+      "first_line": 1,
+      "sha256": "5dbbf074d2001105d97cddd266af300da17fc5aac6e487e9c86e62b0208a61dd",
+      "bytes": 6779
+    },
+    {
+      "file": "E01.kt",
+      "label": "CallKindFilter",
+      "first_line": 199,
+      "sha256": "22f76c7b3f2a685f3d7d2c8c60e62a1ecaa0bdd92f147ef4579a72a51143e3d1",
+      "characters": 601
+    },
+    {
+      "file": "E01.kt",
+      "label": "TaksongDateFilter",
+      "first_line": 221,
+      "sha256": "7f79064ceef9c26528e56f884cc35b86b974d44ddf58ad02ece28378830610e7",
+      "characters": 2575
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "internal fun matchAndAccept(",
+      "first_line": 320,
+      "sha256": "44be3dbf0da18c9d60a725d9c2c6c99481fc48c58f8364d63f9ea577c4ec7887",
+      "characters": 3064
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "internal fun initializeConditions(",
+      "first_line": 383,
+      "sha256": "06100540134d4e001690616b1bc02aa44d2f32fdff80bbae6f49e8c254b95771",
+      "characters": 428
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "internal fun canProcessConditions(",
+      "first_line": 392,
+      "sha256": "66eb9d43ecacae507525933d55528f9903d8993b55f9e2649580b04f2082ccbb",
+      "characters": 345
+    },
+    {
+      "file": "ModuleMain.kt",
+      "label": "fun readField(",
+      "first_line": 459,
+      "sha256": "e0d34c32e0f6a05e2c2ca750d1a701c78838ff5c33a16355b14e1a24d7c7c6d4",
+      "characters": 184
+    }
+  ],
+  "production_code_substitutions": [],
+  "extraction": "Verbatim E03 detection/controller/installer and Main matching functions; complete CallMatcher byte copy; actual production filter declarations. Only imports/wrapper and external boundaries supplied.",
+  "fragment_hash_encoding": "UTF-8 after universal-newline reads; source_sha256 uses raw source bytes.",
+  "fresh_jvm_per_case": true,
+  "cases": [
+    "success",
+    "exclude",
+    "include-mismatch",
+    "fare",
+    "distance",
+    "unknown-distance",
+    "no-condition",
+    "detection-off",
+    "not-ready",
+    "http-rejection",
+    "http-unknown",
+    "http-200",
+    "missing-location",
+    "zero-coordinate",
+    "stale-session",
+    "duplicate",
+    "unsupported-version",
+    "foreign-package",
+    "missing-credentials",
+    "http-forbidden",
+    "http-redirect",
+    "http-timeout",
+    "http-conflict",
+    "http-rate-limit"
+  ],
+  "passed_case_count": 24,
+  "network_access": false,
+  "android_framework_execution": false,
+  "target_apk_execution": false,
+  "fixture_boundaries": [
+    "ConditionClient supplies ready/current/detecting state, broadcasts deliver detection changes, records stop reasons.",
+    "Deterministic Handler/Looper and Context/SharedPreferences Android stubs.",
+    "Synthetic re/ye list model and native y0/c5.a fused last-location chain, continuation proxy invokes actual reflection bridge.",
+    "URLStreamHandlerFactory routes HTTPS to retained fake HttpURLConnection, no sockets.",
+    "org.json API fixture delegates actual JSON parsing/serialization to installed Groovy JSON library; Android org.json runtime not executed.",
+    "Xposed hook installation recorded and after-hook invoked explicitly."
+  ],
+  "not_executed": [
+    "Android/Xposed runtime scheduling",
+    "Actual target APK and backend acceptance",
+    "Android ConditionClient delivery and stop broadcast internals",
+    "Physical device/UI installation",
+    "Other apps"
+  ]
+}

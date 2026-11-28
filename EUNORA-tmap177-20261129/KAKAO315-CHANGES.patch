@@ -1,0 +1,1570 @@
+--- a/app/src/main/java/com/example/wheelprobe/E02.kt
++++ b/app/src/main/java/com/example/wheelprobe/E02.kt
+@@ -42,13 +42,33 @@
+     @Volatile private var host = java.lang.ref.WeakReference<Any>(null)
+     @Volatile private var conditionReceiver: android.content.BroadcastReceiver? = null
+ 
++    private val installedHooks = java.util.HashSet<java.lang.reflect.Executable>()
++
+     fun configure(nativeBridge: KakaoNativeAcceptBridge) { bridge = nativeBridge }
++    fun isConfigured(): Boolean = bridge != null
++
++    fun installHook(member: java.lang.reflect.Executable,
++                    hooker: Class<out XposedInterface.Hooker>): Boolean {
++        val module = ModuleMain.module ?: return false
++        synchronized(installedHooks) {
++            if (installedHooks.contains(member)) return false
++            member.isAccessible = true
++            when (member) {
++                is java.lang.reflect.Method -> module.hook(member, hooker)
++                is java.lang.reflect.Constructor<*> -> module.hook(member, hooker)
++                else -> throw IllegalArgumentException("Unsupported hook executable")
++            }
++            installedHooks.add(member)
++            return true
++        }
++    }
+ 
+     fun captureViewModel(candidate: Any?, source: String) {
+         if (candidate == null || bridge?.hostClass?.isInstance(candidate) != true) return
++        val changed = host.get() !== candidate
+         host = java.lang.ref.WeakReference(candidate)
+         ensureConditionObserver()
+-        ModuleMain.module?.log("KAKAO: native accept host captured source=$source")
++        if (changed) kakao315Log("KAKAO315: accept event host captured source=$source")
+     }
+ 
+     private fun fingerprint(): String = ConditionClient.current().toString() +
+@@ -81,7 +101,7 @@
+             mainHandler.post { refreshSession() }
+             true
+         } catch (error: Throwable) {
+-            ModuleMain.module?.log("KAKAO: accept condition observer unavailable", error)
++            kakao315Log("KAKAO: accept condition observer unavailable", error)
+             false
+         }
+     }
+@@ -126,7 +146,7 @@
+                 if (dispatch.rejected && !dispatch.linked) KakaoAcceptResult.FAILURE else KakaoAcceptResult.UNKNOWN,
+                 errorType = cause.javaClass.simpleName
+             ))
+-            ModuleMain.module?.log("KAKAO: native accept invocation problem id=${attempt.callId}", cause)
++            kakao315Log("KAKAO: native accept invocation problem id=${attempt.callId}", cause)
+         } finally {
+             dispatching.remove()
+         }
+@@ -159,13 +179,13 @@
+             when (ledger.finish(attempt.token, event.result, event.callId, android.os.SystemClock.elapsedRealtime(), event.terminalRejection)) {
+                 KakaoAcceptFinish.SUCCESS -> {
+                     ledger.observeSession(false, fingerprint())
+-                    ModuleMain.module?.log("KAKAO: ACCEPT_CONFIRMED id=${attempt.callId} from=${attempt.source.rawValue}")
++                    kakao315Log("KAKAO: ACCEPT_CONFIRMED id=${attempt.callId} from=${attempt.source.rawValue}")
+                     ConditionClient.stopDetecting("confirmed:KAKAO:${attempt.callId}")
+                     ModuleMain.bringAppToFront(ModuleMain.KAKAO_PACKAGE)
+                 }
+-                KakaoAcceptFinish.STALE_SUCCESS -> ModuleMain.module?.log("KAKAO: accept completed for prior detection session id=${attempt.callId}")
+-                KakaoAcceptFinish.FAILURE -> ModuleMain.module?.log("KAKAO: ACCEPT_FAILED id=${attempt.callId} error=${event.errorType}; detection remains active; terminalRejection=${event.terminalRejection}")
+-                KakaoAcceptFinish.UNKNOWN -> ModuleMain.module?.log("KAKAO: ACCEPT_UNCONFIRMED id=${attempt.callId} error=${event.errorType}; reservation retained, no duplicate request")
++                KakaoAcceptFinish.STALE_SUCCESS -> kakao315Log("KAKAO: accept completed for prior detection session id=${attempt.callId}")
++                KakaoAcceptFinish.FAILURE -> kakao315Log("KAKAO: ACCEPT_FAILED id=${attempt.callId} error=${event.errorType}; detection remains active; terminalRejection=${event.terminalRejection}")
++                KakaoAcceptFinish.UNKNOWN -> kakao315Log("KAKAO: ACCEPT_UNCONFIRMED id=${attempt.callId} error=${event.errorType}; reservation retained, no duplicate request")
+                 KakaoAcceptFinish.IGNORED -> Unit
+             }
+         }
+@@ -294,62 +314,86 @@
+     val terminalRejection: Boolean = false
+ )
+ 
+-internal class KakaoNativeAcceptBridge(
++internal class KakaoNativeAcceptBridge private constructor(
+     val hostClass: Class<*>,
+-    private val sourceClass: Class<*>,
++    private val stateClass: Class<*>,
++    private val stateHolder: java.lang.reflect.Field,
++    private val stateResult: Method,
++    private val eventConstructor: java.lang.reflect.Constructor<*>,
++    private val sources: Map<DirectAcceptSource, Any>,
+     private val taskClass: Class<*>,
++    private val taskKind: java.lang.reflect.Field,
++    private val taskHost: java.lang.reflect.Field,
++    private val taskId: java.lang.reflect.Field,
++    private val taskSource: java.lang.reflect.Field,
+     private val callbackClass: Class<*>,
++    private val callbackMethod: Method,
+     private val loadingClass: Class<*>,
+     private val successClass: Class<*>,
+     private val failureClass: Class<*>,
++    private val successValue: java.lang.reflect.Field,
++    private val failureError: java.lang.reflect.Field,
+     private val ongoingClass: Class<*>,
++    private val ongoingCall: java.lang.reflect.Field,
+     private val callClass: Class<*>,
++    private val acceptedId: java.lang.reflect.Field,
+     val startMethod: Method,
+     val dispatchMethod: Method,
+-    private val serverErrorClass: Class<*>? = null,
+-    private val serverErrorParser: Method? = null
++    private val serverErrorClass: Class<*>,
++    private val serverErrorParser: Method,
++    private val serverErrorCode: java.lang.reflect.Field,
++    private val onObserverError: (Throwable) -> Unit
+ ) {
+-    private val callbackMethod = callbackClass.getDeclaredMethod("j", Any::class.java).apply { isAccessible = true }
+-
+     fun start(host: Any, callId: String, source: DirectAcceptSource, miniDetail: Boolean, vip: Boolean) {
+-        startMethod.invoke(host, callId, sourceValue(source), miniDetail, vip)
++        require(hostClass.isInstance(host) && callId.isNotBlank()) { "Invalid accept event owner or identity" }
++        // f01's constructor order is premium, then mini-card. Keep the public
++        // EUNORA API's miniDetail/vip order at this single conversion boundary.
++        val event = eventConstructor.newInstance(callId, sourceValue(source), vip, miniDetail)
++        startMethod.invoke(host, event)
+     }
+ 
+     fun isBusy(host: Any): Boolean {
+-        val holder = field(host, "w") ?: error("Native acceptance state unavailable")
+-        val state = holder.javaClass.getMethod("getValue").apply { isAccessible = true }.invoke(holder)
+-            ?: error("Native acceptance state empty")
+-        val result = state.javaClass.getDeclaredMethod("b").apply { isAccessible = true }.invoke(state)
+-        return loadingClass.isInstance(result)
++        require(hostClass.isInstance(host)) { "Unexpected accept state owner" }
++        val holder = stateHolder.get(host) ?: error("Acceptance state holder unavailable")
++        val getter = holder.javaClass.getMethod("getValue").apply { isAccessible = true }
++        val state = getter.invoke(holder) ?: error("Acceptance state unavailable")
++        require(stateClass.isInstance(state)) { "Unexpected acceptance state value" }
++        return loadingClass.isInstance(stateResult.invoke(state))
+     }
+ 
+     fun matches(task: Any?, host: Any, attempt: KakaoAcceptAttempt): Boolean =
+-        taskClass.isInstance(task) && field(task, "e") == 1 &&
+-                field(task, "g") === host && field(task, "h") == attempt.callId &&
+-                field(task, "i") === sourceValue(attempt.source)
+-
+-    fun wrap(args: Array<out Any?>, host: Any, attempt: KakaoAcceptAttempt, observe: (KakaoNativeAcceptEvent) -> Unit): Any {
+-        require(args.size == 4) { "Unexpected native dispatch arity" }
+-        val task = args[0] ?: error("Missing native task")
+-        require(matches(task, host, attempt)) { "Native accept task did not match request" }
+-        val original = args[3] ?: error("Missing native result callback")
+-        require(callbackClass.isInstance(original)) { "Unexpected native callback" }
++        taskClass.isInstance(task) && (taskKind.get(task) as? Number)?.toInt() == 3 &&
++                taskHost.get(task) === host && taskId.get(task) == attempt.callId &&
++                taskSource.get(task) === sourceValue(attempt.source)
++
++    fun wrap(args: Array<out Any?>, host: Any, attempt: KakaoAcceptAttempt,
++             observe: (KakaoNativeAcceptEvent) -> Unit): Any {
++        require(args.size == 4) { "Unexpected acceptance dispatch arity" }
++        require(matches(args[0], host, attempt)) { "Acceptance task does not belong to this request" }
++        val original = args[3] ?: error("Missing original acceptance callback")
++        require(callbackClass.isInstance(original)) { "Unexpected acceptance callback type" }
+         return Proxy.newProxyInstance(callbackClass.classLoader, arrayOf(callbackClass)) { proxy, method, values ->
+             when {
+-                method.name == "toString" && method.parameterCount == 0 -> "EunoraNativeAcceptObserver"
++                method.name == "toString" && method.parameterCount == 0 -> "EunoraAccept315Observer"
+                 method.name == "hashCode" && method.parameterCount == 0 -> System.identityHashCode(proxy)
+                 method.name == "equals" && method.parameterCount == 1 -> proxy === values?.getOrNull(0)
+-                method.name == "j" && method.parameterCount == 1 -> {
++                method.name == "i" && method.parameterTypes.contentEquals(arrayOf(Any::class.java)) -> {
+                     val value = values?.getOrNull(0)
+                     try {
++                        // Preserve the real qs callback's return value and its
++                        // exception. Observation must never invoke it twice.
+                         callbackMethod.invoke(original, value)
+                     } catch (error: java.lang.reflect.InvocationTargetException) {
+                         throw (error.cause ?: error)
+                     } finally {
+-                        observe(decode(value))
++                        try { observe(decode(value)) }
++                        catch (error: Throwable) { runCatching { onObserverError(error) } }
+                     }
+                 }
+-                else -> throw UnsupportedOperationException("Unexpected callback method ${method.name}")
++                else -> {
++                    try { method.invoke(original, *(values ?: emptyArray())) }
++                    catch (error: java.lang.reflect.InvocationTargetException) { throw (error.cause ?: error) }
++                }
+             }
+         }
+     }
+@@ -357,57 +401,112 @@
+     fun decode(value: Any?): KakaoNativeAcceptEvent {
+         if (loadingClass.isInstance(value)) return KakaoNativeAcceptEvent(KakaoAcceptResult.LOADING)
+         if (failureClass.isInstance(value)) {
+-            val error = field(value, "b") as? Throwable
+-            val code = if (serverErrorClass?.isInstance(error) == true && error is Exception) {
+-                runCatching { field(serverErrorParser?.invoke(null, error), "a") as? Int }.getOrNull()
+-            } else null
+-            // Only explicit, documented business rejections establish failure.
+-            // Network/cancellation/unknown failures can occur after server acceptance.
+-            val rejected = code in setOf(7015, 7009, 7016, 7041, 7042, 3004, 7011, 7037, 7005, 7017, 3101, 3020)
+-            return KakaoNativeAcceptEvent(
+-                if (rejected) KakaoAcceptResult.FAILURE else KakaoAcceptResult.UNKNOWN,
+-                errorType = if (rejected) "ServerRejected:$code" else error?.javaClass?.simpleName,
+-                terminalRejection = rejected
+-            )
++            val failure = failureError.get(value) as? Throwable
++            // Only the confirmed ClientException -> AcceptCallError path and
++            // the same 12 business rejections handled by this APK prove failure.
++            // Network errors and unrecognised/undecodable responses remain held.
++            val code = if (serverErrorClass.isInstance(failure)) runCatching {
++                val parsed = serverErrorParser.invoke(null, failure)
++                if (parsed == null) null else serverErrorCode.getInt(parsed)
++            }.getOrNull() else null
++            val rejected = code in setOf(7015, 7009, 7016, 7041, 7042, 3004,
++                7011, 7037, 7005, 7017, 3101, 3020)
++            return KakaoNativeAcceptEvent(if (rejected) KakaoAcceptResult.FAILURE else KakaoAcceptResult.UNKNOWN,
++                errorType = if (rejected) "ServerRejected:$code" else failure?.javaClass?.simpleName ?: "AcceptFailureWithoutException",
++                terminalRejection = rejected)
+         }
+         if (successClass.isInstance(value)) {
+-            val ongoing = field(value, "b")
+-            val call = if (ongoingClass.isInstance(ongoing)) field(ongoing, "a") else null
+-            val id = if (callClass.isInstance(call)) field(call, "a") as? String else null
+-            return KakaoNativeAcceptEvent(KakaoAcceptResult.SUCCESS, id?.takeIf { it.isNotBlank() })
+-        }
+-        return KakaoNativeAcceptEvent(KakaoAcceptResult.UNKNOWN)
+-    }
+-
+-    private fun sourceValue(source: DirectAcceptSource): Any =
+-        sourceClass.enumConstants?.firstOrNull { (it as? Enum<*>)?.name == source.name }
+-            ?: error("Native accept source unavailable: ${source.name}")
+-
+-    private fun field(instance: Any?, name: String): Any? = instance?.let {
+-        runCatching { it.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(it) }.getOrNull()
+-    }
++            val ongoing = successValue.get(value)
++            if (!ongoingClass.isInstance(ongoing)) {
++                return KakaoNativeAcceptEvent(KakaoAcceptResult.UNKNOWN, errorType = "UnexpectedAcceptedPayload")
++            }
++            val call = ongoingCall.get(ongoing)
++            val id = if (callClass.isInstance(call)) (acceptedId.get(call) as? String)?.takeIf { it.isNotBlank() } else null
++            return if (id != null) KakaoNativeAcceptEvent(KakaoAcceptResult.SUCCESS, id)
++            else KakaoNativeAcceptEvent(KakaoAcceptResult.UNKNOWN, errorType = "AcceptedIdentityUnavailable")
++        }
++        return KakaoNativeAcceptEvent(KakaoAcceptResult.UNKNOWN, errorType = "UnknownAcceptState")
++    }
++
++    private fun sourceValue(source: DirectAcceptSource): Any = sources[source]
++        ?: error("Acceptance source unavailable: ${source.name}")
+ 
+     companion object {
+-        fun load(loader: ClassLoader): KakaoNativeAcceptBridge {
++        fun load(loader: ClassLoader, onObserverError: (Throwable) -> Unit = {}): KakaoNativeAcceptBridge {
+             fun type(name: String) = Class.forName(name, false, loader)
+-            val host = type("oy0")
+-            val source = type("bq0")
+-            val callback = type("l44")
+-            require(callback.isInterface && source.isEnum) { "Unsupported native accept contract" }
+-            val nativeSources = source.enumConstants?.map { (it as Enum<*>).name }
+-                ?: error("Native accept enum values unavailable")
+-            require(DirectAcceptSource.values().all { it.name in nativeSources }) { "Native accept source contract changed" }
+-            val task = type("sj")
+-            for (name in listOf("e", "g", "h", "i")) task.getDeclaredField(name)
+-            return KakaoNativeAcceptBridge(
+-                host, source, task, callback, type("dq5"), type("id9"), type("hk3"), type("hu6"), type("ap0"),
+-                host.getDeclaredMethod("i", String::class.java, source, Boolean::class.javaPrimitiveType, Boolean::class.javaPrimitiveType).apply { isAccessible = true },
+-                type("lj3").getDeclaredMethod("v", callback, type("im1"), type("j44"), callback).apply { isAccessible = true },
+-                type("kl1"), type("k45").getDeclaredMethod("P", Throwable::class.java).apply { isAccessible = true }
+-            )
+-        }
+-    }
+-}
++            fun field(owner: Class<*>, name: String, expected: Class<*>) = owner.getDeclaredField(name).apply {
++                require(this.type == expected && !Modifier.isStatic(modifiers)) { "Unexpected accept field: $name" }
++                isAccessible = true
++            }
++            fun concrete(method: Method, result: Class<*>, static: Boolean = false): Method = method.apply {
++                require(returnType == result && Modifier.isStatic(modifiers) == static &&
++                        !Modifier.isAbstract(modifiers) && !Modifier.isNative(modifiers)) { "Unexpected accept method contract" }
++                isAccessible = true
++            }
++            val host = type("r41")
++            val state = type("d41")
++            val result = type("d40")
++            val source = type("tu0")
++            val event = type("f01")
++            val eventContract = type("y01")
++            val callback = type("eh4")
++            require(source.isEnum && callback.isInterface && eventContract.isInterface &&
++                    eventContract.isAssignableFrom(event)) { "Unsupported Kakao 3.15 accept contracts" }
++            val sourceSerializer = concrete(source.getDeclaredMethod("a"), String::class.java)
++            val values = source.enumConstants ?: error("Acceptance source enum unavailable")
++            val sources = DirectAcceptSource.values().associateWith { expected ->
++                val value = values.singleOrNull { (it as? Enum<*>)?.name == expected.name }
++                    ?: error("Missing acceptance source: ${expected.name}")
++                require(sourceSerializer.invoke(value) == expected.rawValue) { "Acceptance source value changed" }
++                value
++            }
++            val eventConstructor = event.getDeclaredConstructor(String::class.java, source,
++                java.lang.Boolean.TYPE, java.lang.Boolean.TYPE).apply { isAccessible = true }
++            field(event, "a", String::class.java)
++            field(event, "b", source)
++            field(event, "c", java.lang.Boolean.TYPE)
++            field(event, "d", java.lang.Boolean.TYPE)
++            val start = concrete(host.getDeclaredMethod("e", eventContract), Void.TYPE)
++            val stateHolder = field(host, "s", type("mu9"))
++            val stateResult = concrete(state.getDeclaredMethod("b"), result)
++            val task = type("fl")
++            val kind = field(task, "e", java.lang.Byte.TYPE)
++            val taskHost = field(task, "g", Any::class.java)
++            val taskId = field(task, "h", Any::class.java)
++            val taskSource = field(task, "i", Any::class.java)
++            val callbackMethod = callback.getDeclaredMethod("i", Any::class.java).apply {
++                require(returnType == Any::class.java && !Modifier.isStatic(modifiers) &&
++                        Modifier.isAbstract(modifiers)) { "Unexpected acceptance callback signature" }
++                isAccessible = true
++            }
++            val dispatcher = concrete(type("qm1").getDeclaredMethod("D", callback, type("gm2"), type("ch4"), callback),
++                type("rt9"), static = true)
++            val loading = type("j66")
++            val success = type("d0a")
++            val failure = type("qv3")
++            require(listOf(loading, success, failure).all { result.isAssignableFrom(it) }) { "Acceptance result hierarchy changed" }
++            val successValue = field(success, "c", Any::class.java)
++            val failureError = field(failure, "c", Exception::class.java)
++            val ongoing = type("kd7")
++            val call = type("rt0")
++            val ongoingCall = field(ongoing, "a", call)
++            val acceptedId = field(call, "a", String::class.java)
++            val clientError = type("jw1")
++            require(Exception::class.java.isAssignableFrom(clientError)) { "Unexpected client error type" }
++            field(clientError, "a", java.lang.Integer.TYPE)
++            field(clientError, "b", String::class.java)
++            field(clientError, "c", String::class.java)
++            val errorBody = type("xgb")
++            val errorParser = concrete(type("hp3").getDeclaredMethod("H", Throwable::class.java), errorBody, static = true)
++            val errorCode = field(errorBody, "a", java.lang.Integer.TYPE)
++            return KakaoNativeAcceptBridge(host, state, stateHolder, stateResult, eventConstructor, sources,
++                task, kind, taskHost, taskId, taskSource, callback, callbackMethod, loading, success, failure,
++                successValue, failureError, ongoing, ongoingCall, call, acceptedId, start, dispatcher,
++                clientError, errorParser, errorCode, onObserverError)
++        }
++    }
++}
++
+ // END KAKAO_ACCEPT_CORE
+ 
+ data class PlaceInfo(val dongName: String? = null, val additoryAddress: String? = null, val poi: String? = null, val completeAddress: String? = null, val name: String? = null) {
+@@ -416,130 +515,301 @@
+ 
+ 
+ internal fun ModuleMain.installKakaoAcceptTrace(classLoader: ClassLoader) {
++    // Result observation is attached only to EUNORA's matching fl variant-3
++    // dispatch. It does not add global HTTP or unrelated callback hooks.
++    kakao315Log("KAKAO315: accept result observer configured=${DirectAcceptController.isConfigured()} path=qm1.D/qs.i")
++}
++
++internal fun ModuleMain.installViewModelHooks(classLoader: ClassLoader) {
++    if (ModuleMain.module == null) return
+     try {
+-        val o5Class = Class.forName("o5", false, classLoader)
+-        val rMethod = o5Class.getDeclaredMethod("r", Any::class.java, Any::class.java)
+-        rMethod.isAccessible = true
+-        ModuleMain.module?.hook(rMethod, KakaoAcceptCallHooker::class.java)
+-        ModuleMain.module?.log("KAKAO: acceptCall hook installed o5.r (case 2)")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: acceptCall hook FAILED", t)
+-    }
+-}
+-
+-
+-internal fun ModuleMain.installViewModelHooks(classLoader: ClassLoader) {
+-    try {
+-        val nativeBridge = KakaoNativeAcceptBridge.load(classLoader)
+-        ModuleMain.module?.hook(nativeBridge.dispatchMethod, KakaoNativeDispatchHooker::class.java)
++        val nativeBridge = KakaoNativeAcceptBridge.load(classLoader) { error ->
++            kakao315Log("KAKAO315: accept observation failed type=${error.javaClass.name}", error)
++        }
++        DirectAcceptController.installHook(nativeBridge.dispatchMethod, KakaoNativeDispatchHooker::class.java)
+         DirectAcceptController.configure(nativeBridge)
+         for (constructor in nativeBridge.hostClass.declaredConstructors) {
+-            constructor.isAccessible = true
+-            ModuleMain.module?.hook(constructor, ViewModelConstructorHooker::class.java)
+-        }
+-        ModuleMain.module?.log("KAKAO: native oy0 accept pipeline and result observer installed")
+-        // 클릭 로그
+-        try {
+-            val om6Class = Class.forName("om6", false, classLoader)
+-            val cMethod = om6Class.getDeclaredMethod("c")
+-            cMethod.isAccessible = true
+-            ModuleMain.module?.hook(cMethod, ClickLogHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: click log hook installed om6.c")
+-        } catch (t: Throwable) {
+-            ModuleMain.module?.log("KAKAO: click log hook FAILED", t)
+-        }
+-        // OkHttp 스택 트레이스
+-        try {
+-            val realCall = Class.forName("okhttp3.internal.connection.RealCall", false, classLoader)
+-            for (m in realCall.declaredMethods) {
+-                if (m.name == "execute" || m.name == "enqueue") {
+-                    m.isAccessible = true
+-                    ModuleMain.module?.hook(m, KakaoOkHttpStackHooker::class.java)
++            DirectAcceptController.installHook(constructor, ViewModelConstructorHooker::class.java)
++        }
++        kakao315Log("KAKAO315: r41/f01 accept pipeline and managed async observer installed")
++    } catch (error: Throwable) {
++        kakao315Log("KAKAO315: direct accept installation FAILED type=${error.javaClass.name}", error)
++    }
++}
++
++// Exact contracts verified from com.kakao.wheel.driver 3.15.0 / 3150099.
++// Package/version/hash gating is performed before these installers are called.
++internal object Kakao315DetectionData {
++    data class Profile(
++        val loader: ClassLoader,
++        val wrapper: Class<*>, val group: Class<*>, val item: Class<*>,
++        val route: Class<*>, val card: Class<*>, val manager: Class<*>,
++        val origin: Class<*>, val destination: Class<*>, val display: Class<*>,
++        val listMethod: Method, val resumedListMethod: Method,
++        val receiveCardMethod: Method, val publishCardMethod: Method,
++        val stateValue: Method,
++        val fields: Map<String, java.lang.reflect.Field>
++    )
++    data class CardCapture(
++        val manager: Any?, val card: Any?, val wayback: Boolean, val permitted: Boolean
++    )
++
++    @Volatile private var active: Profile? = null
++
++    @Synchronized fun bind(loader: ClassLoader): Profile {
++        active?.takeIf { it.loader === loader }?.let { return it }
++        fun type(name: String) = Class.forName(name, false, loader)
++        val wrapper = type("y41")
++        val group = type("yz0")
++        val item = type("z01")
++        val route = type("x09")
++        val card = type("wt0")
++        val manager = type("g81")
++        val origin = type("wu0")
++        val destination = type("pu0")
++        val display = type("b86")
++        val state = type("mu9")
++        val fields = linkedMapOf<String, java.lang.reflect.Field>()
++        fun field(key: String, owner: Class<*>, name: String, expected: Class<*>) {
++            fields[key] = owner.getDeclaredField(name).apply {
++                require(!Modifier.isStatic(modifiers) && this.type == expected) {
++                    "Kakao 3.15 field contract mismatch: $key"
+                 }
+-            }
+-            ModuleMain.module?.log("KAKAO: OkHttp RealCall stack hook installed")
+-        } catch (t: Throwable) {
+-            ModuleMain.module?.log("KAKAO: OkHttp RealCall stack hook FAILED", t)
+-        }
+-
+-
+-    } catch (t: Throwable) { ModuleMain.module?.log("EUNORA: direct accept hook installation FAILED", t) }
++                isAccessible = true
++            }
++        }
++        field("wrapper.a", wrapper, "a", group)
++        field("wrapper.b", wrapper, "b", group)
++        field("group.a", group, "a", java.util.List::class.java)
++        field("item.a", item, "a", String::class.java)
++        field("item.c", item, "c", java.lang.Integer.TYPE)
++        field("item.f", item, "f", route)
++        field("item.g", item, "g", route)
++        field("item.q", item, "q", java.lang.Double.TYPE)
++        for (name in listOf("a", "b", "c", "d", "e")) {
++            field("route.$name", route, name, String::class.java)
++        }
++        field("card.o", card, "o", String::class.java)
++        field("card.r", card, "r", java.lang.Integer.TYPE)
++        field("card.y", card, "y", java.lang.Integer.TYPE)
++        field("card.e", card, "e", origin)
++        field("card.f", card, "f", destination)
++        field("card.E", card, "E", route)
++        field("card.m", card, "m", type("acb"))
++        field("card.j", card, "j", type("mt0"))
++        field("origin.c", origin, "c", String::class.java)
++        field("origin.e", origin, "e", display)
++        field("destination.d", destination, "d", display)
++        field("display.a", display, "a", String::class.java)
++        field("display.b", display, "b", String::class.java)
++        field("manager.j", manager, "j", state)
++        field("manager.m", manager, "m", state)
++        field("manager.h", manager, "h", java.util.concurrent.PriorityBlockingQueue::class.java)
++        fun method(owner: Class<*>, name: String, result: Class<*>, vararg args: Class<*>): Method =
++            owner.getDeclaredMethod(name, *args).apply {
++                require(returnType == result && !Modifier.isStatic(modifiers) &&
++                        !Modifier.isNative(modifiers) && !Modifier.isAbstract(modifiers)) {
++                    "Kakao 3.15 method contract mismatch: ${owner.name}.$name"
++                }
++                isAccessible = true
++            }
++        val profile = Profile(
++            loader, wrapper, group, item, route, card, manager, origin, destination, display,
++            method(type("r71"), "p", Any::class.java, String::class.java, type("ik2")),
++            method(type("i71"), "z", Any::class.java, Any::class.java),
++            method(manager, "d", java.lang.Void.TYPE, card),
++            method(manager, "f", java.lang.Void.TYPE),
++            method(state, "getValue", Any::class.java), fields
++        )
++        active = profile
++        return profile
++    }
++
++    fun cardClass(loader: ClassLoader): Class<*> = bind(loader).card
++    fun isWrapper(value: Any?): Boolean = value != null && active?.wrapper == value.javaClass
++    fun isCard(value: Any?): Boolean = value != null && active?.card == value.javaClass
++
++    private fun value(profile: Profile, key: String, owner: Any?): Any? =
++        if (owner == null) null else profile.fields.getValue(key).get(owner)
++
++    fun group(wrapper: Any, name: String): Any? {
++        val profile = active ?: return null
++        if (wrapper.javaClass != profile.wrapper || name !in listOf("a", "b")) return null
++        return value(profile, "wrapper.$name", wrapper)?.takeIf { it.javaClass == profile.group }
++    }
++
++    fun items(group: Any): List<Any> {
++        val profile = active ?: return emptyList()
++        if (group.javaClass != profile.group) return emptyList()
++        return (value(profile, "group.a", group) as? Collection<*>)
++            ?.filterNotNull()?.filter { it.javaClass == profile.item } ?: emptyList()
++    }
++
++    private fun text(value: Any?): String = (value as? String)?.trim().orEmpty()
++    private fun join(values: List<Any?>): String = values.map(::text)
++        .filter { it.isNotEmpty() }.distinct().joinToString(" ")
++
++    private fun routeText(profile: Profile, route: Any?): String {
++        if (route == null || route.javaClass != profile.route) return ""
++        return join(listOf("a", "b", "c", "d", "e").map { value(profile, "route.$it", route) })
++    }
++
++    private fun displayText(profile: Profile, display: Any?): String {
++        if (display == null || display.javaClass != profile.display) return ""
++        return join(listOf(value(profile, "display.a", display), value(profile, "display.b", display)))
++    }
++
++    fun listCall(item: Any): CallData? {
++        val profile = active ?: return null
++        if (item.javaClass != profile.item) return null
++        val id = text(value(profile, "item.a", item)).takeIf { it.isNotEmpty() } ?: return null
++        val fare = (value(profile, "item.c", item) as? Number)?.toInt()?.takeIf { it >= 0 } ?: return null
++        val meters = (value(profile, "item.q", item) as? Number)?.toDouble()
++            ?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
++        val origin = routeText(profile, value(profile, "item.f", item))
++        val destination = routeText(profile, value(profile, "item.g", item))
++        if (origin.isEmpty() || destination.isEmpty()) return null
++        return CallData("KAKAO:$id", origin, destination, fare, meters / 1000.0)
++    }
++
++    fun cardData(card: Any): KakaoCardData? {
++        val profile = active ?: return null
++        if (card.javaClass != profile.card) return null
++        val id = text(value(profile, "card.o", card)).takeIf { it.isNotEmpty() } ?: return null
++        val fare = (value(profile, "card.r", card) as? Number)?.toInt()?.takeIf { it >= 0 } ?: return null
++        val meters = (value(profile, "card.y", card) as? Number)?.toDouble()
++            ?.takeIf { it.isFinite() && it >= 0.0 } ?: return null
++        val originObject = value(profile, "card.e", card)?.takeIf { it.javaClass == profile.origin }
++        val origin = text(value(profile, "origin.c", originObject)).ifBlank {
++            displayText(profile, value(profile, "origin.e", originObject))
++        }
++        val destinationObject = value(profile, "card.f", card)?.takeIf { it.javaClass == profile.destination }
++        val destination = routeText(profile, value(profile, "card.E", card)).ifBlank {
++            // pu0.e is a duration string; only pu0.d is the address display.
++            displayText(profile, value(profile, "destination.d", destinationObject))
++        }
++        if (origin.isEmpty() || destination.isEmpty()) return null
++        return KakaoCardData(
++            CallData(id, origin, destination, fare, meters / 1000.0),
++            if (value(profile, "card.m", card) != null) DirectAcceptSource.WAY_BACK else DirectAcceptSource.CARD
++        )
++    }
++
++    private fun current(profile: Profile, manager: Any): Any? =
++        profile.stateValue.invoke(value(profile, "manager.j", manager))
++
++    fun capture(manager: Any?, card: Any?): CardCapture {
++        val profile = active ?: return CardCapture(manager, card, false, false)
++        if (manager == null || manager.javaClass != profile.manager || card == null || card.javaClass != profile.card) {
++            return CardCapture(manager, card, false, false)
++        }
++        val wayback = value(profile, "card.m", card) != null
++        if (!wayback) return CardCapture(manager, card, false, true)
++        val current = current(profile, manager)
++        if (current != null && current.javaClass != profile.card) return CardCapture(manager, card, true, false)
++        val auto = profile.stateValue.invoke(value(profile, "manager.m", manager))
++        // Same guard as g81.d: an active wayback or auto-accept rejects this incoming card.
++        val permitted = (current == null || value(profile, "card.m", current) == null) && auto == null
++        return CardCapture(manager, card, true, permitted)
++    }
++
++    fun wasPublished(capture: CardCapture): Boolean {
++        val profile = active ?: return false
++        val manager = capture.manager ?: return false
++        val card = capture.card ?: return false
++        if (!capture.permitted || manager.javaClass != profile.manager || card.javaClass != profile.card) return false
++        if (capture.wayback && profile.stateValue.invoke(value(profile, "manager.m", manager)) != null) return false
++        if (current(profile, manager) === card) return true
++        if (capture.wayback) return false
++        // Normal/premium cards may be accepted into the manager's actual pending queue.
++        return (value(profile, "manager.h", manager) as? Collection<*>)?.any { it === card } == true
++    }
++
++    fun publishedCard(manager: Any?): Any? {
++        val profile = active ?: return null
++        if (manager == null || manager.javaClass != profile.manager) return null
++        return current(profile, manager)?.takeIf { it.javaClass == profile.card }
++    }
++}
++
++private object Kakao315DetectionHooks {
++    private val installed = java.util.HashSet<Method>()
++    private val captures = object : ThreadLocal<java.util.ArrayDeque<Kakao315DetectionData.CardCapture>>() {
++        override fun initialValue() = java.util.ArrayDeque<Kakao315DetectionData.CardCapture>()
++    }
++
++    @Synchronized private fun register(module: ModuleMain, method: Method, hooker: Class<out XposedInterface.Hooker>) {
++        if (installed.contains(method)) return
++        module.hook(method, hooker)
++        installed.add(method)
++    }
++
++    fun installLists(module: ModuleMain, loader: ClassLoader) {
++        val profile = Kakao315DetectionData.bind(loader)
++        register(module, profile.listMethod, NetworkResponseHooker::class.java)
++        // p can initially return COROUTINE_SUSPENDED. i71.z re-enters p, then returns
++        // the terminal y41. Observe both exact exits; never treat suspension as a list.
++        register(module, profile.resumedListMethod, NetworkResponseHooker::class.java)
++        kakao315Log("KAKAO: list observers installed r71.p + i71.z; immediate/resumed y41 only")
++    }
++
++    fun installCards(module: ModuleMain, loader: ClassLoader) {
++        val profile = Kakao315DetectionData.bind(loader)
++        register(module, profile.receiveCardMethod, KakaoNewCallRequestHooker::class.java)
++        register(module, profile.publishCardMethod, KakaoWaybackCardHooker::class.java)
++        kakao315Log("KAKAO: guarded card observers installed g81.d(wt0) + queue publication g81.f")
++    }
++
++    fun beforeCard(manager: Any?, card: Any?) {
++        val capture = try { Kakao315DetectionData.capture(manager, card) }
++        catch (_: Throwable) { Kakao315DetectionData.CardCapture(manager, card, false, false) }
++        captures.get().addLast(capture)
++    }
++
++    fun afterCard(manager: Any?, card: Any?, failed: Boolean) {
++        val stack = captures.get()
++        if (stack.isEmpty()) { captures.remove(); return }
++        val capture = stack.removeLast()
++        if (stack.isEmpty()) captures.remove()
++        if (failed || capture.manager !== manager || capture.card !== card) return
++        if (!Kakao315DetectionData.wasPublished(capture)) {
++            kakao315Log("KAKAO: card eligibility/publication not confirmed; no submission")
++            return
++        }
++        ModuleMain.processGeneralSocketCallCard(card ?: return, "MINI_CARD")
++    }
+ }
+ 
+ internal fun ModuleMain.installNetworkResponseHook(classLoader: ClassLoader) {
+     try {
+-        val repoClass = Class.forName("b11", false, classLoader)
+-        val method = repoClass.getDeclaredMethod("o", String::class.java, Class.forName("da2", false, classLoader))
+-        method.isAccessible = true
+-        ModuleMain.module?.hook(method, NetworkResponseHooker::class.java)
+-        ModuleMain.module?.log("EUNORA: call list hook installed at b11.o")
+-    } catch (t: Throwable) { ModuleMain.module?.log("EUNORA: b11.o hook installation FAILED", t) }
++        val module = ModuleMain.module ?: return
++        Kakao315DetectionHooks.installLists(module, classLoader)
++    } catch (error: Throwable) {
++        kakao315Log("KAKAO: 3.15 list observer installation failed", error)
++    }
+ }
+ 
+ internal fun ModuleMain.installPopupResponseHook(classLoader: ClassLoader) {
+-    // f31.l removed in 1025 APK, popup handling merged into f31.y
+-    ModuleMain.module?.log("EUNORA: popup hook skipped (merged into f31.y)")
+-}
+-
+-/**
+- * 리스트 위 미니카드 2종:
+- * - CallCard = fp0
+- * - n11.d / n11.e = CallRequestManager.setNewCallRequest
+- */
++    kakao315Log("KAKAO: popup cards observed through verified g81/wt0 data path")
++}
++
+ internal fun ModuleMain.installKakaoCallRequestHooks(classLoader: ClassLoader) {
+     try {
+-        val managerClass = Class.forName("n11", false, classLoader)
+-        val callCardClass = resolveKakaoCallCardClass(classLoader)
+-        KakaoNewCallRequestHooker.configure(callCardClass)
+-        KakaoWaybackCardHooker.configure(callCardClass)
+-        for (name in listOf("d", "e")) {
+-            try {
+-                val method = managerClass.getDeclaredMethod(name, callCardClass)
+-                method.isAccessible = true
+-                ModuleMain.module?.hook(method, KakaoNewCallRequestHooker::class.java)
+-                ModuleMain.module?.log("EUNORA: mini-card hook installed n11.$name(${callCardClass.name})")
+-            } catch (t: Throwable) {
+-                ModuleMain.module?.log("EUNORA: mini-card hook skip n11.$name: ${t.message}")
+-            }
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("EUNORA: mini-card n11 hook FAILED", t)
+-    }
+-}
+-
+-/**
+- * 귀가지원콜 (내부명 Wayback)
+- * - 10/03: dr0.k(dr0, fp0, ky). acceptTimer 로그도 이 메서드에 있다.
+- * - zq0는 [I 필드와 clinit만 있어 타이머 생성자가 없다.
+- * 매칭/수락은 processGeneralSocketCallCard + my0.i 경로를 탄다.
+- */
++        val module = ModuleMain.module ?: return
++        Kakao315DetectionHooks.installCards(module, classLoader)
++    } catch (error: Throwable) {
++        kakao315Log("KAKAO: 3.15 guarded card observer installation failed", error)
++    }
++}
++
+ internal fun ModuleMain.installKakaoWaybackHooks(classLoader: ClassLoader) {
+-    try {
+-        val host = Class.forName("dr0", false, classLoader)
+-        val callCardClass = resolveKakaoCallCardClass(classLoader)
+-        KakaoNewCallRequestHooker.configure(callCardClass)
+-        KakaoWaybackCardHooker.configure(callCardClass)
+-        var hooked = 0
+-        for (method in host.declaredMethods) {
+-            val takesCard = method.parameterTypes.any { type ->
+-                type == callCardClass || type.name == callCardClass.name
+-            }
+-            if (!takesCard) continue
+-            method.isAccessible = true
+-            ModuleMain.module?.hook(method, KakaoWaybackCardHooker::class.java)
+-            hooked++
+-            ModuleMain.module?.log("EUNORA: wayback hook installed ${host.name}.${method.name}(${callCardClass.name})")
+-        }
+-        if (hooked == 0) {
+-            throw NoSuchMethodException("${host.name} method taking ${callCardClass.name} not found")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("EUNORA: wayback dr0 hook FAILED", t)
+-    }
++    // g81.d explicitly branches on wt0.m != null. The same verified early data
++    // observer preserves that branch's rejection guard; there is no dr0 scan.
++    installKakaoCallRequestHooks(classLoader)
+ }
+ 
+ internal fun ModuleMain.installKakaoCardPathHooks(classLoader: ClassLoader) {
+-    ModuleMain.module?.log("EUNORA: card path is f31.l popup detail uv0")
++    kakao315Log("KAKAO: card profile=wt0; shared normal/premium/wayback manager=g81")
+ }
+ 
+ // ########################################################################
+@@ -557,7 +827,7 @@
+ /**
+  * 카카오:
+  * - Location getLat/getLng (목록 location JSON이 location.getLatitude() 사용)
+- * - qh.d.A(Location) → {"lat":..,"lng":..} 최종 문자열 직접 교체
++ * - 3.15 ll3.i0(Location) reads these same framework latitude/longitude getters.
+  * - mock 은 공통 GpsMockFalseHooker
+  */
+ internal fun ModuleMain.installKakaoGpsSpoof(classLoader: ClassLoader) {
+@@ -565,7 +835,7 @@
+         val locationClass = Class.forName("android.location.Location", false, classLoader)
+         ModuleMain.module?.hook(locationClass.getMethod("getLatitude"), KakaoGpsLatitudeHooker::class.java)
+         ModuleMain.module?.hook(locationClass.getMethod("getLongitude"), KakaoGpsLongitudeHooker::class.java)
+-        ModuleMain.module?.log("KAKAO: GPS spoof waits for drivers/work success")
++        ModuleMain.module?.log("KAKAO: GPS getters use enabled EUNORA coordinates")
+ 
+         // 1025 APK: g85.l0 / j65.s0 없음. Location 직접 훅만 사용.
+         ModuleMain.module?.log("KAKAO: i9a.k map center left original")
+@@ -582,90 +852,52 @@
+ }
+ 
+ internal fun ModuleMain.installKakaoReservedExclusiveHooks(classLoader: ClassLoader) {
+-    try {
+-        val reservedApi = Class.forName("e21", false, classLoader)
+-        val list = reservedApi.declaredMethods.firstOrNull { it.name == "y" }
+-        if (list != null) {
+-            list.isAccessible = true
+-            ModuleMain.module?.hook(list, KakaoReservedCallHooker::class.java)
+-            ModuleMain.module?.log("KAKAO: reservation list hook installed e21.y")
+-        }
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: reservation list hook FAILED", t)
+-    }
+-    // f31.g and f31.c removed in 1025 APK, merged into f31.y
+-    ModuleMain.module?.log("KAKAO: reserved dispatch/exclusive merged into f31.y")
+-}
+-
+-
+-
+-
++    // Reservation is y41.b in the same verified r71.p list result. The old
++    // e21.y continuation belonged to calls/{id}/resume (Unit), not a call list.
++    kakao315Log("KAKAO: reservation group uses r71.p/y41.b; premium cards use guarded g81/wt0")
++}
+ 
+ internal fun processCallItem(item: Any, source: String): Boolean {
+-    try {
+-        // ap0 필드: a=id, n=fixedFare, i=origin(le7), j=destination(le7), K=estimatedDistance
+-        val id = ModuleMain.readField(item, "a") as? String ?: return false
+-        val fare = (ModuleMain.readField(item, "c") as? Number)?.toInt() ?: 0
+-        val origin = ModuleMain.readField(item, "f")
+-        val dest = ModuleMain.readField(item, "g")
+-        val dist = (ModuleMain.readField(item, "q") as? Number)?.toDouble() ?: 0.0
+-        val start = if (origin != null) (ModuleMain.readField(origin, "a") as? String ?: ModuleMain.readField(origin, "b") as? String ?: "") else ""
+-        val arrive = if (dest != null) (ModuleMain.readField(dest, "d") as? String ?: ModuleMain.readField(dest, "a") as? String ?: ModuleMain.readField(dest, "b") as? String ?: "") else ""
+-        // dest 객체의 문자열 필드 전부 덤프 (전체 주소가 어느 필드에 있는지 확인)
+-        if (dest != null) {
+-            val sb = StringBuilder()
+-            dest.javaClass.declaredFields.forEach { f ->
+-                try {
+-                    f.isAccessible = true
+-                    val v = f.get(dest)
+-                    if (v is String && v.isNotBlank()) sb.append("${f.name}=$v | ")
+-                } catch (_: Throwable) {}
+-            }
+-            ModuleMain.module?.log("KAKAO: DEST FIELDS id=$id $sb")
+-        }
+-        val callData = CallData("KAKAO:$id", start, arrive, fare, dist / 1000.0)
+-        ModuleMain.module?.log("KAKAO: $source id=$id fare=$fare start=$start arrive=$arrive distKm=${dist / 1000.0}")
+-        return ModuleMain.matchAndAccept(callData)
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: processCallItem error", t)
+-        return false
+-    }
+-}
+-
+-internal fun processJv0(jv0: Any, source: String): Boolean {
+-    try {
+-        val list = ModuleMain.readField(jv0, "a") as? List<*> ?: return false
+-        list.forEach { item -> if (item != null) processCallItem(item, source) }
+-        return true
+-    } catch (t: Throwable) {
+-        return false
+-    }
++    return try {
++        val call = Kakao315DetectionData.listCall(item) ?: return false
++        kakao315Log("KAKAO: list item source=$source id=${call.callId} fare=${call.fare} distanceKm=${call.distanceKm}")
++        ModuleMain.matchAndAccept(call)
++    } catch (error: Throwable) {
++        kakao315Log("KAKAO: list item processing failed source=$source", error)
++        false
++    }
++}
++
++internal fun processJv0(group: Any, source: String): Boolean {
++    for (item in Kakao315DetectionData.items(group)) {
++        if (processCallItem(item, source)) return true
++    }
++    return false
+ }
+ 
+ @XposedHooker
+ class NetworkResponseHooker : XposedInterface.Hooker {
+     companion object {
+-        @Volatile private var dtoClass: Class<*>? = null
+-
+-        fun configure(cls: Class<*>) {
+-            dtoClass = cls
++        internal fun observe(result: Any?, source: String) {
++            // Suspension sentinels, failure payloads and unrelated objects never
++            // become an order. No identity dedup: cached objects must be checked
++            // again when a later request completes under changed conditions.
++            if (!Kakao315DetectionData.isWrapper(result)) return
++            val wrapper = result ?: return
++            val onDemand = Kakao315DetectionData.group(wrapper, "a")
++            val reservation = Kakao315DetectionData.group(wrapper, "b")
++            if (onDemand != null && processJv0(onDemand, "$source:ON_DEMAND")) return
++            if (reservation != null) processJv0(reservation, "$source:RESERVATION")
+         }
+ 
+         @JvmStatic
+         @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+-            val result = callback.result ?: return
++            if (callback.throwable != null) return
+             try {
+-                // vy0: a=onDemand jv0, b=reservation jv0, c=previousCallIds (String list)
+-                val vy0 = result
+-                val onDemand = ModuleMain.readField(vy0, "a")
+-                val reservation = ModuleMain.readField(vy0, "b")
+-                ModuleMain.module?.log("KAKAO: list onDemand=${onDemand != null} reservation=${reservation != null}")
+-                // jv0.a = List<ap0>
+-                if (onDemand != null) processJv0(onDemand, "ON_DEMAND")
+-                if (reservation != null) processJv0(reservation, "RESERVATION")
+-            } catch (t: Throwable) {
+-                ModuleMain.module?.log("KAKAO: network response error", t)
++                observe(callback.result, callback.member.name)
++            } catch (error: Throwable) {
++                kakao315Log("KAKAO: list completion observation failed", error)
+             }
+         }
+     }
+@@ -703,7 +935,9 @@
+         @JvmStatic
+         @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+-            DirectAcceptController.captureViewModel(callback.thisObject, "constructor")
++            if (callback.throwable != null) return
++            try { DirectAcceptController.captureViewModel(callback.thisObject, "r41.constructor") }
++            catch (error: Throwable) { kakao315Log("KAKAO315: accept host capture failed type=${error.javaClass.name}", error) }
+         }
+     }
+ }
+@@ -711,22 +945,23 @@
+ @XposedHooker
+ class KakaoNewCallRequestHooker : XposedInterface.Hooker {
+     companion object {
+-        @Volatile private var callCardClass: Class<*>? = null
+-
+-        fun configure(cls: Class<*>) {
+-            callCardClass = cls
++        @JvmStatic
++        @BeforeInvocation
++        fun before(callback: XposedInterface.BeforeHookCallback) {
++            try {
++                Kakao315DetectionHooks.beforeCard(callback.thisObject, callback.args.firstOrNull())
++            } catch (error: Throwable) {
++                kakao315Log("KAKAO: card eligibility capture failed", error)
++            }
+         }
+ 
+         @JvmStatic
+         @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+-            val expectedClass = callCardClass ?: return
+-            val card = KakaoCardData.findArgument(callback.args, expectedClass) ?: return
+             try {
+-                ModuleMain.module?.log("KAKAO: new call request card=${card.javaClass.name}")
+-                ModuleMain.processGeneralSocketCallCard(card, "MINI_CARD")
+-            } catch (t: Throwable) {
+-                ModuleMain.module?.log("KAKAO: new call request error", t)
++                Kakao315DetectionHooks.afterCard(callback.thisObject, callback.args.firstOrNull(), callback.throwable != null)
++            } catch (error: Throwable) {
++                kakao315Log("KAKAO: published card observation failed", error)
+             }
+         }
+     }
+@@ -735,22 +970,16 @@
+ @XposedHooker
+ class KakaoWaybackCardHooker : XposedInterface.Hooker {
+     companion object {
+-        @Volatile private var callCardClass: Class<*>? = null
+-
+-        fun configure(cls: Class<*>) {
+-            callCardClass = cls
+-        }
+-
+         @JvmStatic
+         @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+-            val expectedClass = callCardClass ?: return
+-            val card = KakaoCardData.findArgument(callback.args, expectedClass) ?: return
++            if (callback.throwable != null) return
+             try {
+-                ModuleMain.module?.log("KAKAO: wayback card=${card.javaClass.name}")
+-                ModuleMain.processGeneralSocketCallCard(card, "WAYBACK")
+-            } catch (t: Throwable) {
+-                ModuleMain.module?.log("KAKAO: wayback error", t)
++                // Exact g81.f() publishes a card removed from the original queue.
++                val card = Kakao315DetectionData.publishedCard(callback.thisObject) ?: return
++                ModuleMain.processGeneralSocketCallCard(card, "MINI_CARD")
++            } catch (error: Throwable) {
++                kakao315Log("KAKAO: queued card publication observation failed", error)
+             }
+         }
+     }
+@@ -805,6 +1034,11 @@
+         "RIRU" to listOf("riru"), "EPIC" to listOf("me.weishu.epic")
+     )
+ 
++    // Only existing, recognizable marker entries are eligible for normalization.
++    // Other libraries, native-method findings and unknown values remain visible.
++    internal fun isKnownHookEntry(value: Any?): Boolean = value is String &&
++            markers.any { (_, names) -> names.any { value.contains(it, ignoreCase = true) } }
++
+     fun resolve(reportClass: Class<*>, assessmentClass: Class<*>): Layout {
+         val assessmentField = reportClass.getDeclaredField("a")
+         require(assessmentField.type == assessmentClass && !Modifier.isStatic(assessmentField.modifiers)) {
+@@ -822,7 +1056,7 @@
+                 isAccessible = true
+             }
+         }
+-        val statusMethod = reportClass.getDeclaredMethod("c").apply {
++        val statusMethod = reportClass.getDeclaredMethod("a").apply {
+             require(returnType == String::class.java && !Modifier.isStatic(modifiers)) {
+                 "unexpected hook report status method"
+             }
+@@ -921,6 +1155,10 @@
+                 val options = callback.args.getOrNull(1)
+                 if (methods == null || options == null) {
+                     log("KAKAO: Sentry root diagnostic test config NOT_APPLIED reason=MISSING_CONFIGURATION")
++                    return
++                }
++                if (!KakaoLocalSecurityHooks.currentBuildMatches(callback.args.getOrNull(0) as? Context)) {
++                    log("KAKAO: Sentry root diagnostic test config NOT_APPLIED reason=UNVERIFIED_BUILD")
+                     return
+                 }
+                 val applied = KakaoSentryRootTestConfig.apply(options, methods.first, methods.second)
+@@ -1002,7 +1240,7 @@
+ }
+ // END KAKAO_ROOT_FILE_HOOK
+ 
+-/** Exact local layouts from the supplied 3.14.5/1101 sources; no guessed coroutine or request hooks. */
++/** Exact Java contracts from the supplied 3.15.0/3150099 APK. Original checks still execute. */
+ internal object KakaoLocalSecurityHooks {
+     data class RootLayout(
+         val owner: Class<*>, val modeField: java.lang.reflect.Field,
+@@ -1015,7 +1253,9 @@
+         val reportConstructor: java.lang.reflect.Constructor<*>,
+         val probesField: java.lang.reflect.Field,
+         val checkedAtField: java.lang.reflect.Field,
+-        val durationField: java.lang.reflect.Field
++        val durationField: java.lang.reflect.Field,
++        val derivedSignalsField: java.lang.reflect.Field,
++        val signalClass: Class<*>
+     )
+ 
+     data class ReportChange(
+@@ -1026,7 +1266,8 @@
+     data class SdkLayout(
+         val kind: String, val paths: java.lang.reflect.Field? = null,
+         val packages: java.lang.reflect.Field? = null,
+-        val runtime: java.lang.reflect.Field? = null
++        val runtime: java.lang.reflect.Field? = null,
++        val context: java.lang.reflect.Field? = null
+     )
+ 
+     private val installed = java.util.concurrent.ConcurrentHashMap.newKeySet<java.lang.reflect.Member>()
+@@ -1034,7 +1275,23 @@
+     private val reports = java.util.concurrent.ConcurrentHashMap<java.lang.reflect.Member, ReportLayout>()
+     private val sdkMethods = java.util.concurrent.ConcurrentHashMap<java.lang.reflect.Member, SdkLayout>()
+ 
+-    internal fun log(message: String) { runCatching { ModuleMain.module?.log(message) } }
++    private const val VERIFIED_VERSION = 3150099L
++    private val signalNames = listOf(
++        "STACK_HOOK_MARKER", "NATIVE_HOOKED_METHOD", "HOOK_ARTIFACT_MAPPING",
++        "FOREIGN_CODE_MAPPING", "XPOSED_CLASS_LOADED", "FRAMEWORK_API_MISMATCH"
++    )
++    private val signalCodes = listOf(
++        "stack_hook_marker", "native_hooked_method", "hook_artifact_mapping",
++        "foreign_code_mapping", "xposed_class_loaded", "framework_api_mismatch"
++    )
++
++    internal fun currentBuildMatches(context: Context? = ModuleMain.getApplicationContext()): Boolean =
++        context != null && runCatching {
++            context.packageName == "com.kakao.wheel.driver" &&
++                    context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode == VERIFIED_VERSION
++        }.getOrDefault(false)
++
++    internal fun log(message: String) { runCatching { kakao315Log(message) } }
+     internal fun rootLayout(member: java.lang.reflect.Member) = roots[member]
+     internal fun reportLayout(member: java.lang.reflect.Member) = reports[member]
+     internal fun sdkLayout(member: java.lang.reflect.Member) = sdkMethods[member]
+@@ -1081,7 +1338,8 @@
+                 setOf("a", "b", "c", "d")) { "unexpected hook report fields" }
+         require(assessment.declaredFields.filterNot { Modifier.isStatic(it.modifiers) }.map { it.name }.toSet() ==
+                 setOf("a", "b", "c", "d", "e", "f", "g")) { "unexpected hook assessment fields" }
+-        require(java.util.Set::class.java.isAssignableFrom(assessment.getDeclaredField("g").type)) {
++        val derived = assessment.getDeclaredField("g").apply { isAccessible = true }
++        require(java.util.Set::class.java.isAssignableFrom(derived.type) && !Modifier.isStatic(derived.modifiers)) {
+             "unexpected derived signal type"
+         }
+         val diagnostics = KakaoHookSignalDiagnostics.resolve(report, assessment)
+@@ -1102,7 +1360,28 @@
+         require(KakaoHookSignalDiagnostics.snapshot(probeReport, diagnostics).status == "not_detected") {
+             "unexpected clean report contract"
+         }
+-        return ReportLayout(diagnostics, assessmentConstructor, reportConstructor, probes, checkedAt, duration)
++        // The six constructor inputs map to named enum categories, not guessed bit values.
++        // Probe each category with inert text and verify names plus wire codes from this APK.
++        var signalClass: Class<*>? = null
++        for (index in signalNames.indices) {
++            val inputs = Array(6) { slot -> if (slot == index) listOf("contract-probe") else emptyList<String>() }
++            val sample = assessmentConstructor.newInstance(*inputs)
++            val signals = derived.get(sample) as? Set<*> ?: error("missing derived signals")
++            require(signals.size == 1) { "unexpected signal category mapping" }
++            val signal = signals.single() as? Enum<*> ?: error("signal is not an enum")
++            require(signal.name == signalNames[index]) { "signal category differs" }
++            val owner = signal.javaClass
++            if (signalClass == null) signalClass = owner
++            require(owner == signalClass && owner.isEnum) { "mixed signal category types" }
++            val code = owner.getDeclaredField("a").apply { isAccessible = true }
++            require(code.type == String::class.java && !Modifier.isStatic(code.modifiers) &&
++                    code.get(signal) == signalCodes[index]) { "signal wire code differs" }
++            require(owner.enumConstants.map { (it as Enum<*>).name }.toSet() == signalNames.toSet()) {
++                "unknown signal categories"
++            }
++        }
++        return ReportLayout(diagnostics, assessmentConstructor, reportConstructor, probes, checkedAt, duration,
++            derived, signalClass ?: error("missing signal enum"))
+     }
+ 
+     internal fun normalizeReport(value: Any?, layout: ReportLayout): ReportChange {
+@@ -1114,20 +1393,31 @@
+         require(originalAssessment != null && originalAssessment.toString().startsWith("HookDetectionAssessment(")) {
+             "unexpected assessment meaning"
+         }
+-        // The first five lists are hook observations. Genuine missing framework
+-        // APIs and probe errors remain visible; the constructor recomputes g.
+-        val missing = (layout.diagnostics.signalFields[5].get(originalAssessment) as? List<*>)
+-            ?.toList() ?: error("missing framework API list")
++        val originalLists = layout.diagnostics.signalFields.map { field ->
++            (field.get(originalAssessment) as? List<*>)?.toList() ?: error("missing signal list")
++        }
++        val originalSignals = layout.derivedSignalsField.get(originalAssessment) as? Set<*>
++            ?: error("missing derived signals")
++        val actualNames = originalSignals.map { signal ->
++            require(layout.signalClass.isInstance(signal)) { "unknown signal category type" }
++            (signal as? Enum<*>)?.name ?: error("unknown signal category value")
++        }.toSet()
++        val expectedNames = signalNames.filterIndexed { index, _ -> originalLists[index].isNotEmpty() }.toSet()
++        require(actualNames == expectedNames) { "unverified or inconsistent signal categories" }
++        // Preserve unknown findings, framework API mismatches and all probe metadata.
++        val retained = originalLists.mapIndexed { index, entries ->
++            if (index < 5) entries.filterNot { KakaoHookSignalDiagnostics.isKnownHookEntry(it) } else entries
++        }
++        if (retained == originalLists) return ReportChange(value, before, before)
+         val originalProbes = layout.probesField.get(value) as? java.util.LinkedHashMap<*, *>
+             ?: error("missing hook probe statuses")
+         val probes = java.util.LinkedHashMap<Any?, Any?>().apply { putAll(originalProbes) }
+         val checkedAt = layout.checkedAtField.getLong(value)
+         val duration = layout.durationField.getLong(value)
+-        val empty = emptyList<Any>()
+-        val assessment = layout.assessmentConstructor.newInstance(empty, empty, empty, empty, empty, missing)
++        val assessment = layout.assessmentConstructor.newInstance(*retained.toTypedArray())
+         val result = layout.reportConstructor.newInstance(assessment, probes, checkedAt, duration)
+         val after = KakaoHookSignalDiagnostics.snapshot(result, layout.diagnostics)
+-        require(after.status != "STATUS_UNEXPECTED" && after.counts.take(5).all { it == 0 } &&
++        require(after.status != "STATUS_UNEXPECTED" && after.counts == retained.map { it.size } &&
+                 after.counts[5] == before.counts[5]) { "hook assessment normalization differs" }
+         require(layout.probesField.get(result) == originalProbes &&
+                 layout.checkedAtField.getLong(result) == checkedAt && layout.durationField.getLong(result) == duration) {
+@@ -1137,15 +1427,9 @@
+     }
+ 
+     internal fun sdkMatches(value: Any?, layout: SdkLayout): Boolean {
+-        if (layout.kind == "CRASHLYTICS_1101") {
+-            // ar1 is an obfuscated utility owner. A prototype alone is not a
+-            // semantic contract across updates; limit it to the supplied build.
+-            val context = ModuleMain.getApplicationContext() ?: return false
+-            if (context.packageName != "com.kakao.wheel.driver") return false
+-            return runCatching {
+-                context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode == 3145099L
+-            }.getOrDefault(false)
+-        }
++        if (layout.kind == "CRASHLYTICS_3150") return currentBuildMatches()
++        val context = runCatching { layout.context?.get(value) as? Context }.getOrNull()
++        if (!currentBuildMatches(context ?: ModuleMain.getApplicationContext())) return false
+         if (layout.kind != "SENTRY_ROOTCHECKER" || value == null) return false
+         val paths = layout.paths?.get(value) as? Array<*> ?: return false
+         val packages = layout.packages?.get(value) as? Array<*> ?: return false
+@@ -1154,40 +1438,34 @@
+     }
+ 
+     fun install(module: ModuleMain, loader: ClassLoader) {
+-        installTarget("qf8(ht7,boolean)") {
+-            val owner = Class.forName("qf8", false, loader)
+-            val mode = Class.forName("ht7", false, loader)
+-            val layout = resolveRoot(owner, mode)
+-            val constructor = owner.getDeclaredConstructor(mode, java.lang.Boolean.TYPE).apply { isAccessible = true }
+-            register(constructor) {
+-                roots[constructor] = layout
+-                module.hook(constructor, KakaoRootingStatusHooker::class.java)
+-            }
+-            log("KAKAO_SECURITY: REGISTERED target=qf8(ht7,boolean) action=ROOTED_FALSE execution=UNVERIFIED")
+-        }
+-        installTarget("il4.b()bl4") {
+-            val owner = Class.forName("il4", false, loader)
+-            val report = Class.forName("bl4", false, loader)
+-            val assessment = Class.forName("zk4", false, loader)
++        // RootingStatus no longer exists in the supplied 3.15.0 APK. Never guess its replacement.
++        log("KAKAO_SECURITY: UNSUPPORTED target=LEGACY_ROOTING_STATUS reason=MODEL_REMOVED_OR_RESTRUCTURED action=KEEP_ORIGINAL")
++        installTarget("d05.a()wz4") {
++            val owner = Class.forName("d05", false, loader)
++            val report = Class.forName("wz4", false, loader)
++            val assessment = Class.forName("uz4", false, loader)
+             val layout = resolveReport(report, assessment)
+-            val method = owner.getDeclaredMethod("b").apply {
++            val method = owner.getDeclaredMethod("a").apply {
+                 require(returnType == report && !Modifier.isStatic(modifiers) &&
+                         !Modifier.isAbstract(modifiers) && !Modifier.isNative(modifiers)) { "unexpected detector signature" }
+                 isAccessible = true
+             }
+             register(method) {
+                 reports[method] = layout
+-                module.hook(method, KakaoHookDetectionHooker::class.java)
+-            }
+-            log("KAKAO_SECURITY: REGISTERED target=il4.b action=NORMALIZE_HOOK_SIGNALS preserved=FRAMEWORK_API_AND_PROBE_ERRORS execution=UNVERIFIED")
+-        }
+-        installTarget("io.sentry.android.core.internal.util.i.a()boolean") {
+-            val owner = Class.forName("io.sentry.android.core.internal.util.i", false, loader)
++                try { module.hook(method, KakaoHookDetectionHooker::class.java) }
++                catch (error: Throwable) { reports.remove(method); throw error }
++            }
++            log("KAKAO_SECURITY: REGISTERED target=d05.a action=NORMALIZE_KNOWN_MARKER_ENTRIES preserved=UNKNOWN_FINDINGS_FRAMEWORK_APIS_AND_PROBE_ERRORS execution=UNVERIFIED")
++        }
++        installTarget("io.sentry.android.core.internal.util.k.a()boolean") {
++            val owner = Class.forName("io.sentry.android.core.internal.util.k", false, loader)
++            val context = owner.getDeclaredField("a").apply { isAccessible = true }
+             val paths = owner.getDeclaredField("d").apply { isAccessible = true }
+             val packages = owner.getDeclaredField("e").apply { isAccessible = true }
+             val runtime = owner.getDeclaredField("f").apply { isAccessible = true }
+-            require(paths.type == Array<String>::class.java && packages.type == Array<String>::class.java &&
+-                    runtime.type == Runtime::class.java && listOf(paths, packages, runtime).none { Modifier.isStatic(it.modifiers) }) {
++            require(context.type == Context::class.java && paths.type == Array<String>::class.java &&
++                    packages.type == Array<String>::class.java && runtime.type == Runtime::class.java &&
++                    listOf(context, paths, packages, runtime).none { Modifier.isStatic(it.modifiers) }) {
+                 "unexpected Sentry root checker fields"
+             }
+             val method = owner.getDeclaredMethod("a").apply {
+@@ -1196,23 +1474,25 @@
+                 isAccessible = true
+             }
+             register(method) {
+-                sdkMethods[method] = SdkLayout("SENTRY_ROOTCHECKER", paths, packages, runtime)
+-                module.hook(method, KakaoSdkRootBooleanHooker::class.java)
++                sdkMethods[method] = SdkLayout("SENTRY_ROOTCHECKER", paths, packages, runtime, context)
++                try { module.hook(method, KakaoSdkRootBooleanHooker::class.java) }
++                catch (error: Throwable) { sdkMethods.remove(method); throw error }
+             }
+             log("KAKAO_SECURITY: REGISTERED target=SENTRY_ROOTCHECKER action=BOOLEAN_FALSE execution=UNVERIFIED")
+         }
+-        installTarget("ar1.I()boolean") {
+-            val owner = Class.forName("ar1", false, loader)
+-            val method = owner.getDeclaredMethod("I").apply {
++        installTarget("j12.x()boolean") {
++            val owner = Class.forName("j12", false, loader)
++            val method = owner.getDeclaredMethod("x").apply {
+                 require(returnType == java.lang.Boolean.TYPE && Modifier.isStatic(modifiers) &&
+                         !Modifier.isAbstract(modifiers) && !Modifier.isNative(modifiers)) { "unexpected Crashlytics root signature" }
+                 isAccessible = true
+             }
+             register(method) {
+-                sdkMethods[method] = SdkLayout("CRASHLYTICS_1101")
+-                module.hook(method, KakaoSdkRootBooleanHooker::class.java)
+-            }
+-            log("KAKAO_SECURITY: REGISTERED target=ar1.I action=BOOLEAN_FALSE targetVersion=3145099 execution=UNVERIFIED")
++                sdkMethods[method] = SdkLayout("CRASHLYTICS_3150")
++                try { module.hook(method, KakaoSdkRootBooleanHooker::class.java) }
++                catch (error: Throwable) { sdkMethods.remove(method); throw error }
++            }
++            log("KAKAO_SECURITY: REGISTERED target=j12.x action=BOOLEAN_FALSE targetVersion=3150099 execution=UNVERIFIED")
+         }
+         installTarget("File.exists()boolean") {
+             val method = java.io.File::class.java.getDeclaredMethod("exists").apply {
+@@ -1276,11 +1556,17 @@
+                     return
+                 }
+                 val layout = KakaoLocalSecurityHooks.reportLayout(callback.member) ?: return
+-                val change = KakaoLocalSecurityHooks.normalizeReport(callback.result, layout)
+-                callback.result = change.result
++                if (!KakaoLocalSecurityHooks.currentBuildMatches()) {
++                    KakaoLocalSecurityHooks.log("KAKAO_SECURITY: HOOK_RESULT_UNCONFIRMED reason=UNVERIFIED_BUILD action=KEEP_ORIGINAL")
++                    return
++                }
++                val original = callback.result
++                val change = KakaoLocalSecurityHooks.normalizeReport(original, layout)
++                val changed = change.result !== original
++                if (changed) callback.result = change.result
+                 KakaoLocalSecurityHooks.log("KAKAO_SECURITY: HOOK_ASSESSMENT originalStatus=${change.before.status} resultStatus=${change.after.status} " +
+                         "signalsBefore=${change.before.counts.take(5).joinToString(",")} signalsAfter=${change.after.counts.take(5).joinToString(",")} " +
+-                        "missingFrameworkApis=${change.after.counts[5]} probeErrors=PRESERVED resultChanged=true")
++                        "missingFrameworkApis=${change.after.counts[5]} unknownFindings=PRESERVED probeErrors=PRESERVED resultChanged=$changed")
+             } catch (error: Throwable) {
+                 KakaoLocalSecurityHooks.log("KAKAO_SECURITY: HOOK_RESULT_UNCONFIRMED type=${error.javaClass.name} action=KEEP_ORIGINAL")
+             }
+@@ -1295,12 +1581,11 @@
+         @JvmStatic
+         @AfterInvocation
+         fun after(callback: XposedInterface.AfterHookCallback) {
+-            val result = callback.result ?: return
++            if (callback.throwable != null) return
+             try {
+-                ModuleMain.module?.log("KAKAO: reserved call response")
+-                ModuleMain.processDtoGroup(result, "a", "RESERVED")
+-            } catch (t: Throwable) {
+-                ModuleMain.module?.log("KAKAO: reserved call error", t)
++                NetworkResponseHooker.observe(callback.result, "RESERVATION_COMPLETION")
++            } catch (error: Throwable) {
++                kakao315Log("KAKAO: reservation completion observation failed", error)
+             }
+         }
+     }
+@@ -1342,42 +1627,103 @@
+ // ########################################################################
+ 
+ @XposedHooker
+-class KakaoOy0AcceptHooker : XposedInterface.Hooker {
++class Kakao315AcceptEventHooker : XposedInterface.Hooker {
+     companion object {
+         @JvmStatic
+         @BeforeInvocation
+         fun before(callback: XposedInterface.BeforeHookCallback) {
+-            try {
+-                val args = callback.args ?: return
+-                val callId = args.getOrNull(0) as? String ?: ""
+-                val from = args.getOrNull(1)
+-                val z1 = args.getOrNull(2) as? Boolean
+-                val z2 = args.getOrNull(3) as? Boolean
+-                ModuleMain.module?.log("KAKAO: oy0.i accept called callId=$callId from=$from z1=$z1 z2=$z2")
+-                // 수락 차단하려면 여기서 throwAndSkip 또는 파라미터 변경
+-                // callback.throwAndSkip(ClassNotFoundException("accept blocked"))
+-            } catch (t: Throwable) {
+-                ModuleMain.module?.log("KAKAO: oy0.i hook error", t)
+-            }
+-        }
+-    }
+-}
+-
++            // Capture an already-created host too. Leave every SDK/manual
++            // event, argument, return value and exception unchanged.
++            try { DirectAcceptController.captureViewModel(callback.thisObject, "r41.e") }
++            catch (error: Throwable) { kakao315Log("KAKAO315: accept event host unavailable type=${error.javaClass.name}", error) }
++        }
++    }
++}
++
++// Retain the existing installer entry name used by ModuleMain.
+ internal fun ModuleMain.installKakaoOy0AcceptHook(classLoader: ClassLoader) {
++    if (ModuleMain.module == null) return
+     try {
+-        val oy0Class = Class.forName("oy0", false, classLoader)
+-        val bq0Class = Class.forName("bq0", false, classLoader)
+-        val method = oy0Class.getDeclaredMethod(
+-            "i",
+-            String::class.java,
+-            bq0Class,
+-            Boolean::class.javaPrimitiveType,
+-            Boolean::class.javaPrimitiveType
+-        )
+-        method.isAccessible = true
+-        ModuleMain.module?.hook(method, KakaoOy0AcceptHooker::class.java)
+-        ModuleMain.module?.log("KAKAO: oy0.i accept hook installed")
+-    } catch (t: Throwable) {
+-        ModuleMain.module?.log("KAKAO: oy0.i accept hook FAILED", t)
+-    }
+-}+        val host = Class.forName("r41", false, classLoader)
++        val event = Class.forName("y01", false, classLoader)
++        val method = host.getDeclaredMethod("e", event).apply {
++            require(event.isInterface && returnType == Void.TYPE && !Modifier.isStatic(modifiers) &&
++                    !Modifier.isAbstract(modifiers) && !Modifier.isNative(modifiers)) { "Unexpected accept event entry" }
++            isAccessible = true
++        }
++        DirectAcceptController.installHook(method, Kakao315AcceptEventHooker::class.java)
++        kakao315Log("KAKAO315: accept event entry installed target=r41.e(y01)")
++    } catch (error: Throwable) {
++        kakao315Log("KAKAO315: accept event entry FAILED type=${error.javaClass.name}", error)
++    }
++}
++
++// BEGIN KAKAO315_RUNTIME_PROFILE
++/** Exact supplied APK identity; avoids resolving reused obfuscated names in other builds. */
++internal object Kakao315RuntimeProfile {
++    const val PACKAGE_NAME = "com.kakao.wheel.driver"
++    const val VERSION_CODE = 3150099L
++    private const val APK_BYTES = 110215873L
++    private const val APK_SHA256 = "cf38573177afbbb4ac0ed94165e225b6743c40087d70e76e440f30927df98b89"
++
++    fun matches(info: android.content.pm.ApplicationInfo): Boolean {
++        if (info.packageName != PACKAGE_NAME) {
++            kakao315Log("KAKAO: profile rejected reason=PACKAGE")
++            return false
++        }
++        val source = info.sourceDir?.takeIf { it.isNotBlank() }
++        if (source == null) {
++            kakao315Log("KAKAO: profile rejected reason=APK_PATH_MISSING")
++            return false
++        }
++        return try {
++            val apk = java.io.File(source)
++            if (!apk.isFile || apk.length() != APK_BYTES) {
++                kakao315Log("KAKAO: profile rejected reason=APK_SIZE expectedVersion=$VERSION_CODE")
++                false
++            } else if (sha256(apk) != APK_SHA256) {
++                kakao315Log("KAKAO: profile rejected reason=APK_HASH expectedVersion=$VERSION_CODE")
++                false
++            } else {
++                kakao315Log("KAKAO: profile verified versionCode=$VERSION_CODE")
++                true
++            }
++        } catch (error: Throwable) {
++            kakao315Log("KAKAO: profile verification failed type=${error.javaClass.name}", error)
++            false
++        }
++    }
++
++    private fun sha256(file: java.io.File): String {
++        val digest = java.security.MessageDigest.getInstance("SHA-256")
++        file.inputStream().use { input ->
++            val buffer = ByteArray(1024 * 1024)
++            while (true) {
++                val read = input.read(buffer)
++                if (read < 0) break
++                if (read > 0) digest.update(buffer, 0, read)
++            }
++        }
++        val digits = "0123456789abcdef"
++        return buildString(64) {
++            for (byte in digest.digest()) {
++                val value = byte.toInt() and 0xff
++                append(digits[value ushr 4])
++                append(digits[value and 15])
++            }
++        }
++    }
++}
++
++/** Important diagnostics remain visible in logcat without changing a hook's outcome. */
++internal fun kakao315Log(message: String, error: Throwable? = null) {
++    try {
++        if (error == null) ModuleMain.module?.log(message)
++        else ModuleMain.module?.log(message, error)
++    } catch (_: Throwable) { }
++    try {
++        if (error == null) android.util.Log.i("EUNORA_KAKAO", message)
++        else android.util.Log.e("EUNORA_KAKAO", message, error)
++    } catch (_: Throwable) { }
++}
++// END KAKAO315_RUNTIME_PROFILE
+--- a/app/src/main/java/com/example/wheelprobe/ModuleMain.kt
++++ b/app/src/main/java/com/example/wheelprobe/ModuleMain.kt
+@@ -83,7 +83,8 @@
+         // 카카오 대리 (원본 그대로 유지)
+         // ====================================================================
+         if (pkg == KAKAO_PACKAGE && param.isFirstPackage) {
+-            log("EUNORA: Kakao package loaded v20261003-rooting")
++            if (!Kakao315RuntimeProfile.matches(param.applicationInfo)) return
++            kakao315Log("EUNORA: Kakao 3.15.0 package loaded")
+             installKakaoRootingReportBypass(classLoader)
+             log("EUNORA: card path hook START")
+             try {
+@@ -394,13 +395,8 @@
+         }
+ 
+         internal fun processDtoGroup(dto: Any, fieldName: String, groupName: String): Boolean {
+-            val group = readField(dto, fieldName) ?: return false
+-            val calls = readField(group, "a") as? Collection<*> ?: return false
+-            for ((index, item) in calls.withIndex()) {
+-                if (item == null) continue
+-                if (processDtoCall(groupName, index, item)) return true
+-            }
+-            return false
++            val group = Kakao315DetectionData.group(dto, fieldName) ?: return false
++            return processJv0(group, groupName)
+         }
+ 
+         internal fun processSingleCall(card: Any, groupName: String): Boolean {
+@@ -408,44 +404,13 @@
+         }
+ 
+         internal fun processDtoCall(groupName: String, index: Int, item: Any): Boolean {
+-            initializeConditions()
+-            if (!canProcessConditions("KAKAO")) return false
+-            val callId = readField(item, "a") as? String ?: return false
+-            val fare = numberToInt(readField(item, "c")) ?: return false
+-            val origin = readPlaceInfo(readField(item, "f")).searchText()
+-            val destination = readPlaceInfo(readField(item, "g")).searchText()
+-            val distanceToStart = numberToDouble(readField(item, "r")) ?: return false
+-            val callData = CallData(callId, origin, destination, fare, distanceToStart / 1000.0)
+-            if (!CallKindFilter.allows(callData.origin)) {
+-                log("EUNORA: DTO MATCH skipped group=$groupName callId=$callId reason=KIND_FILTER origin=${clean(origin)}")
+-                return false
+-            }
+-            val result = callMatcher.matchAny(callData, ConditionClient.current())
+-            log("EUNORA: DTO MATCH result group=$groupName index=$index callId=$callId fare=$fare distanceKm=${distanceToStart / 1000.0} destination=${clean(destination)} matched=${result.matched}")
+-            if (!result.matched) return false
+-            return handleDirectAccept(callId, DirectAcceptSource.LIST, "a31.k_return")
++            // z01.q is distanceToStart. z01.r is reservationWrapper, not a number.
++            return processCallItem(item, "$groupName:$index")
+         }
+ 
+         internal fun processPopupDto(item: Any): Boolean {
+-            initializeConditions()
+-            if (!canProcessConditions("KAKAO")) return false
+-            val callId = readField(item, "a") as? String ?: return false
+-            val fare = numberToInt(readField(item, "k")) ?: return false
+-            val originInfoText = readPlaceInfo(readField(item, "r")).searchText()
+-            val destinationInfoText = readPlaceInfo(readField(item, "s")).searchText()
+-            val originFallback = readField(item, "x") as? String; val destinationFallback = readField(item, "z") as? String
+-            val origin = originInfoText.ifBlank { originFallback.orEmpty() }
+-            val destination = destinationInfoText.ifBlank { destinationFallback.orEmpty() }
+-            val distanceToStart = numberToDouble(readField(item, "B")) ?: return false
+-            val callData = CallData(callId, origin, destination, fare, distanceToStart / 1000.0)
+-            if (!CallKindFilter.allows(callData.origin)) {
+-                log("EUNORA: POPUP MATCH skipped callId=$callId reason=KIND_FILTER origin=${clean(origin)}")
+-                return false
+-            }
+-            val result = callMatcher.matchAny(callData, ConditionClient.current())
+-            log("EUNORA: POPUP MATCH result callId=$callId fare=$fare distanceKm=${distanceToStart / 1000.0} destination=${clean(destination)} matched=${result.matched}")
+-            if (!result.matched) return false
+-            return handleDirectAccept(callId, DirectAcceptSource.CARD, "a31.l_popup_return")
++            // Only the verified wt0 card contract is accepted by the shared parser.
++            return processGeneralSocketCallCard(item, "CARD")
+         }
+ 
+         internal fun processGeneralSocketCallCard(item: Any, logSource: String): Boolean {
+@@ -555,10 +520,10 @@
+         throw IllegalStateException("${callCardFromClass.name} $displayName value not found rawValue=$expectedRawValue")
+     }
+ 
+-    /** 카카오 CallCard. 1025 APK 기준 fp0. */
++    /** Verified Kakao 3.15 CallCard. The package gate precedes this resolver. */
+     internal fun resolveKakaoCallCardClass(classLoader: ClassLoader): Class<*> {
+-        val cls = Class.forName("fp0", false, classLoader)
+-        log("EUNORA: kakao CallCard resolved ${cls.name}")
++        val cls = Kakao315DetectionData.cardClass(classLoader)
++        log("EUNORA: kakao 3.15 CallCard resolved ${cls.name}")
+         return cls
+     }
+ 
+@@ -587,53 +552,10 @@
+     val source: DirectAcceptSource
+ ) {
+     companion object {
+-        fun from(card: Any): KakaoCardData? {
+-            val callId = (field(card, "o") as? String)?.takeIf { it.isNotBlank() }
+-                ?: return null
+-            val originObject = field(card, "e")
+-            val origin = text(field(originObject, "c")).ifBlank {
+-                displayText(field(originObject, "e"))
+-            }
+-            // fp0.E retains RouteInfo. wp0.d is LocationDisplayInfo;
+-            // wp0.e is timeToDestination and must not be used as an address.
+-            val destination = routeText(field(card, "E")).ifBlank {
+-                displayText(field(field(card, "f"), "d"))
+-            }
+-            return KakaoCardData(
+-                call = CallData(
+-                    callId = callId,
+-                    origin = origin,
+-                    destination = destination,
+-                    fare = (field(card, "r") as? Number)?.toInt() ?: 0,
+-                    distanceKm = ((field(card, "y") as? Number)?.toDouble() ?: 0.0) / 1000.0
+-                ),
+-                source = if (field(card, "m") != null) {
+-                    DirectAcceptSource.WAY_BACK
+-                } else {
+-                    DirectAcceptSource.CARD
+-                }
+-            )
+-        }
++        fun from(card: Any): KakaoCardData? = Kakao315DetectionData.cardData(card)
+ 
+         fun findArgument(args: Array<out Any?>, cardClass: Class<*>): Any? =
+             args.firstOrNull { cardClass.isInstance(it) }
+ 
+-        private fun routeText(route: Any?): String =
+-            joinText(listOf("a", "b", "c", "d", "e").map { field(route, it) })
+-
+-        private fun displayText(display: Any?): String =
+-            joinText(listOf(field(display, "a"), field(display, "b")))
+-
+-        private fun joinText(values: List<Any?>): String =
+-            values.map { text(it) }.filter { it.isNotEmpty() }.distinct().joinToString(" ")
+-
+-        private fun text(value: Any?): String = (value as? String)?.trim().orEmpty()
+-
+-        private fun field(instance: Any?, name: String): Any? {
+-            if (instance == null) return null
+-            return runCatching {
+-                instance.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(instance)
+-            }.getOrNull()
+-        }
+-    }
+-}+    }
++}
